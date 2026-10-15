@@ -140,7 +140,7 @@ export default function ActivationPage() {
     <AuthScaffold
       currentStep={stepMeta.step}
       heroIcon={
-        <img src="/apple-touch-icon.png" alt="" width="40" height="40" style={{ borderRadius: 12 }} />
+        <img src="/logo.png" alt="" width="48" height="48" style={{ borderRadius: 14 }} />
       }
       heroTitle={stepMeta.title}
       heroSubtitle={stepMeta.subtitle}

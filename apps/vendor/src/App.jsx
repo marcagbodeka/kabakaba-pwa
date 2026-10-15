@@ -8,7 +8,7 @@ import InstallPrompt from './components/InstallPrompt';
 function Bootstrap() {
   return (
     <div className="bootstrap">
-      <img className="bootstrap-logo" src="/apple-touch-icon.png" alt="kabakaba" width="72" height="72" />
+      <img className="bootstrap-logo" src="/logo.png" alt="kabakaba" width="88" height="88" />
       <div className="bootstrap-title">kabakaba</div>
       <div className="bootstrap-sub">ESPACE VENDEUR</div>
       <div className="spinner spinner--light" />

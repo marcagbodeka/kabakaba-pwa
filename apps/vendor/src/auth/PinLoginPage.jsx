@@ -19,7 +19,7 @@ export default function PinLoginPage() {
 
   return (
     <div className="pin-page" onClick={() => inputRef.current?.focus()}>
-      <img className="pin-logo" src="/apple-touch-icon.png" alt="kabakaba" width="72" height="72" />
+      <img className="pin-logo" src="/logo.png" alt="kabakaba" width="88" height="88" />
       <h1>Bon retour</h1>
       <p className="sub">
         {auth.phone

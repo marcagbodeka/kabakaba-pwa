@@ -101,7 +101,7 @@ export default function InstallPrompt({ appName = 'kabakaba' }) {
   return (
     <div className="install-backdrop" role="dialog" aria-modal="true" aria-labelledby="install-title">
       <div className="install-sheet">
-        <img src="/apple-touch-icon.png" alt="" className="install-logo" width="72" height="72" />
+        <img src="/logo.png" alt="" className="install-logo" width="88" height="88" />
         <h2 id="install-title">Épingler {appName}</h2>
         <p>
           Ajoute l’app sur ton écran d’accueil pour l’ouvrir comme une application

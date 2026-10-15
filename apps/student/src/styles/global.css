@@ -175,13 +175,13 @@ a {
 }
 
 .install-logo {
-  width: 72px;
-  height: 72px;
-  border-radius: 18px;
+  width: 88px;
+  height: 88px;
+  border-radius: 22px;
   object-fit: cover;
-  margin: 0 auto 12px;
+  margin: 0 auto 14px;
   display: block;
-  box-shadow: 0 8px 22px rgba(27, 42, 107, 0.22);
+  box-shadow: 0 10px 28px rgba(27, 42, 107, 0.28);
 }
 
 .install-sheet h2 {
