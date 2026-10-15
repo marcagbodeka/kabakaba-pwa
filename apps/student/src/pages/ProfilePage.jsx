@@ -4,7 +4,7 @@ import { campusApi, referralsApi } from '../lib/api';
 import { PhoneFormatter, formatTickets } from '../lib/format';
 
 export default function ProfilePage({ showSnack }) {
-  const { user, logout } = useAuth();
+  const { user, logout, forget } = useAuth();
   const [campusName, setCampusName] = useState('');
   const [referral, setReferral] = useState(null);
 
@@ -35,9 +35,9 @@ export default function ProfilePage({ showSnack }) {
     if (!code) return;
     try {
       await navigator.clipboard.writeText(code);
-      showSnack?.('Code copié');
+      showSnack?.('Code copié', 'success');
     } catch {
-      showSnack?.(code);
+      showSnack?.(code, 'info');
     }
   };
 
@@ -56,6 +56,7 @@ export default function ProfilePage({ showSnack }) {
             </h3>
             <p>{phone}</p>
             {campusName ? <p>{campusName}</p> : null}
+            {user?.hasPin ? <p>Code PIN activé</p> : null}
           </div>
         </div>
 
@@ -81,6 +82,19 @@ export default function ProfilePage({ showSnack }) {
 
         <button type="button" className="btn-outline" style={{ marginTop: 16 }} onClick={logout}>
           Se déconnecter
+        </button>
+        <button
+          type="button"
+          className="btn-outline"
+          style={{ marginTop: 10 }}
+          onClick={async () => {
+            const ok = window.confirm(
+              'Oublier ce téléphone ? Tu pourras te reconnecter avec ton numéro et ton code PIN, ou via SMS si tu l’as oublié.',
+            );
+            if (ok) await forget();
+          }}
+        >
+          Utiliser un autre compte
         </button>
       </div>
     </div>

@@ -4,6 +4,8 @@ const empty = {
   accessToken: null,
   refreshToken: null,
   userId: null,
+  phone: null,
+  pinConfigured: false,
 };
 
 export function loadSession() {
@@ -22,9 +24,20 @@ export function saveSession(patch) {
   return next;
 }
 
-export function clearSession() {
+export function clearTokens() {
+  const { phone, pinConfigured } = loadSession();
+  const next = { ...empty, phone, pinConfigured };
+  localStorage.setItem(KEY, JSON.stringify(next));
+  return next;
+}
+
+export function forgetDevice() {
   localStorage.removeItem(KEY);
   return { ...empty };
+}
+
+export function clearSession() {
+  return forgetDevice();
 }
 
 export function hasTokens(session = loadSession()) {

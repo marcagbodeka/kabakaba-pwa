@@ -52,16 +52,56 @@ function OtpBoxes({ onCompleted, disabled, resetKey }) {
   );
 }
 
+function PinDots({ length, value, onChange, disabled, autoFocus }) {
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
+
+  return (
+    <div className="pin-dots" onClick={() => inputRef.current?.focus()}>
+      {Array.from({ length }).map((_, i) => (
+        <span
+          key={i}
+          className={`pin-dot${i < value.length ? ' filled' : ''}${i === value.length ? ' next' : ''}`}
+        />
+      ))}
+      <input
+        ref={inputRef}
+        className="pin-hidden"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={length}
+        value={value}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, length))}
+      />
+    </div>
+  );
+}
+
 export default function LoginPage() {
   const auth = useAuth();
-  const [step, setStep] = useState('phone'); // phone | otp | campus
-  const [phone, setPhone] = useState('');
-  const [e164, setE164] = useState('');
+  const rememberedPhone = auth.session?.phone || '';
+  const preferPin = auth.status === 'needsPin' && Boolean(rememberedPhone);
+
+  const [mode, setMode] = useState(preferPin ? 'pin' : 'otp'); // pin | otp
+  const [step, setStep] = useState(preferPin ? 'pin' : 'phone');
+  // phone | otp | campus | pinSetup | pinConfirm | pin
+  const [phone, setPhone] = useState(() =>
+    rememberedPhone
+      ? PhoneFormatter.formatDisplay(rememberedPhone.replace(/^\+?228/, ''))
+      : '',
+  );
+  const [e164, setE164] = useState(rememberedPhone || '');
   const [referralCode, setReferralCode] = useState('');
   const [campusId, setCampusId] = useState('');
   const [campuses, setCampuses] = useState([]);
   const [seconds, setSeconds] = useState(60);
   const [otpReset, setOtpReset] = useState(0);
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
   const pendingCode = useRef(null);
 
   useEffect(() => {
@@ -88,20 +128,26 @@ export default function LoginPage() {
       const phoneE164 = await auth.sendOtp(phone);
       setE164(phoneE164);
       setStep('otp');
+      setMode('otp');
       setOtpReset((n) => n + 1);
     } catch {
-      /* error in context */
+      /* toast via context */
     }
   };
 
   const verify = async (code, withCampus) => {
     try {
-      await auth.verifyOtp({
+      const res = await auth.verifyOtp({
         phone: e164 || phone,
         code,
         campusId: withCampus || campusId || undefined,
         referralCode: referralCode || undefined,
       });
+      if (res?.stage === 'PIN_SETUP_REQUIRED') {
+        setPin('');
+        setConfirmPin('');
+        setStep('pinSetup');
+      }
     } catch (err) {
       const msg = String(err.message || '');
       if (msg.toLowerCase().includes('campus')) {
@@ -111,31 +157,66 @@ export default function LoginPage() {
     }
   };
 
+  const title =
+    step === 'pin'
+      ? 'Code PIN'
+      : step === 'pinSetup' || step === 'pinConfirm'
+        ? 'Crée ton code'
+        : step === 'campus'
+          ? 'Ton campus'
+          : step === 'otp'
+            ? 'Code SMS'
+            : mode === 'pin'
+              ? 'Connexion'
+              : 'Connexion';
+
+  const subtitle =
+    step === 'pin'
+      ? `Entre ton code à ${auth.pinLength} chiffres pour ${PhoneFormatter.formatDisplay(
+          (e164 || phone || rememberedPhone).replace(/^\+?228/, ''),
+        )}.`
+      : step === 'pinSetup'
+        ? 'Choisis un code PIN à 4 chiffres. Tu l’utiliseras pour te reconnecter sans SMS.'
+        : step === 'pinConfirm'
+          ? 'Saisis encore une fois le même code pour confirmer.'
+          : step === 'campus'
+            ? 'Choisis ton campus pour finaliser ton inscription.'
+            : step === 'otp'
+              ? `Saisis le code envoyé au ${PhoneFormatter.formatDisplay(
+                  (e164 || phone).replace(/^\+?228/, ''),
+                )}.`
+              : mode === 'pin'
+                ? 'Numéro et code PIN — sans SMS.'
+                : 'Première connexion ou code oublié : on t’envoie un SMS.';
+
   return (
     <div className="auth-scaffold">
       <div className="auth-hero">
         <img className="auth-logo" src="/logo.png" alt="" width="56" height="56" />
         <div className="auth-brand">kabakaba</div>
-        <h1>
-          {step === 'phone'
-            ? 'Connexion'
-            : step === 'campus'
-              ? 'Ton campus'
-              : 'Code SMS'}
-        </h1>
-        <p>
-          {step === 'phone'
-            ? 'Entre ton numéro pour recevoir un code de connexion.'
-            : step === 'campus'
-              ? 'Choisis ton campus pour finaliser ton inscription.'
-              : `Saisis le code envoyé au ${PhoneFormatter.formatDisplay(
-                  (e164 || phone).replace(/^\+?228/, ''),
-                )}.`}
-        </p>
+        <h1>{title}</h1>
+        <p>{subtitle}</p>
       </div>
       <div className="auth-card">
         {step === 'phone' ? (
           <>
+            <div className="mode-switch">
+              <button
+                type="button"
+                className={mode === 'pin' ? 'active' : ''}
+                onClick={() => setMode('pin')}
+              >
+                J’ai un code PIN
+              </button>
+              <button
+                type="button"
+                className={mode === 'otp' ? 'active' : ''}
+                onClick={() => setMode('otp')}
+              >
+                SMS / 1ʳᵉ fois
+              </button>
+            </div>
+
             <div className="field">
               <label>Téléphone</label>
               <div className="input-shell">
@@ -149,25 +230,44 @@ export default function LoginPage() {
                 />
               </div>
             </div>
-            <div className="field">
-              <label>Code parrain (optionnel)</label>
-              <div className="input-shell">
-                <input
-                  value={referralCode}
-                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                  placeholder="Ex. K7M2QX9A"
-                  maxLength={12}
-                />
+
+            {mode === 'otp' ? (
+              <div className="field">
+                <label>Code parrain (optionnel)</label>
+                <div className="input-shell">
+                  <input
+                    value={referralCode}
+                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                    placeholder="Ex. K7M2QX9A"
+                    maxLength={12}
+                  />
+                </div>
               </div>
-            </div>
-            <button
-              type="button"
-              className="btn-fill"
-              disabled={auth.busy || !PhoneFormatter.isValidLocal(phone)}
-              onClick={send}
-            >
-              {auth.busy ? 'Envoi…' : 'Recevoir le code'}
-            </button>
+            ) : null}
+
+            {mode === 'pin' ? (
+              <button
+                type="button"
+                className="btn-fill"
+                disabled={auth.busy || !PhoneFormatter.isValidLocal(phone)}
+                onClick={() => {
+                  setE164(PhoneFormatter.toE164(phone));
+                  setPin('');
+                  setStep('pin');
+                }}
+              >
+                Continuer
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn-fill"
+                disabled={auth.busy || !PhoneFormatter.isValidLocal(phone)}
+                onClick={send}
+              >
+                {auth.busy ? 'Envoi…' : 'Recevoir le code'}
+              </button>
+            )}
           </>
         ) : null}
 
@@ -228,6 +328,102 @@ export default function LoginPage() {
               onClick={() => verify(pendingCode.current, campusId)}
             >
               {auth.busy ? 'Validation…' : 'Continuer'}
+            </button>
+          </>
+        ) : null}
+
+        {step === 'pinSetup' ? (
+          <>
+            <PinDots
+              length={auth.pinLength}
+              value={pin}
+              disabled={auth.busy}
+              autoFocus
+              onChange={(v) => {
+                setPin(v);
+                if (v.length === auth.pinLength) {
+                  setConfirmPin('');
+                  setStep('pinConfirm');
+                }
+              }}
+            />
+            <button type="button" className="link-btn" onClick={() => setStep('phone')}>
+              Annuler
+            </button>
+          </>
+        ) : null}
+
+        {step === 'pinConfirm' ? (
+          <>
+            <PinDots
+              length={auth.pinLength}
+              value={confirmPin}
+              disabled={auth.busy}
+              autoFocus
+              onChange={async (v) => {
+                setConfirmPin(v);
+                if (v.length !== auth.pinLength) return;
+                if (v !== pin) {
+                  auth.setError('Les deux codes ne correspondent pas.');
+                  setPin('');
+                  setConfirmPin('');
+                  setStep('pinSetup');
+                  return;
+                }
+                try {
+                  await auth.setPin(v);
+                } catch {
+                  setPin('');
+                  setConfirmPin('');
+                  setStep('pinSetup');
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => {
+                setPin('');
+                setConfirmPin('');
+                setStep('pinSetup');
+              }}
+            >
+              Recommencer
+            </button>
+          </>
+        ) : null}
+
+        {step === 'pin' ? (
+          <>
+            <PinDots
+              length={auth.pinLength}
+              value={pin}
+              disabled={auth.busy}
+              autoFocus
+              onChange={async (v) => {
+                setPin(v);
+                if (v.length === auth.pinLength) {
+                  try {
+                    await auth.loginWithPin({ phone: e164 || phone, pin: v });
+                  } catch {
+                    setPin('');
+                  }
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="link-btn"
+              onClick={() => {
+                setMode('otp');
+                setStep('phone');
+                setPin('');
+              }}
+            >
+              J’ai oublié mon code — recevoir un SMS
+            </button>
+            <button type="button" className="link-btn" onClick={() => setStep('phone')}>
+              Modifier le numéro
             </button>
           </>
         ) : null}

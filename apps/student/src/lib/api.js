@@ -3,7 +3,7 @@
  * à un compte STUDENT (ou publiques). Aucune route legacy (menu-items,
  * packaging, transferts, ambassadeurs, etc.).
  */
-import { clearSession, loadSession, saveSession } from './session';
+import { clearTokens, loadSession, saveSession } from './session';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
@@ -38,6 +38,7 @@ export function normalizeUser(user) {
     walletBalance: Number(user.walletBalance ?? 0),
     firstName: user.firstName || '',
     lastName: user.lastName || '',
+    hasPin: Boolean(user.hasPin),
   };
 }
 
@@ -54,7 +55,7 @@ async function refreshAccessToken() {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    clearSession();
+    clearTokens();
     throw new ApiError(extractMessage(data, 'Session expirée'), res.status);
   }
   saveSession({
@@ -91,7 +92,7 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
       opts.headers.Authorization = `Bearer ${token}`;
       res = await fetch(`${API_BASE}${path}`, opts);
     } catch (err) {
-      clearSession();
+      clearTokens();
       throw err;
     }
   }
@@ -110,6 +111,18 @@ export const authApi = {
     api('/auth/send-otp', { method: 'POST', auth: false, body: { phone } }),
   verifyOtp: (body) =>
     api('/auth/verify-otp', { method: 'POST', auth: false, body }),
+  setPin: (pinSetupToken, pin) =>
+    api('/auth/student/set-pin', {
+      method: 'POST',
+      auth: false,
+      body: { pinSetupToken, pin },
+    }),
+  loginPin: (phone, pin) =>
+    api('/auth/student/login-pin', {
+      method: 'POST',
+      auth: false,
+      body: { phone, pin },
+    }),
   logout: () => api('/auth/logout', { method: 'POST', body: {} }),
 };
 

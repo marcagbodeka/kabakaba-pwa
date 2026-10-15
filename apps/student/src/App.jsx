@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider, useCart } from './context/CartContext';
 import BottomNav from './components/BottomNav';
+import Toast from './components/Toast';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
 import CanteenListPage from './pages/CanteenListPage';
@@ -26,26 +27,21 @@ function Shell() {
   const auth = useAuth();
   const cart = useCart();
   const [tab, setTab] = useState('home');
-  const [stack, setStack] = useState(null); // { name, props }
-  const [snack, setSnack] = useState(null);
+  const [stack, setStack] = useState(null);
+  const [toast, setToast] = useState(null);
   const [focusOrderId, setFocusOrderId] = useState(null);
+
+  const showSnack = useCallback((message, variant = 'error') => {
+    if (!message) return;
+    setToast({ message, variant });
+  }, []);
 
   useEffect(() => {
     if (auth.error) {
-      setSnack(auth.error);
-      const t = setTimeout(() => {
-        setSnack(null);
-        auth.setError(null);
-      }, 3200);
-      return () => clearTimeout(t);
+      showSnack(auth.error, 'error');
+      auth.setError(null);
     }
-    return undefined;
-  }, [auth.error]);
-
-  const showSnack = (message) => {
-    setSnack(message);
-    setTimeout(() => setSnack(null), 3200);
-  };
+  }, [auth.error, auth, showSnack]);
 
   const navigate = (name, props = {}) => {
     if (['home', 'orders', 'wallet', 'profile', 'cart'].includes(name)) {
@@ -84,12 +80,7 @@ function Shell() {
   } else if (tab === 'home') {
     screen = <HomePage onNavigate={navigate} showSnack={showSnack} />;
   } else if (tab === 'orders') {
-    screen = (
-      <OrdersPage
-        focusOrderId={focusOrderId}
-        showSnack={showSnack}
-      />
-    );
+    screen = <OrdersPage focusOrderId={focusOrderId} showSnack={showSnack} />;
   } else if (tab === 'cart') {
     screen = (
       <CartPage
@@ -109,6 +100,11 @@ function Shell() {
 
   return (
     <div className="app-shell">
+      <Toast
+        message={toast?.message}
+        variant={toast?.variant}
+        onClose={() => setToast(null)}
+      />
       {screen}
       {!hideNav ? (
         <BottomNav
@@ -117,20 +113,32 @@ function Shell() {
           onChange={(next) => navigate(next)}
         />
       ) : null}
-      {snack ? <div className="snack">{snack}</div> : null}
     </div>
   );
 }
 
 function Root() {
   const auth = useAuth();
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (auth.error) {
+      setToast({ message: auth.error, variant: 'error' });
+      auth.setError(null);
+    }
+  }, [auth.error, auth]);
+
   if (!auth.ready) return <Bootstrap />;
   if (!auth.authenticated) {
     return (
       <div className="app-shell app-shell--dark">
+        <Toast
+          message={toast?.message}
+          variant={toast?.variant}
+          onClose={() => setToast(null)}
+        />
         <LoginPage />
         <InstallPrompt />
-        {auth.error ? <div className="snack">{auth.error}</div> : null}
       </div>
     );
   }
