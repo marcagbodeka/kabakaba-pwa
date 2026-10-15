@@ -1,0 +1,18 @@
+{
+  "name": "kabakaba-pwa",
+  "private": true,
+  "version": "0.1.0",
+  "description": "PWA Kabakaba (vendeur puis étudiant) — UI alignée sur les apps Flutter",
+  "scripts": {
+    "dev:vendor": "npm run dev --workspace=apps/vendor",
+    "build:vendor": "npm run build --workspace=apps/vendor",
+    "preview:vendor": "npm run preview --workspace=apps/vendor",
+    "dev:student": "npm run dev --workspace=apps/student",
+    "build:student": "npm run build --workspace=apps/student",
+    "preview:student": "npm run preview --workspace=apps/student"
+  },
+  "workspaces": [
+    "apps/vendor",
+    "apps/student"
+  ]
+}

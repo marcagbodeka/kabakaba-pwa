@@ -1,0 +1,32 @@
+/* Tokens alignés sur kabakaba-vendeur/lib/core/theme/app_colors.dart */
+:root {
+  --primary: #1b2a6b;
+  --indigo-dark: #0d1438;
+  --card-dark: #111a45;
+  --accent: #f07840;
+
+  --line: rgba(255, 255, 255, 0.12);
+  --field: rgba(255, 255, 255, 0.05);
+  --field-focus: rgba(255, 255, 255, 0.09);
+
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.5);
+  --muted-soft: rgba(255, 255, 255, 0.38);
+
+  --bg: #f7f8fc;
+  --surface: #ffffff;
+  --text-primary: #0d1438;
+  --text-secondary: #5c6584;
+  --text-muted: #96a0bc;
+  --surface-secondary: #eef1fa;
+  --indigo-light: #eef1fa;
+  --orange-light: #fef0e9;
+  --green: #16a34a;
+  --green-light: #f0fdf4;
+  --red: #dc2626;
+  --red-light: #fef2f2;
+  --gray-light: #f1f3f8;
+  --border-light: #e4e9f4;
+
+  --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+}

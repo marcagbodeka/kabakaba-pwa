@@ -1,0 +1,28 @@
+/* Aligné sur kabakaba/lib/core/theme/app_colors.dart */
+:root {
+  --primary: #1b2a6b;
+  --indigo-dark: #0d1438;
+  --card-dark: #111a45;
+  --accent: #f07840;
+
+  --line: rgba(255, 255, 255, 0.12);
+  --field: rgba(255, 255, 255, 0.05);
+  --field-focus: rgba(255, 255, 255, 0.09);
+  --text: #ffffff;
+  --muted: rgba(255, 255, 255, 0.5);
+  --muted-soft: rgba(255, 255, 255, 0.38);
+
+  --bg: #f4f6ff;
+  --surface: #ffffff;
+  --text-primary: #0d1438;
+  --text-secondary: #5c6584;
+  --peach: #ffe8dc;
+  --border: rgba(27, 42, 107, 0.1);
+  --field-light: #f0f3fa;
+  --green: #10b981;
+  --green-soft: #ecfdf5;
+  --red: #ef4444;
+  --red-soft: #fff1f2;
+  --amber: #f59e0b;
+  --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
