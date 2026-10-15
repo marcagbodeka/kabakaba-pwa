@@ -3,14 +3,12 @@ import { AuthProvider, useAuth } from './auth/AuthContext';
 import ActivationPage from './auth/ActivationPage';
 import PinLoginPage from './auth/PinLoginPage';
 import Dashboard from './pages/Dashboard';
-import { IconStore } from './components/icons';
+import InstallPrompt from './components/InstallPrompt';
 
 function Bootstrap() {
   return (
     <div className="bootstrap">
-      <div className="bootstrap-mark">
-        <IconStore size={36} />
-      </div>
+      <img className="bootstrap-logo" src="/apple-touch-icon.png" alt="kabakaba" width="72" height="72" />
       <div className="bootstrap-title">kabakaba</div>
       <div className="bootstrap-sub">ESPACE VENDEUR</div>
       <div className="spinner spinner--light" />
@@ -56,6 +54,7 @@ function Root() {
   return (
     <div className={`app-shell${auth.status !== 'authenticated' ? ' app-shell--dark' : ''}`}>
       {screen}
+      {!booting ? <InstallPrompt /> : null}
       {snack ? <div className="snack">{snack}</div> : null}
     </div>
   );

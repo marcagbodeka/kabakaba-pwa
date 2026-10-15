@@ -316,6 +316,17 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+.pin-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  object-fit: cover;
+  margin-bottom: 8px;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+}
+
 .pin-icon {
   width: 64px;
   height: 64px;
@@ -419,6 +430,14 @@
   align-items: center;
   justify-content: center;
   color: #fff;
+}
+
+.bootstrap-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  object-fit: cover;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
 .bootstrap-title {

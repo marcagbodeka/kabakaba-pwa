@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
-import { IconLock } from '../components/icons';
 import { PhoneFormatter } from '../lib/format';
 
 export default function PinLoginPage() {
@@ -20,9 +19,7 @@ export default function PinLoginPage() {
 
   return (
     <div className="pin-page" onClick={() => inputRef.current?.focus()}>
-      <div className="pin-icon">
-        <IconLock />
-      </div>
+      <img className="pin-logo" src="/apple-touch-icon.png" alt="kabakaba" width="72" height="72" />
       <h1>Bon retour</h1>
       <p className="sub">
         {auth.phone

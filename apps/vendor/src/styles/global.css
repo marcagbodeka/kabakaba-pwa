@@ -87,3 +87,70 @@ a {
     transform: rotate(360deg);
   }
 }
+
+.install-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(13, 20, 56, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+}
+
+.install-sheet {
+  width: min(420px, 100%);
+  background: #fff;
+  color: var(--text-primary);
+  border-radius: 22px;
+  padding: 22px 20px calc(18px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 18px 50px rgba(13, 20, 56, 0.28);
+  text-align: center;
+}
+
+.install-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 18px;
+  object-fit: cover;
+  margin: 0 auto 12px;
+  display: block;
+  box-shadow: 0 8px 22px rgba(27, 42, 107, 0.22);
+}
+
+.install-sheet h2 {
+  font-size: 18px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+
+.install-sheet > p {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 14px;
+}
+
+.install-steps {
+  text-align: left;
+  margin: 0 0 16px;
+  padding-left: 1.2em;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+
+.install-steps li {
+  margin-bottom: 6px;
+}
+
+.install-hint {
+  font-size: 13px !important;
+  margin-bottom: 16px !important;
+}
+
+.install-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

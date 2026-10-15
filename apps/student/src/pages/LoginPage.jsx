@@ -114,6 +114,7 @@ export default function LoginPage() {
   return (
     <div className="auth-scaffold">
       <div className="auth-hero">
+        <img className="auth-logo" src="/apple-touch-icon.png" alt="" width="48" height="48" />
         <div className="auth-brand">kabakaba</div>
         <h1>
           {step === 'phone'

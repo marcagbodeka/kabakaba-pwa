@@ -10,11 +10,12 @@ import CartPage from './pages/CartPage';
 import OrdersPage from './pages/OrdersPage';
 import WalletPage from './pages/WalletPage';
 import ProfilePage from './pages/ProfilePage';
+import InstallPrompt from './components/InstallPrompt';
 
 function Bootstrap() {
   return (
     <div className="bootstrap">
-      <div className="bootstrap-mark">k</div>
+      <img className="bootstrap-logo" src="/apple-touch-icon.png" alt="kabakaba" width="72" height="72" />
       <div className="bootstrap-title">kabakaba</div>
       <div className="spinner spinner--light" />
     </div>
@@ -128,6 +129,7 @@ function Root() {
     return (
       <div className="app-shell app-shell--dark">
         <LoginPage />
+        <InstallPrompt />
         {auth.error ? <div className="snack">{auth.error}</div> : null}
       </div>
     );
@@ -135,6 +137,7 @@ function Root() {
   return (
     <CartProvider>
       <Shell />
+      <InstallPrompt />
     </CartProvider>
   );
 }

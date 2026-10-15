@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 import AuthScaffold from '../components/AuthScaffold';
 import VendorInput from '../components/VendorInput';
-import { IconInfo, IconStore } from '../components/icons';
+import { IconInfo } from '../components/icons';
 import { PhoneFormatter } from '../lib/format';
 
 function OtpBoxes({ onCompleted, disabled, resetKey }) {
@@ -139,7 +139,9 @@ export default function ActivationPage() {
   return (
     <AuthScaffold
       currentStep={stepMeta.step}
-      heroIcon={<IconStore />}
+      heroIcon={
+        <img src="/apple-touch-icon.png" alt="" width="40" height="40" style={{ borderRadius: 12 }} />
+      }
       heroTitle={stepMeta.title}
       heroSubtitle={stepMeta.subtitle}
       showBackButton={auth.activationStep !== 'credentials'}

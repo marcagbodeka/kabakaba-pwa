@@ -34,6 +34,18 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+.auth-logo {
+  position: relative;
+  z-index: 2;
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  object-fit: cover;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+}
+
 .auth-brand {
   position: relative;
   z-index: 2;
@@ -207,6 +219,14 @@
   justify-content: center;
   font-size: 28px;
   font-weight: 800;
+}
+
+.bootstrap-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  object-fit: cover;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 
 .bootstrap-title {
