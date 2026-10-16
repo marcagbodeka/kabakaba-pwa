@@ -200,231 +200,254 @@ export default function LoginPage() {
       <div className="auth-card">
         {step === 'phone' ? (
           <>
-            <div className="mode-switch">
-              <button
-                type="button"
-                className={mode === 'pin' ? 'active' : ''}
-                onClick={() => setMode('pin')}
-              >
-                J’ai un code PIN
-              </button>
-              <button
-                type="button"
-                className={mode === 'otp' ? 'active' : ''}
-                onClick={() => setMode('otp')}
-              >
-                SMS / 1ʳᵉ fois
-              </button>
-            </div>
-
-            <div className="field">
-              <label>Téléphone</label>
-              <div className="input-shell">
-                <span className="prefix">+228</span>
-                <input
-                  value={phone}
-                  onChange={(e) => onPhoneChange(e.target.value)}
-                  placeholder="90 12 34 56"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                />
+            <div className="auth-card-body">
+              <div className="mode-switch">
+                <button
+                  type="button"
+                  className={mode === 'pin' ? 'active' : ''}
+                  onClick={() => setMode('pin')}
+                >
+                  J’ai un code PIN
+                </button>
+                <button
+                  type="button"
+                  className={mode === 'otp' ? 'active' : ''}
+                  onClick={() => setMode('otp')}
+                >
+                  SMS / 1ʳᵉ fois
+                </button>
               </div>
-            </div>
 
-            {mode === 'otp' ? (
               <div className="field">
-                <label>Code parrain (optionnel)</label>
+                <label>Téléphone</label>
                 <div className="input-shell">
+                  <span className="prefix">+228</span>
                   <input
-                    value={referralCode}
-                    onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                    placeholder="Ex. K7M2QX9A"
-                    maxLength={12}
+                    value={phone}
+                    onChange={(e) => onPhoneChange(e.target.value)}
+                    placeholder="90 12 34 56"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
                   />
                 </div>
               </div>
-            ) : null}
 
-            {mode === 'pin' ? (
-              <button
-                type="button"
-                className="btn-fill"
-                disabled={auth.busy || !PhoneFormatter.isValidLocal(phone)}
-                onClick={() => {
-                  setE164(PhoneFormatter.toE164(phone));
-                  setPin('');
-                  setStep('pin');
-                }}
-              >
-                Continuer
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn-fill"
-                disabled={auth.busy || !PhoneFormatter.isValidLocal(phone)}
-                onClick={send}
-              >
-                {auth.busy ? 'Envoi…' : 'Recevoir le code'}
-              </button>
-            )}
+              {mode === 'otp' ? (
+                <div className="field">
+                  <label>Code parrain (optionnel)</label>
+                  <div className="input-shell">
+                    <input
+                      value={referralCode}
+                      onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                      placeholder="Ex. K7M2QX9A"
+                      maxLength={12}
+                    />
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="auth-card-footer">
+              {mode === 'pin' ? (
+                <button
+                  type="button"
+                  className="btn-fill"
+                  disabled={auth.busy || !PhoneFormatter.isValidLocal(phone)}
+                  onClick={() => {
+                    setE164(PhoneFormatter.toE164(phone));
+                    setPin('');
+                    setStep('pin');
+                  }}
+                >
+                  Continuer
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-fill"
+                  disabled={auth.busy || !PhoneFormatter.isValidLocal(phone)}
+                  onClick={send}
+                >
+                  {auth.busy ? 'Envoi…' : 'Recevoir le code'}
+                </button>
+              )}
+            </div>
           </>
         ) : null}
 
         {step === 'otp' ? (
           <>
-            <OtpBoxes
-              disabled={auth.busy}
-              resetKey={otpReset}
-              onCompleted={(code) => verify(code)}
-            />
-            <div className="timer">
-              {seconds > 0 ? (
-                <>
-                  Renvoi dans <span>{seconds}s</span>
-                </>
-              ) : (
-                'Tu peux renvoyer le code'
-              )}
+            <div className="auth-card-body">
+              <OtpBoxes
+                disabled={auth.busy}
+                resetKey={otpReset}
+                onCompleted={(code) => verify(code)}
+              />
+              <div className="timer">
+                {seconds > 0 ? (
+                  <>
+                    Renvoi dans <span>{seconds}s</span>
+                  </>
+                ) : (
+                  'Tu peux renvoyer le code'
+                )}
+              </div>
             </div>
-            <button
-              type="button"
-              className="link-btn"
-              disabled={seconds > 0 || auth.busy}
-              onClick={async () => {
-                await send();
-              }}
-            >
-              Renvoyer le code
-            </button>
-            <button type="button" className="link-btn" onClick={() => setStep('phone')}>
-              Modifier le numéro
-            </button>
+            <div className="auth-card-footer">
+              <button
+                type="button"
+                className="link-btn"
+                disabled={seconds > 0 || auth.busy}
+                onClick={async () => {
+                  await send();
+                }}
+              >
+                Renvoyer le code
+              </button>
+              <button type="button" className="link-btn" onClick={() => setStep('phone')}>
+                Modifier le numéro
+              </button>
+            </div>
           </>
         ) : null}
 
         {step === 'campus' ? (
           <>
-            <div className="field">
-              <label>Campus</label>
-              <div className="input-shell">
-                <select
-                  value={campusId}
-                  onChange={(e) => setCampusId(e.target.value)}
-                >
-                  <option value="">Choisir…</option>
-                  {campuses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+            <div className="auth-card-body">
+              <div className="field">
+                <label>Campus</label>
+                <div className="input-shell">
+                  <select
+                    value={campusId}
+                    onChange={(e) => setCampusId(e.target.value)}
+                  >
+                    <option value="">Choisir…</option>
+                    {campuses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
-            <button
-              type="button"
-              className="btn-fill"
-              disabled={auth.busy || !campusId}
-              onClick={() => verify(pendingCode.current, campusId)}
-            >
-              {auth.busy ? 'Validation…' : 'Continuer'}
-            </button>
+            <div className="auth-card-footer">
+              <button
+                type="button"
+                className="btn-fill"
+                disabled={auth.busy || !campusId}
+                onClick={() => verify(pendingCode.current, campusId)}
+              >
+                {auth.busy ? 'Validation…' : 'Continuer'}
+              </button>
+            </div>
           </>
         ) : null}
 
         {step === 'pinSetup' ? (
           <>
-            <PinDots
-              length={auth.pinLength}
-              value={pin}
-              disabled={auth.busy}
-              autoFocus
-              onChange={(v) => {
-                setPin(v);
-                if (v.length === auth.pinLength) {
-                  setConfirmPin('');
-                  setStep('pinConfirm');
-                }
-              }}
-            />
-            <button type="button" className="link-btn" onClick={() => setStep('phone')}>
-              Annuler
-            </button>
+            <div className="auth-card-body">
+              <PinDots
+                length={auth.pinLength}
+                value={pin}
+                disabled={auth.busy}
+                autoFocus
+                onChange={(v) => {
+                  setPin(v);
+                  if (v.length === auth.pinLength) {
+                    setConfirmPin('');
+                    setStep('pinConfirm');
+                  }
+                }}
+              />
+            </div>
+            <div className="auth-card-footer">
+              <button type="button" className="link-btn" onClick={() => setStep('phone')}>
+                Annuler
+              </button>
+            </div>
           </>
         ) : null}
 
         {step === 'pinConfirm' ? (
           <>
-            <PinDots
-              length={auth.pinLength}
-              value={confirmPin}
-              disabled={auth.busy}
-              autoFocus
-              onChange={async (v) => {
-                setConfirmPin(v);
-                if (v.length !== auth.pinLength) return;
-                if (v !== pin) {
-                  auth.setError('Les deux codes ne correspondent pas.');
+            <div className="auth-card-body">
+              <PinDots
+                length={auth.pinLength}
+                value={confirmPin}
+                disabled={auth.busy}
+                autoFocus
+                onChange={async (v) => {
+                  setConfirmPin(v);
+                  if (v.length !== auth.pinLength) return;
+                  if (v !== pin) {
+                    auth.setError('Les deux codes ne correspondent pas.');
+                    setPin('');
+                    setConfirmPin('');
+                    setStep('pinSetup');
+                    return;
+                  }
+                  try {
+                    await auth.setPin(v);
+                  } catch {
+                    setPin('');
+                    setConfirmPin('');
+                    setStep('pinSetup');
+                  }
+                }}
+              />
+            </div>
+            <div className="auth-card-footer">
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
                   setPin('');
                   setConfirmPin('');
                   setStep('pinSetup');
-                  return;
-                }
-                try {
-                  await auth.setPin(v);
-                } catch {
-                  setPin('');
-                  setConfirmPin('');
-                  setStep('pinSetup');
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => {
-                setPin('');
-                setConfirmPin('');
-                setStep('pinSetup');
-              }}
-            >
-              Recommencer
-            </button>
+                }}
+              >
+                Recommencer
+              </button>
+            </div>
           </>
         ) : null}
 
         {step === 'pin' ? (
           <>
-            <PinDots
-              length={auth.pinLength}
-              value={pin}
-              disabled={auth.busy}
-              autoFocus
-              onChange={async (v) => {
-                setPin(v);
-                if (v.length === auth.pinLength) {
-                  try {
-                    await auth.loginWithPin({ phone: e164 || phone, pin: v });
-                  } catch {
-                    setPin('');
+            <div className="auth-card-body">
+              <PinDots
+                length={auth.pinLength}
+                value={pin}
+                disabled={auth.busy}
+                autoFocus
+                onChange={async (v) => {
+                  setPin(v);
+                  if (v.length === auth.pinLength) {
+                    try {
+                      await auth.loginWithPin({ phone: e164 || phone, pin: v });
+                    } catch {
+                      setPin('');
+                    }
                   }
-                }
-              }}
-            />
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => {
-                setMode('otp');
-                setStep('phone');
-                setPin('');
-              }}
-            >
-              J’ai oublié mon code — recevoir un SMS
-            </button>
-            <button type="button" className="link-btn" onClick={() => setStep('phone')}>
-              Modifier le numéro
-            </button>
+                }}
+              />
+            </div>
+            <div className="auth-card-footer">
+              <button
+                type="button"
+                className="link-btn"
+                onClick={() => {
+                  setMode('otp');
+                  setStep('phone');
+                  setPin('');
+                }}
+              >
+                J’ai oublié mon code — recevoir un SMS
+              </button>
+              <button type="button" className="link-btn" onClick={() => setStep('phone')}>
+                Modifier le numéro
+              </button>
+            </div>
           </>
         ) : null}
       </div>

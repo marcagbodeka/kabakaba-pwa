@@ -1,5 +1,8 @@
 .auth-scaffold {
+  flex: 1;
+  width: 100%;
   min-height: 100%;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--indigo-dark);
@@ -8,7 +11,9 @@
 .auth-hero {
   position: relative;
   overflow: hidden;
+  flex-shrink: 0;
   padding: 18px 24px 46px;
+  padding-top: calc(18px + env(safe-area-inset-top, 0px));
   background: linear-gradient(155deg, var(--primary) 0%, var(--indigo-dark) 100%);
 }
 
@@ -77,13 +82,43 @@
 
 .auth-card {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
   background: var(--card-dark);
   border-radius: 24px 24px 0 0;
   border-top: 1px solid var(--line);
   margin-top: -20px;
   position: relative;
   z-index: 3;
-  padding: 26px 22px 28px;
+  padding: 26px 22px calc(28px + env(safe-area-inset-bottom, 0px));
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.auth-card-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.auth-card-footer {
+  margin-top: auto;
+  padding-top: 20px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.auth-card-footer .btn-fill {
+  margin-top: 0;
+}
+
+.auth-card-footer .link-btn {
+  margin-bottom: 0;
 }
 
 .field {

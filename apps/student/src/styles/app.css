@@ -68,7 +68,8 @@
   position: relative;
   z-index: 2;
   padding: 26px 20px 24px;
-  min-height: 50vh;
+  flex: 1;
+  min-height: calc(100dvh - 220px);
 }
 
 .kicker {
