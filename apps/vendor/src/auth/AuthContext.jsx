@@ -73,10 +73,7 @@ export function AuthProvider({ children }) {
     () =>
       run(async () => {
         if (!onboardingToken || !session.phone) return false;
-        const challenge = await vendorAuthApi.resendOtp(
-          onboardingToken,
-          session.phone,
-        );
+        const challenge = await vendorAuthApi.resendOtp(onboardingToken);
         setOnboardingToken(challenge.onboardingToken);
         setPhoneMasked(challenge.phoneMasked);
         return true;

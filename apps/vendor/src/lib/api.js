@@ -111,11 +111,11 @@ export const vendorAuthApi = {
       auth: false,
       body: { phone, password },
     }),
-  resendOtp: (onboardingToken, phone) =>
+  resendOtp: (onboardingToken) =>
     api('/auth/vendor/activate/resend-otp', {
       method: 'POST',
       auth: false,
-      body: { onboardingToken, phone },
+      body: { onboardingToken },
     }),
   verifyOtp: (onboardingToken, code) =>
     api('/auth/vendor/activate/verify-otp', {
