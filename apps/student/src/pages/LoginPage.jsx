@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { campusApi } from '../lib/api';
 import { PhoneFormatter } from '../lib/format';
+import { useKeyboardInset } from '../lib/useKeyboardInset';
 
 function OtpBoxes({ onCompleted, disabled, resetKey }) {
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
@@ -82,6 +83,7 @@ function PinDots({ length, value, onChange, disabled, autoFocus }) {
 }
 
 export default function LoginPage() {
+  useKeyboardInset();
   const auth = useAuth();
   const rememberedPhone = auth.session?.phone || '';
   const preferPin = auth.status === 'needsPin' && Boolean(rememberedPhone);

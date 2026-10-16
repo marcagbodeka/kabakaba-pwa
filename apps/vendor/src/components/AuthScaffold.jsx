@@ -1,3 +1,4 @@
+import { useKeyboardInset } from '../lib/useKeyboardInset';
 import { IconBack } from './icons';
 
 export default function AuthScaffold({
@@ -10,6 +11,7 @@ export default function AuthScaffold({
   onBack,
   children,
 }) {
+  useKeyboardInset();
   const progress = Math.min(1, currentStep / totalSteps);
 
   return (

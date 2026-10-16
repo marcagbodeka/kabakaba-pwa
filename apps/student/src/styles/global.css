@@ -48,17 +48,21 @@ a {
 .app-shell {
   min-height: 100%;
   min-height: 100dvh;
+  height: 100%;
   max-width: 480px;
   margin: 0 auto;
   position: relative;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   background: var(--bg);
 }
 
 .app-shell--dark {
   background: var(--indigo-dark);
   color: var(--text);
+  height: 100dvh;
+  min-height: 100dvh;
 }
 
 .snack {

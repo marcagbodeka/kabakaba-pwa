@@ -1,20 +1,52 @@
 .auth-scaffold {
   flex: 1;
   width: 100%;
-  min-height: 100%;
+  height: 100dvh;
   min-height: 100dvh;
   display: flex;
   flex-direction: column;
+  justify-content: flex-start;
   background: var(--indigo-dark);
+  overflow: hidden;
+  padding-bottom: var(--keyboard-inset, 0px);
+  transition: padding-bottom 0.12s ease-out;
 }
 
 .auth-hero {
   position: relative;
   overflow: hidden;
-  flex-shrink: 0;
-  padding: 18px 24px 46px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 18px 24px 28px;
   padding-top: calc(18px + env(safe-area-inset-top, 0px));
   background: linear-gradient(155deg, var(--primary) 0%, var(--indigo-dark) 100%);
+}
+
+/* Compacte le hero quand le clavier est ouvert. */
+.auth-scaffold--keyboard .auth-hero {
+  padding-bottom: 28px;
+}
+
+.auth-scaffold--keyboard .auth-logo {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 8px;
+}
+
+.auth-scaffold--keyboard .auth-brand {
+  margin-bottom: 12px;
+  font-size: 18px;
+}
+
+.auth-scaffold--keyboard .auth-hero h1 {
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.auth-scaffold--keyboard .auth-hero p {
+  display: none;
 }
 
 .auth-hero::before {
@@ -81,27 +113,36 @@
 }
 
 .auth-card {
-  flex: 1;
+  /* Remplit tout l’espace sous le hero → collé en bas, fond continu. */
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
   width: 100%;
-  background: var(--card-dark);
-  border-radius: 24px 24px 0 0;
+  margin-top: -18px;
+  min-height: 0;
+  background: linear-gradient(180deg, #152056 0%, var(--card-dark) 28%);
+  border-radius: 28px 28px 0 0;
   border-top: 1px solid var(--line);
-  margin-top: -20px;
   position: relative;
   z-index: 3;
-  padding: 26px 22px calc(28px + env(safe-area-inset-bottom, 0px));
-  min-height: 0;
+  padding: 22px 22px calc(18px + env(safe-area-inset-bottom, 0px));
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.28);
+}
+
+.auth-scaffold--keyboard .auth-card {
+  margin-top: -8px;
+  padding-top: 16px;
+  padding-bottom: 12px;
 }
 
 .auth-card-body {
   display: flex;
   flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
+  gap: 2px;
+  flex: 0 0 auto;
 }
 
 .auth-card-footer {
@@ -110,7 +151,7 @@
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .auth-card-footer .btn-fill {
@@ -119,6 +160,11 @@
 
 .auth-card-footer .link-btn {
   margin-bottom: 0;
+  padding: 10px 0;
+}
+
+.auth-scaffold--keyboard .auth-card-footer {
+  margin-top: 12px;
 }
 
 .field {
@@ -180,9 +226,9 @@
 
 .otp-row {
   display: flex;
-  gap: 5px;
+  gap: 6px;
   justify-content: center;
-  margin: 10px 0 16px;
+  margin: 4px 0 12px;
 }
 
 .otp-box {
@@ -212,7 +258,7 @@
   text-align: center;
   font-size: 14.3px;
   color: var(--muted);
-  margin-bottom: 8px;
+  margin: 0 0 4px;
 }
 
 .timer span {
