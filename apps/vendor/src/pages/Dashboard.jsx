@@ -186,6 +186,7 @@ export default function Dashboard({ showSnack }) {
           hasUnread={hasUnread}
           onOpenCatalog={() => setStack('catalog')}
           onUpdated={(updated) => setVendor((v) => ({ ...v, ...updated }))}
+          onVendorRefresh={loadVendor}
           showSnack={showSnack}
         />
       ) : null}

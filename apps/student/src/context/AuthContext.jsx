@@ -14,6 +14,7 @@ import {
   saveSession,
 } from '../lib/session';
 import { PhoneFormatter } from '../lib/format';
+import { registerWebPush, unregisterWebPush } from '../lib/push';
 
 const AuthContext = createContext(null);
 
@@ -54,6 +55,12 @@ export function AuthProvider({ children }) {
       }
     })();
   }, [refreshMe]);
+
+  useEffect(() => {
+    if (status === 'authenticated' && ready) {
+      registerWebPush().catch(() => {});
+    }
+  }, [status, ready]);
 
   const run = useCallback(async (fn) => {
     setBusy(true);
@@ -119,6 +126,7 @@ export function AuthProvider({ children }) {
         const me = await userApi.me().catch(() => normalizeUser(res.user));
         setUser(me);
         setStatus('authenticated');
+        registerWebPush().catch(() => {});
         return true;
       }),
     [pinSetupToken, run],
@@ -140,12 +148,14 @@ export function AuthProvider({ children }) {
         const me = await userApi.me().catch(() => normalizeUser(res.user));
         setUser(me);
         setStatus('authenticated');
+        registerWebPush().catch(() => {});
         return true;
       }),
     [run],
   );
 
   const logout = useCallback(async () => {
+    await unregisterWebPush();
     try {
       await authApi.logout();
     } catch {
@@ -159,6 +169,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const forget = useCallback(async () => {
+    await unregisterWebPush();
     try {
       await authApi.logout();
     } catch {

@@ -139,6 +139,48 @@ export async function api(path, { method = 'GET', body, auth = true, headers } =
   return data;
 }
 
+/** POST multipart (logo / bannière) avec cookies + CSRF comme `api`. */
+export async function apiUpload(path, file) {
+  await ensureCsrf();
+  const form = new FormData();
+  form.append('file', file);
+  const headers = baseHeaders('POST');
+
+  let res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body: form,
+  });
+
+  if (res.status === 401) {
+    refreshPromise =
+      refreshPromise ||
+      refreshAccessToken().finally(() => {
+        refreshPromise = null;
+      });
+    try {
+      await refreshPromise;
+      res = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: baseHeaders('POST'),
+        body: form,
+      });
+    } catch (err) {
+      dropSession();
+      throw err;
+    }
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
+  }
+  rememberCsrf(data);
+  return data;
+}
+
 export const vendorAuthApi = {
   activateStart: (phone, password) =>
     api('/auth/vendor/activate/start', {
@@ -218,6 +260,18 @@ export const componentsApi = {
   adjustStock: (id, delta) =>
     api(`/components/${id}/stock`, { method: 'PATCH', body: { delta } }),
   remove: (id) => api(`/components/${id}`, { method: 'DELETE' }),
+};
+
+export const mediaApi = {
+  uploadLogo: (file) => apiUpload('/vendors/me/logo', file),
+  uploadBanner: (file) => apiUpload('/vendors/me/banner', file),
+};
+
+export const devicesApi = {
+  register: (deviceToken) =>
+    api('/devices', { method: 'POST', body: { deviceToken, platform: 'WEB' } }),
+  unregister: (deviceToken) =>
+    api(`/devices?deviceToken=${encodeURIComponent(deviceToken)}`, { method: 'DELETE' }),
 };
 
 export const menusApi = {

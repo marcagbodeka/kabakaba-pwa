@@ -16,10 +16,10 @@ export default defineConfig({
       ],
       manifest: {
         name: 'kabakaba Vendeur',
-        short_name: 'kabakaba',
+        short_name: 'kabakaba V',
         description: 'Espace vendeur kabakaba',
-        theme_color: '#1F2B5B',
-        background_color: '#1F2B5B',
+        theme_color: '#F07840',
+        background_color: '#F07840',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/',

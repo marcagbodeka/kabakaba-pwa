@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   campusApi,
@@ -8,7 +8,7 @@ import {
   reportsApi,
   userApi,
 } from '../lib/api';
-import { PhoneFormatter, formatTickets, formatTime } from '../lib/format';
+import { PhoneFormatter, formatTickets, formatTime, initialsFrom } from '../lib/format';
 import { IconBack } from '../components/icons';
 
 const REPORT_LABEL = {
@@ -20,6 +20,8 @@ const REPORT_LABEL = {
 
 export default function ProfilePage({ showSnack }) {
   const { user, logout, forget, refreshMe } = useAuth();
+  const fileRef = useRef(null);
+  const [uploading, setUploading] = useState(false);
   const [panel, setPanel] = useState('home');
   const [campusName, setCampusName] = useState('');
   const [referral, setReferral] = useState(null);
@@ -62,6 +64,22 @@ export default function ProfilePage({ showSnack }) {
       .then(setReferral)
       .catch(() => setReferral(null));
   }, []);
+
+  const onAvatarPick = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    try {
+      await userApi.uploadAvatar(file);
+      await refreshMe();
+      showSnack?.('Photo mise à jour', 'success');
+    } catch (err) {
+      showSnack?.(err.message || 'Envoi impossible');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const copyCode = async () => {
     const code = referral?.referralCode;
@@ -382,7 +400,27 @@ export default function ProfilePage({ showSnack }) {
         <div style={{ width: 40 }} />
       </div>
       <div className="list-pad">
-        <div className="item-card">
+        <div className="item-card" style={{ alignItems: 'center', gap: 14 }}>
+          <button
+            type="button"
+            className="profile-avatar-btn"
+            disabled={uploading}
+            onClick={() => fileRef.current?.click()}
+            aria-label="Changer la photo"
+          >
+            {user?.avatarUrl ? (
+              <img src={user.avatarUrl} alt="" />
+            ) : (
+              <span>{initialsFrom(`${user?.firstName || ''} ${user?.lastName || ''}`)}</span>
+            )}
+          </button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            hidden
+            onChange={onAvatarPick}
+          />
           <div style={{ flex: 1 }}>
             <h3>
               {user?.firstName || ''} {user?.lastName || ''}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ordersApi, reportsApi, reviewsApi, scheduledOrdersApi } from '../lib/api';
 import { ORDER_STATUS_LABEL, formatTickets, formatTime } from '../lib/format';
 import { IconBack } from '../components/icons';
@@ -48,6 +48,11 @@ function itemCount(items) {
   return items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 }
 
+function playOrderReadySound() {
+  const audio = new Audio('/sounds/order-ready.wav');
+  audio.play().catch(() => {});
+}
+
 export default function OrdersPage({
   embedded = true,
   focusOrderId,
@@ -64,15 +69,30 @@ export default function OrdersPage({
   const [comment, setComment] = useState('');
   const [reportType, setReportType] = useState('WRONG_MEAL');
   const [reportComment, setReportComment] = useState('');
+  const prevStatusRef = useRef({});
+  const playedReadyRef = useRef(new Set());
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const res = await ordersApi.list({ limit: 40 });
-      const data = res.data || [];
-      setOrders(data);
+      const rows = res.data || [];
+      for (const o of rows) {
+        const prev = prevStatusRef.current[o.id];
+        if (
+          o.status === 'READY' &&
+          prev &&
+          prev !== 'READY' &&
+          !playedReadyRef.current.has(o.id)
+        ) {
+          playedReadyRef.current.add(o.id);
+          playOrderReadySound();
+        }
+        prevStatusRef.current[o.id] = o.status;
+      }
+      setOrders(rows);
       if (focusOrderId) {
-        const found = data.find((o) => o.id === focusOrderId);
+        const found = rows.find((o) => o.id === focusOrderId);
         if (found) {
           setSelected((prev) => (prev?.id === found.id ? prev : found));
         }

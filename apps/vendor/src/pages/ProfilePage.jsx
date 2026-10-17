@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import VendorHeader from '../components/VendorHeader';
 import { useAuth } from '../auth/AuthContext';
-import { vendorApi } from '../lib/api';
+import { mediaApi, vendorApi } from '../lib/api';
 import { initialsFrom } from '../lib/format';
 
 export default function ProfilePage({
@@ -11,14 +11,33 @@ export default function ProfilePage({
   hasUnread,
   onOpenCatalog,
   onUpdated,
+  onVendorRefresh,
   showSnack,
 }) {
   const auth = useAuth();
   const initials = initialsFrom(vendor?.canteenName);
+  const logoRef = useRef(null);
+  const bannerRef = useRef(null);
+  const [uploading, setUploading] = useState(null);
   const [editing, setEditing] = useState(false);
   const [canteenName, setCanteenName] = useState(vendor?.canteenName || '');
   const [description, setDescription] = useState(vendor?.description || '');
   const [busy, setBusy] = useState(false);
+
+  const upload = async (kind, file) => {
+    if (!file) return;
+    setUploading(kind);
+    try {
+      if (kind === 'logo') await mediaApi.uploadLogo(file);
+      else await mediaApi.uploadBanner(file);
+      await onVendorRefresh?.();
+      showSnack?.('Image mise à jour');
+    } catch (e) {
+      showSnack?.(e.message || 'Envoi impossible');
+    } finally {
+      setUploading(null);
+    }
+  };
 
   const save = async () => {
     if (!vendor?.id) return;
@@ -50,11 +69,47 @@ export default function ProfilePage({
       <div className="profile-card">
         <div className="profile-banner">
           {vendor?.bannerUrl ? <img src={vendor.bannerUrl} alt="" /> : null}
+          <button
+            type="button"
+            className="profile-media-btn"
+            disabled={uploading === 'banner'}
+            onClick={() => bannerRef.current?.click()}
+          >
+            {uploading === 'banner' ? '…' : 'Bannière'}
+          </button>
+          <input
+            ref={bannerRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            hidden
+            onChange={(e) => {
+              upload('banner', e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
         </div>
         <div className="profile-main">
           <div className="profile-logo">
             {vendor?.logoUrl ? <img src={vendor.logoUrl} alt="" /> : initials}
           </div>
+          <button
+            type="button"
+            className="profile-media-btn profile-media-btn--logo"
+            disabled={uploading === 'logo'}
+            onClick={() => logoRef.current?.click()}
+          >
+            {uploading === 'logo' ? '…' : 'Logo'}
+          </button>
+          <input
+            ref={logoRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            hidden
+            onChange={(e) => {
+              upload('logo', e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
           <div>
             <div className="profile-name">{vendor?.canteenName || '—'}</div>
             {vendor?.campusName ? (
@@ -92,7 +147,12 @@ export default function ProfilePage({
             <label>Description</label>
             <input value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
-          <button type="button" className="btn-action fill primary full" disabled={busy || !canteenName.trim()} onClick={save}>
+          <button
+            type="button"
+            className="btn-action fill primary full"
+            disabled={busy || !canteenName.trim()}
+            onClick={save}
+          >
             {busy ? 'Enregistrement…' : 'Enregistrer'}
           </button>
         </div>

@@ -6,6 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react';
+import { registerWebPush, unregisterWebPush } from '../lib/push';
 import { vendorApi, vendorAuthApi } from '../lib/api';
 import {
   forgetDevice,
@@ -51,6 +52,12 @@ export function AuthProvider({ children }) {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    if (status === 'authenticated' && ready) {
+      registerWebPush().catch(() => {});
+    }
+  }, [status, ready]);
 
   const run = useCallback(async (fn) => {
     setIsSubmitting(true);
@@ -158,6 +165,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const forget = useCallback(async () => {
+    await unregisterWebPush();
     try {
       await vendorAuthApi.logout();
     } catch {
@@ -172,6 +180,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(async () => {
+    await unregisterWebPush();
     try {
       await vendorAuthApi.logout();
     } catch {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import VendorHeader from '../components/VendorHeader';
 import { IconCheck, IconClose, IconReceipt } from '../components/icons';
 import { ORDER_BUCKETS, ordersApi } from '../lib/api';
@@ -8,6 +8,15 @@ import {
   formatTickets,
   formatTime,
 } from '../lib/format';
+
+const ORDER_SOUND_MUTE_KEY = 'kaba_vendor_order_sounds_muted';
+
+function playNewOrderSound() {
+  if (localStorage.getItem(ORDER_SOUND_MUTE_KEY) === '1') return;
+  if (document.visibilityState !== 'visible') return;
+  const audio = new Audio('/sounds/new-order.wav');
+  audio.play().catch(() => {});
+}
 
 const TABS = [
   { key: 'incoming', label: 'Nouvelles' },
@@ -234,6 +243,7 @@ export default function OrdersPage({
   const [orders, setOrders] = useState([]);
   const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
+  const knownConfirmedRef = useRef(null);
 
   const loadBucket = useCallback(async (key) => {
     const { statuses } = ORDER_BUCKETS[key];
@@ -258,6 +268,21 @@ export default function OrdersPage({
       }
       setCounts(nextCounts);
       setOrders(current);
+
+      const incoming = results.find(([key]) => key === 'incoming')?.[1]?.data || [];
+      const confirmedIds = incoming
+        .filter((o) => o.status === 'CONFIRMED')
+        .map((o) => o.id);
+      if (knownConfirmedRef.current === null) {
+        knownConfirmedRef.current = new Set(confirmedIds);
+      } else {
+        for (const id of confirmedIds) {
+          if (!knownConfirmedRef.current.has(id)) {
+            playNewOrderSound();
+            knownConfirmedRef.current.add(id);
+          }
+        }
+      }
     } catch (e) {
       showSnack(e.message || 'Impossible de charger les commandes');
     } finally {

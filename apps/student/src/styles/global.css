@@ -293,7 +293,8 @@ a {
   width: 88px;
   height: 88px;
   border-radius: 22px;
-  object-fit: cover;
+  object-fit: contain;
+  background: transparent;
   margin: 0 auto 14px;
   display: block;
   box-shadow: 0 10px 28px rgba(27, 42, 107, 0.28);

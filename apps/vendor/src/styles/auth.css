@@ -501,7 +501,8 @@
   width: 88px;
   height: 88px;
   border-radius: 22px;
-  object-fit: cover;
+  object-fit: contain;
+  background: transparent;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
 }
 

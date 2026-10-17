@@ -144,6 +144,38 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   return data;
 }
 
+export async function apiUpload(path, file) {
+  const form = new FormData();
+  form.append('file', file);
+  const headers = { Accept: 'application/json' };
+  const { accessToken } = loadSession();
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+
+  let res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: form });
+
+  if (res.status === 401) {
+    refreshPromise =
+      refreshPromise ||
+      refreshAccessToken().finally(() => {
+        refreshPromise = null;
+      });
+    try {
+      const token = await refreshPromise;
+      headers.Authorization = `Bearer ${token}`;
+      res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: form });
+    } catch (err) {
+      clearTokens();
+      throw err;
+    }
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
+  }
+  return data;
+}
+
 // --- Auth ---
 export const authApi = {
   sendOtp: (phone) =>
@@ -177,6 +209,17 @@ export const userApi = {
   get: async (id) => normalizeUser(await api(`/users/${id}`)),
   update: async (id, body) =>
     normalizeUser(await api(`/users/${id}`, { method: 'PATCH', body })),
+  uploadAvatar: async (file) => {
+    const res = await apiUpload('/users/me/avatar', file);
+    return res.avatarUrl || res.url;
+  },
+};
+
+export const devicesApi = {
+  register: (deviceToken) =>
+    api('/devices', { method: 'POST', body: { deviceToken, platform: 'WEB' } }),
+  unregister: (deviceToken) =>
+    api(`/devices?deviceToken=${encodeURIComponent(deviceToken)}`, { method: 'DELETE' }),
 };
 
 export const referralsApi = {

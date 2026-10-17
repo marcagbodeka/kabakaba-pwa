@@ -78,7 +78,8 @@
   width: 48px;
   height: 48px;
   border-radius: 14px;
-  object-fit: cover;
+  object-fit: contain;
+  background: transparent;
   margin-bottom: 12px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
 }
@@ -306,7 +307,8 @@
   width: 88px;
   height: 88px;
   border-radius: 22px;
-  object-fit: cover;
+  object-fit: contain;
+  background: transparent;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
 }
 

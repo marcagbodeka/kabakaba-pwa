@@ -9,6 +9,26 @@ import {
 } from '../lib/format';
 import { IconBack, IconPlus } from '../components/icons';
 
+function componentSections(components, categories) {
+  const byKey = new Map();
+  for (const c of components) {
+    const key = c.categoryId || '__none__';
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(c);
+  }
+  const sections = [];
+  for (const cat of categories) {
+    const items = byKey.get(cat.id);
+    if (items?.length) sections.push({ title: cat.name, items });
+  }
+  const loose = byKey.get('__none__');
+  if (loose?.length) sections.push({ title: 'Autres', items: loose });
+  if (!sections.length && components.length) {
+    sections.push({ title: 'Composants', items: components });
+  }
+  return sections;
+}
+
 export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSnack }) {
   const cart = useCart();
   const [tab, setTab] = useState(0);
@@ -157,72 +177,54 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
 
         {tab === 1 ? (
           <>
-            {(categories.length
-              ? [
-                  ...categories.map((cat) => ({
-                    id: cat.id,
-                    name: cat.name,
-                    items: components.filter((c) => c.categoryId === cat.id),
-                  })),
-                  {
-                    id: 'other',
-                    name: 'Autres',
-                    items: components.filter(
-                      (c) => !categories.some((cat) => cat.id === c.categoryId),
-                    ),
-                  },
-                ].filter((group) => group.items.length)
-              : [{ id: 'all', name: '', items: components }]
-            ).map((group) => (
-              <div key={group.id}>
-                {group.name ? (
-                  <div className="kicker" style={{ marginTop: 8 }}>
-                    {group.name}
-                  </div>
-                ) : null}
-                {group.items.map((c) => (
-              <div
-                key={c.id}
-                className={`item-card${!c.available ? ' unavailable' : ''}`}
-              >
-                <div style={{ flex: 1 }}>
-                  <h3>{c.name}</h3>
-                  <p>
-                    {c.available ? 'Disponible' : 'Indisponible'} ·{' '}
-                    {UNIT_LABEL[c.unit] || c.unit}
-                  </p>
+            {componentSections(components, categories).map((section) => (
+              <div key={section.title}>
+                <div className="kicker" style={{ marginTop: 8 }}>
+                  {section.title}
                 </div>
-                <div className="price">{formatTickets(c.priceTickets)}</div>
-                <button
-                  type="button"
-                  className="qty-btn"
-                  disabled={!c.available || (compQty[c.id] || 0) <= 0}
-                  onClick={() =>
-                    setCompQty((q) => ({
-                      ...q,
-                      [c.id]: Math.max(0, (q[c.id] || 0) - 1),
-                    }))
-                  }
-                >
-                  −
-                </button>
-                <strong style={{ minWidth: 18, textAlign: 'center' }}>
-                  {compQty[c.id] || 0}
-                </strong>
-                <button
-                  type="button"
-                  className="qty-btn"
-                  disabled={!c.available}
-                  onClick={() =>
-                    setCompQty((q) => ({
-                      ...q,
-                      [c.id]: Math.min(50, (q[c.id] || 0) + 1),
-                    }))
-                  }
-                >
-                  +
-                </button>
-              </div>
+                {section.items.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`item-card${!c.available ? ' unavailable' : ''}`}
+                  >
+                    <div style={{ flex: 1 }}>
+                      <h3>{c.name}</h3>
+                      <p>
+                        {c.available ? 'Disponible' : 'Indisponible'} ·{' '}
+                        {UNIT_LABEL[c.unit] || c.unit}
+                      </p>
+                    </div>
+                    <div className="price">{formatTickets(c.priceTickets)}</div>
+                    <button
+                      type="button"
+                      className="qty-btn"
+                      disabled={!c.available || (compQty[c.id] || 0) <= 0}
+                      onClick={() =>
+                        setCompQty((q) => ({
+                          ...q,
+                          [c.id]: Math.max(0, (q[c.id] || 0) - 1),
+                        }))
+                      }
+                    >
+                      −
+                    </button>
+                    <strong style={{ minWidth: 18, textAlign: 'center' }}>
+                      {compQty[c.id] || 0}
+                    </strong>
+                    <button
+                      type="button"
+                      className="qty-btn"
+                      disabled={!c.available}
+                      onClick={() =>
+                        setCompQty((q) => ({
+                          ...q,
+                          [c.id]: Math.min(50, (q[c.id] || 0) + 1),
+                        }))
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
                 ))}
               </div>
             ))}

@@ -16,6 +16,26 @@ const TABS = [
   { key: 'takeaway', label: 'Emporté' },
 ];
 
+function componentSections(components, categories) {
+  const byKey = new Map();
+  for (const c of components) {
+    const key = c.categoryId || '__none__';
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(c);
+  }
+  const sections = [];
+  for (const cat of categories) {
+    const items = byKey.get(cat.id);
+    if (items?.length) sections.push({ title: cat.name, items });
+  }
+  const loose = byKey.get('__none__');
+  if (loose?.length) sections.push({ title: 'Sans catégorie', items: loose });
+  if (!sections.length && components.length) {
+    sections.push({ title: 'Stock', items: components });
+  }
+  return sections;
+}
+
 function Field({ label, children }) {
   return (
     <div className="vfield">
@@ -44,7 +64,7 @@ function ComponentSheet({ initial, categories = [], onClose, onSave, busy }) {
         <Field label="Catégorie">
           <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
             <option value="">Sans catégorie</option>
-            {categories.map((cat) => (
+            {(categories || []).map((cat) => (
               <option key={cat.id} value={cat.id}>
                 {cat.name}
               </option>
@@ -97,7 +117,7 @@ function ComponentSheet({ initial, categories = [], onClose, onSave, busy }) {
                 unit,
                 priceTickets: Number(priceTickets),
                 isAvailable,
-                ...(categoryId ? { categoryId } : {}),
+                categoryId: categoryId || null,
                 ...(initial ? {} : { quantity: Number(quantity || 0) }),
               })
             }
@@ -332,13 +352,31 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   }, [reload]);
 
   const addLabel = useMemo(() => {
+    if (tab === 'categories') return 'Ajouter une catégorie';
     if (tab === 'menus') return 'Ajouter un menu';
     if (tab === 'takeaway') return 'Ajouter une option';
     if (tab === 'categories') return 'Ajouter une catégorie';
     return 'Ajouter un composant';
   }, [tab]);
 
-  const openCreate = () => setSheet({ type: tab, item: null });
+  const openCreate = async () => {
+    if (tab === 'categories') {
+      const name = window.prompt('Nom de la catégorie');
+      if (!name?.trim()) return;
+      setBusy(true);
+      try {
+        await categoriesApi.create({ name: name.trim() });
+        await reload();
+        showSnack('Catégorie créée');
+      } catch (e) {
+        showSnack(e.message || 'Échec');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    setSheet({ type: tab, item: null });
+  };
 
   const saveComponent = async (body) => {
     setBusy(true);
@@ -443,58 +481,122 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       ) : (
         <div className="catalog-list">
           {tab === 'components'
-            ? components.map((c) => {
-                const available = c.isAvailable !== false && Number(c.quantity) > 0;
-                return (
-                  <div key={c.id} className={`catalog-card${!available ? ' dim' : ''}`}>
-                    <div className="catalog-main">
-                      <strong>{c.name}</strong>
-                      <span>
-                        {formatTickets(c.priceTickets)} · stock {c.quantity}{' '}
-                        {UNIT_LABEL[c.unit] || ''}
-                        {!c.isAvailable ? ' · masqué' : ''}
-                      </span>
-                    </div>
-                    <div className="catalog-actions">
-                      <button
-                        type="button"
-                        className="qty-btn"
-                        onClick={async () => {
-                          try {
-                            await componentsApi.adjustStock(c.id, -1);
-                            await reload();
-                          } catch (e) {
-                            showSnack(e.message);
-                          }
-                        }}
+            ? componentSections(components, categories).map((section) => (
+                <div key={section.title}>
+                  <div className="kicker-inline">{section.title}</div>
+                  {section.items.map((c) => {
+                    const available =
+                      c.isAvailable !== false && Number(c.quantity) > 0;
+                    return (
+                      <div
+                        key={c.id}
+                        className={`catalog-card${!available ? ' dim' : ''}`}
                       >
-                        −
-                      </button>
-                      <button
-                        type="button"
-                        className="qty-btn"
-                        onClick={async () => {
-                          try {
-                            await componentsApi.adjustStock(c.id, 1);
-                            await reload();
-                          } catch (e) {
-                            showSnack(e.message);
-                          }
-                        }}
-                      >
-                        +
-                      </button>
-                      <button
-                        type="button"
-                        className="link-mini"
-                        onClick={() => setSheet({ type: 'components', item: c })}
-                      >
-                        Éditer
-                      </button>
-                    </div>
+                        <div className="catalog-main">
+                          <strong>{c.name}</strong>
+                          <span>
+                            {formatTickets(c.priceTickets)} · stock {c.quantity}{' '}
+                            {UNIT_LABEL[c.unit] || ''}
+                            {!c.isAvailable ? ' · masqué' : ''}
+                          </span>
+                        </div>
+                        <div className="catalog-actions">
+                          <button
+                            type="button"
+                            className="qty-btn"
+                            onClick={async () => {
+                              try {
+                                await componentsApi.adjustStock(c.id, -1);
+                                await reload();
+                              } catch (e) {
+                                showSnack(e.message);
+                              }
+                            }}
+                          >
+                            −
+                          </button>
+                          <button
+                            type="button"
+                            className="qty-btn"
+                            onClick={async () => {
+                              try {
+                                await componentsApi.adjustStock(c.id, 1);
+                                await reload();
+                              } catch (e) {
+                                showSnack(e.message);
+                              }
+                            }}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="link-mini"
+                            onClick={() => setSheet({ type: 'components', item: c })}
+                          >
+                            Éditer
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))
+            : null}
+
+          {tab === 'categories'
+            ? categories.map((cat) => (
+                <div key={cat.id} className="catalog-card">
+                  <div className="catalog-main">
+                    <strong>{cat.name}</strong>
+                    <span>
+                      {
+                        components.filter((c) => c.categoryId === cat.id).length
+                      }{' '}
+                      composant(s)
+                    </span>
                   </div>
-                );
-              })
+                  <div className="catalog-actions">
+                    <button
+                      type="button"
+                      className="link-mini"
+                      onClick={async () => {
+                        const name = window.prompt('Renommer la catégorie', cat.name);
+                        if (!name?.trim() || name.trim() === cat.name) return;
+                        try {
+                          await categoriesApi.update(cat.id, { name: name.trim() });
+                          await reload();
+                          showSnack('Catégorie renommée');
+                        } catch (e) {
+                          showSnack(e.message || 'Échec');
+                        }
+                      }}
+                    >
+                      Renommer
+                    </button>
+                    <button
+                      type="button"
+                      className="link-mini"
+                      style={{ color: 'var(--red)' }}
+                      onClick={async () => {
+                        const ok = window.confirm(
+                          `Supprimer « ${cat.name} » ? (Impossible si des composants y sont rattachés.)`,
+                        );
+                        if (!ok) return;
+                        try {
+                          await categoriesApi.remove(cat.id);
+                          await reload();
+                          showSnack('Catégorie supprimée');
+                        } catch (e) {
+                          showSnack(e.message || 'Échec');
+                        }
+                      }}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+              ))
             : null}
 
           {tab === 'categories'
