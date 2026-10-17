@@ -78,19 +78,30 @@ function baseHeaders(method) {
   return headers;
 }
 
-async function ensureCsrf() {
-  if (csrfMemory) return;
+async function ensureCsrf(force = false) {
+  if (csrfMemory && !force) return csrfMemory;
   const res = await fetch(`${API_BASE}/auth/csrf`, {
     method: 'GET',
     credentials: 'include',
     headers: baseHeaders('GET'),
   });
-  if (!res.ok) return;
-  rememberCsrf(await res.json().catch(() => ({})));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new ApiError(
+      extractMessage(data, 'Session expirée — reconnecte-toi'),
+      res.status,
+    );
+  }
+  rememberCsrf(data);
+  if (!csrfMemory) {
+    throw new ApiError('Protection CSRF indisponible', 401);
+  }
+  return csrfMemory;
 }
 
 async function refreshAccessToken() {
-  await ensureCsrf();
+  // Toujours relire le CSRF : un jeton en mémoire peut être périmé après rotation.
+  await ensureCsrf(true);
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
@@ -98,8 +109,32 @@ async function refreshAccessToken() {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    const msg = extractMessage(data, 'Session expirée');
+    // Race de refresh concurrent : un autre appel a déjà tourné le cookie.
+    // On retente une fois après un court délai au lieu de déconnecter.
+    if (
+      res.status === 401 &&
+      /invalidée|déjà utilisé|reconnecter/i.test(msg)
+    ) {
+      await new Promise((r) => setTimeout(r, 450));
+      try {
+        await ensureCsrf(true);
+        const retry = await fetch(`${API_BASE}/auth/refresh`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: baseHeaders('POST'),
+        });
+        const retryData = await retry.json().catch(() => ({}));
+        if (retry.ok) {
+          rememberCsrf(retryData);
+          return true;
+        }
+      } catch {
+        /* fall through */
+      }
+    }
     dropSession();
-    throw new ApiError('Session expirée', res.status);
+    throw new ApiError(msg || 'Session expirée', res.status);
   }
   rememberCsrf(data);
   return true;
@@ -124,6 +159,13 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
 
   let res = await fetch(`${API_BASE}${path}`, opts);
 
+  if (res.status === 403 && auth && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    await ensureCsrf(true);
+    opts.headers = baseHeaders(method);
+    if (body !== undefined) opts.headers['Content-Type'] = 'application/json';
+    res = await fetch(`${API_BASE}${path}`, opts);
+  }
+
   if (res.status === 401 && auth) {
     refreshPromise =
       refreshPromise ||
@@ -136,7 +178,6 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
       if (body !== undefined) opts.headers['Content-Type'] = 'application/json';
       res = await fetch(`${API_BASE}${path}`, opts);
     } catch (err) {
-      dropSession();
       throw err;
     }
   }
@@ -152,17 +193,25 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
 
 /** POST multipart (avatar) — cookies + CSRF ; Cloudinary est géré côté backend. */
 export async function apiUpload(path, file) {
-  await ensureCsrf();
+  await ensureCsrf(true);
   const form = new FormData();
   form.append('file', file);
-  const headers = baseHeaders('POST');
 
-  let res = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    credentials: 'include',
-    headers,
-    body: form,
-  });
+  const send = () =>
+    fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: baseHeaders('POST'),
+      body: form,
+    });
+
+  let res = await send();
+
+  // CSRF périmé → relire le jeton et réessayer (sans déconnecter).
+  if (res.status === 403) {
+    await ensureCsrf(true);
+    res = await send();
+  }
 
   if (res.status === 401) {
     refreshPromise =
@@ -172,14 +221,8 @@ export async function apiUpload(path, file) {
       });
     try {
       await refreshPromise;
-      res = await fetch(`${API_BASE}${path}`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: baseHeaders('POST'),
-        body: form,
-      });
+      res = await send();
     } catch (err) {
-      dropSession();
       throw err;
     }
   }

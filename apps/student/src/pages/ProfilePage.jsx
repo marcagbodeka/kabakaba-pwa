@@ -117,16 +117,19 @@ export default function ProfilePage({ showSnack, initialPanel }) {
   };
 
   const openEdit = async () => {
+    setFirstName(user?.firstName || '');
+    setLastName(user?.lastName || '');
+    setNotifyOrders(user?.notifyOrders !== false);
+    setNotifyPromotions(!!user?.notifyPromotions);
     setPanel('edit');
-    if (!user?.id) return;
     try {
-      const fresh = await userApi.get(user.id);
+      const fresh = await refreshMe();
       setFirstName(fresh?.firstName || '');
       setLastName(fresh?.lastName || '');
       setNotifyOrders(fresh?.notifyOrders !== false);
       setNotifyPromotions(!!fresh?.notifyPromotions);
-    } catch (e) {
-      showSnack?.(e.message || 'Profil indisponible');
+    } catch {
+      /* garde les valeurs locales si /me échoue */
     }
   };
 
@@ -282,6 +285,48 @@ export default function ProfilePage({ showSnack, initialPanel }) {
         <div className="list-pad">
           {panel === 'edit' ? (
             <>
+              <div className="profile-edit-photo">
+                <button
+                  type="button"
+                  className="profile-edit-avatar"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={uploading}
+                  aria-label="Changer la photo de profil"
+                >
+                  {user?.avatarUrl ? (
+                    <img src={user.avatarUrl} alt="" />
+                  ) : (
+                    <span>{initialsFrom(displayName)}</span>
+                  )}
+                  <span className="profile-edit-avatar-badge" aria-hidden>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                      <circle cx="12" cy="13" r="4" />
+                    </svg>
+                  </span>
+                </button>
+                <div className="profile-edit-photo-copy">
+                  <strong>Photo de profil</strong>
+                  <span>JPG, PNG ou WebP · 5 Mo max</span>
+                  <button
+                    type="button"
+                    className="link-accent"
+                    disabled={uploading}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    {uploading ? 'Envoi…' : user?.avatarUrl ? 'Changer la photo' : 'Ajouter une photo'}
+                  </button>
+                </div>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  hidden
+                  onChange={onAvatarPick}
+                  disabled={uploading}
+                />
+              </div>
+
               <div className="field">
                 <label>Prénom</label>
                 <div className="input-shell">
@@ -539,6 +584,12 @@ export default function ProfilePage({ showSnack, initialPanel }) {
             ) : (
               <span>{initialsFrom(displayName)}</span>
             )}
+            <span className="profile-hero-avatar-cam" aria-hidden>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+                <circle cx="12" cy="13" r="4" />
+              </svg>
+            </span>
           </span>
           <input
             ref={fileRef}
@@ -550,7 +601,8 @@ export default function ProfilePage({ showSnack, initialPanel }) {
           />
           <span className="profile-hero-meta">
             <strong>{displayName}</strong>
-            <span>{campusName || 'Campus non défini'}</span>
+            <span>{uploading ? 'Envoi de la photo…' : campusName || 'Campus non défini'}</span>
+            <span className="profile-hero-hint">Touche la photo pour la changer</span>
           </span>
           <svg className="profile-hero-edit" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M12 20h9" />
