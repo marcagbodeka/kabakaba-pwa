@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { paymentsApi, transactionsApi } from '../lib/api';
 import {
+  PAYMENT_STATUS_LABEL,
   PhoneFormatter,
   TX_CREDIT_TYPES,
+  TX_STATUS_LABEL,
   TX_TYPE_LABEL,
   formatTicketCount,
   formatTickets,
@@ -121,6 +123,41 @@ export default function WalletPage({ showSnack }) {
   useEffect(() => {
     loadTx();
   }, [loadTx]);
+
+  /** Historique unifié : mouvements wallet + recharges (dont PENDING). */
+  const history = useMemo(() => {
+    const items = [];
+    for (const tx of txs) {
+      items.push({
+        kind: 'tx',
+        id: `tx-${tx.id}`,
+        rawId: tx.id,
+        createdAt: tx.createdAt,
+        type: tx.type,
+        status: String(tx.status || 'COMPLETED').toUpperCase(),
+        amount: Number(tx.amount ?? 0),
+        description: tx.description,
+        credit: TX_CREDIT_TYPES.has(tx.type),
+      });
+    }
+    for (const payment of payments) {
+      const status = String(payment.status || '').toUpperCase();
+      // SUCCESS déjà reflété en DEPOSIT côté /transactions — on garde PENDING/FAILED.
+      if (status === 'SUCCESS') continue;
+      items.push({
+        kind: 'payment',
+        id: `pay-${payment.id}`,
+        rawId: payment.id,
+        createdAt: payment.createdAt,
+        status,
+        amountFcfa: Number(payment.amountFcfa ?? 0),
+        ticketsReceived: Number(payment.ticketsReceived ?? 0),
+        credit: true,
+      });
+    }
+    items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return items;
+  }, [txs, payments]);
 
   useEffect(() => {
     const n = Number(amount);
@@ -397,96 +434,118 @@ export default function WalletPage({ showSnack }) {
           <div style={{ display: 'grid', placeItems: 'center', padding: 32 }}>
             <div className="spinner" />
           </div>
-        ) : txs.length === 0 ? (
+        ) : history.length === 0 ? (
           <div className="empty-state">
             <h3>Aucun mouvement</h3>
             <p>Tes recharges et paiements de commandes apparaîtront ici.</p>
           </div>
         ) : (
-          txs.map((tx) => {
-            const credit = TX_CREDIT_TYPES.has(tx.type);
-            const amt = Number(tx.amount ?? 0);
+          history.map((item) => {
+            if (item.kind === 'payment') {
+              const statusLabel =
+                PAYMENT_STATUS_LABEL[item.status] || item.status;
+              const statusMod = item.status.toLowerCase();
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="tx-card"
+                  onClick={async () => {
+                    try {
+                      const full = await paymentsApi.get(item.rawId);
+                      setDetail({
+                        kind: 'payment',
+                        amountFcfa: full.amountFcfa,
+                        ticketsReceived: full.ticketsReceived,
+                        status: full.status,
+                        createdAt: full.createdAt,
+                      });
+                    } catch (e) {
+                      showSnack?.(e.message || 'Recharge indisponible');
+                    }
+                  }}
+                >
+                  <span className="tx-icon in">+</span>
+                  <div className="tx-card-body">
+                    <h3>Recharge · {formatTickets(item.amountFcfa)}</h3>
+                    <p>
+                      {formatTime(item.createdAt)}
+                      <span className={`tx-status tx-status--${statusMod}`}>
+                        {statusLabel}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="price" style={{ color: 'var(--green)' }}>
+                    +{formatTicketCount(item.ticketsReceived)} tickets
+                  </div>
+                </button>
+              );
+            }
+
+            const statusLabel = TX_STATUS_LABEL[item.status] || item.status;
+            const statusMod = item.status.toLowerCase();
             return (
               <button
-                key={tx.id}
+                key={item.id}
                 type="button"
                 className="tx-card"
                 onClick={async () => {
                   try {
-                    setDetail(await transactionsApi.get(tx.id));
+                    setDetail(await transactionsApi.get(item.rawId));
                   } catch (e) {
                     showSnack?.(e.message || 'Détail indisponible');
                   }
                 }}
               >
-                <span className={`tx-icon${credit ? ' in' : ' out'}`}>{credit ? '+' : '−'}</span>
-                <div style={{ flex: 1, textAlign: 'left' }}>
-                  <h3>{TX_TYPE_LABEL[tx.type] || tx.type}</h3>
+                <span className={`tx-icon${item.credit ? ' in' : ' out'}`}>
+                  {item.credit ? '+' : '−'}
+                </span>
+                <div className="tx-card-body">
+                  <h3>{TX_TYPE_LABEL[item.type] || item.type}</h3>
                   <p>
-                    {formatTime(tx.createdAt)}
-                    {tx.description ? ` · ${tx.description}` : ''}
+                    {formatTime(item.createdAt)}
+                    {item.description ? ` · ${item.description}` : ''}
+                    <span className={`tx-status tx-status--${statusMod}`}>
+                      {statusLabel}
+                    </span>
                   </p>
                 </div>
-                <div className="price" style={{ color: credit ? 'var(--green)' : 'var(--text-primary)' }}>
-                  {credit ? '+' : '−'}
-                  {formatTicketCount(amt)} tickets
+                <div
+                  className="price"
+                  style={{
+                    color: item.credit ? 'var(--green)' : 'var(--text-primary)',
+                  }}
+                >
+                  {item.credit ? '+' : '−'}
+                  {formatTicketCount(item.amount)} tickets
                 </div>
               </button>
             );
           })
         )}
-
-        <div className="kicker" style={{ marginTop: 28 }}>
-          Recharges
-        </div>
-        {payments.length === 0 ? (
-          <p className="muted">Aucune recharge pour l’instant.</p>
-        ) : (
-          payments.map((payment) => (
-            <button
-              key={payment.id}
-              type="button"
-              className="item-card"
-              onClick={async () => {
-                try {
-                  const full = await paymentsApi.get(payment.id);
-                  setDetail({
-                    kind: 'payment',
-                    amountFcfa: full.amountFcfa,
-                    ticketsReceived: full.ticketsReceived,
-                    status: full.status,
-                    createdAt: full.createdAt,
-                  });
-                } catch (e) {
-                  showSnack?.(e.message || 'Recharge indisponible');
-                }
-              }}
-            >
-              <div style={{ flex: 1, textAlign: 'left' }}>
-                <h3>{payment.amountFcfa} FCFA</h3>
-                <p>
-                  {formatTime(payment.createdAt)} · {payment.status}
-                </p>
-              </div>
-              <div className="price">{formatTickets(payment.ticketsReceived || 0)}</div>
-            </button>
-          ))
-        )}
         {detail ? (
-          <div className="item-card" style={{ marginTop: 12 }}>
-            <div style={{ flex: 1 }}>
+          <div className="tx-card tx-card--detail" style={{ marginTop: 12 }}>
+            <div className="tx-card-body">
               {detail.kind === 'payment' ? (
                 <>
-                  <h3>Recharge {detail.status}</h3>
+                  <h3>
+                    Recharge ·{' '}
+                    {PAYMENT_STATUS_LABEL[String(detail.status).toUpperCase()] ||
+                      detail.status}
+                  </h3>
                   <p>
-                    {detail.amountFcfa} FCFA · {formatTickets(detail.ticketsReceived || 0)}
+                    {detail.amountFcfa} FCFA ·{' '}
+                    {formatTicketCount(detail.ticketsReceived || 0)} tickets
                   </p>
                 </>
               ) : (
                 <>
                   <h3>{TX_TYPE_LABEL[detail.type] || detail.type}</h3>
                   <p>
-                    {formatTickets(detail.amount)}
+                    {formatTicketCount(detail.amount)} tickets
+                    {detail.status
+                      ? ` · ${TX_STATUS_LABEL[String(detail.status).toUpperCase()] || detail.status}`
+                      : ''}
                     {detail.description ? ` · ${detail.description}` : ''}
                   </p>
                 </>

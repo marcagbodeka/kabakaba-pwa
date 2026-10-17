@@ -84,3 +84,17 @@ export const TX_TYPE_LABEL = {
 
 /** Types qui créditent le portefeuille étudiant. */
 export const TX_CREDIT_TYPES = new Set(['DEPOSIT', 'REFUND', 'REFERRAL_BONUS']);
+
+export const PAYMENT_STATUS_LABEL = {
+  PENDING: 'En attente',
+  SUCCESS: 'Réussi',
+  FAILED: 'Échoué',
+  CANCELLED: 'Annulé',
+};
+
+export const TX_STATUS_LABEL = {
+  COMPLETED: 'Terminé',
+  PENDING: 'En attente',
+  FAILED: 'Échoué',
+  CANCELLED: 'Annulé',
+};
