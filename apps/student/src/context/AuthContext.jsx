@@ -10,7 +10,6 @@ import { authApi, normalizeUser, userApi } from '../lib/api';
 import {
   clearTokens,
   forgetDevice,
-  hasTokens,
   loadSession,
   saveSession,
 } from '../lib/session';
@@ -19,7 +18,6 @@ import { PhoneFormatter } from '../lib/format';
 const AuthContext = createContext(null);
 
 function statusFromSession(session) {
-  if (hasTokens(session)) return 'authenticated';
   if (session.phone && session.pinConfigured) return 'needsPin';
   return 'needsOtp';
 }
@@ -43,15 +41,11 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      if (!hasTokens()) {
-        setReady(true);
-        return;
-      }
       try {
         await refreshMe();
         setStatus('authenticated');
       } catch {
-        const next = clearTokens();
+        const next = loadSession();
         setSession(next);
         setStatus(statusFromSession(next));
         setUser(null);
@@ -104,25 +98,6 @@ export function AuthProvider({ children }) {
           return { stage: 'PIN_SETUP_REQUIRED' };
         }
 
-        // Compat éventuelle (autres rôles) — refusé pour l’app étudiant
-        if (res.accessToken) {
-          if (res.user?.role && res.user.role !== 'STUDENT') {
-            throw new Error('Ce compte n’est pas un compte étudiant.');
-          }
-          saveSession({
-            accessToken: res.accessToken,
-            refreshToken: res.refreshToken,
-            userId: res.user?.id,
-            phone: PhoneFormatter.toE164(phone),
-            pinConfigured: Boolean(res.user?.hasPin),
-          });
-          const me = await userApi.me().catch(() => normalizeUser(res.user));
-          setUser(me);
-          setSession(loadSession());
-          setStatus('authenticated');
-          return { stage: 'AUTHENTICATED' };
-        }
-
         throw new Error('Réponse de connexion inattendue. Réessaie.');
       }),
     [run],
@@ -138,12 +113,7 @@ export function AuthProvider({ children }) {
         if (res.user?.role && res.user.role !== 'STUDENT') {
           throw new Error('Ce compte n’est pas un compte étudiant.');
         }
-        const next = saveSession({
-          accessToken: res.accessToken,
-          refreshToken: res.refreshToken,
-          userId: res.user?.id,
-          pinConfigured: true,
-        });
+        const next = saveSession({ pinConfigured: true });
         setSession(next);
         setPinSetupToken(null);
         const me = await userApi.me().catch(() => normalizeUser(res.user));
@@ -163,9 +133,6 @@ export function AuthProvider({ children }) {
           throw new Error('Ce compte n’est pas un compte étudiant.');
         }
         const next = saveSession({
-          accessToken: res.accessToken,
-          refreshToken: res.refreshToken,
-          userId: res.user?.id,
           phone: e164,
           pinConfigured: true,
         });
@@ -180,7 +147,7 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     try {
-      if (hasTokens()) await authApi.logout();
+      await authApi.logout();
     } catch {
       /* ignore */
     }
@@ -193,7 +160,7 @@ export function AuthProvider({ children }) {
 
   const forget = useCallback(async () => {
     try {
-      if (hasTokens()) await authApi.logout();
+      await authApi.logout();
     } catch {
       /* ignore */
     }

@@ -41,7 +41,7 @@ function Root() {
   };
 
   let screen = <Bootstrap />;
-  if (!booting) {
+  if (!booting && auth.ready) {
     if (auth.status === 'authenticated') {
       screen = <Dashboard showSnack={showSnack} />;
     } else if (auth.status === 'needsPin') {
@@ -54,7 +54,7 @@ function Root() {
   return (
     <div className={`app-shell${auth.status !== 'authenticated' ? ' app-shell--dark' : ''}`}>
       {screen}
-      {!booting ? <InstallPrompt /> : null}
+      {!booting && auth.ready ? <InstallPrompt /> : null}
       {snack ? <div className="snack">{snack}</div> : null}
     </div>
   );

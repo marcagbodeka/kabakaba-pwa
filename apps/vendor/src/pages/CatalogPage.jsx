@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import SubpageBar from '../components/SubpageBar';
 import { IconPlus } from '../components/icons';
 import {
+  categoriesApi,
   componentsApi,
   menusApi,
   takeawayApi,
@@ -10,6 +11,7 @@ import { UNIT_LABEL, UNIT_OPTIONS, formatTickets } from '../lib/format';
 
 const TABS = [
   { key: 'components', label: 'Stock' },
+  { key: 'categories', label: 'Catégories' },
   { key: 'menus', label: 'Menus' },
   { key: 'takeaway', label: 'Emporté' },
 ];
@@ -23,9 +25,10 @@ function Field({ label, children }) {
   );
 }
 
-function ComponentSheet({ initial, onClose, onSave, busy }) {
+function ComponentSheet({ initial, categories = [], onClose, onSave, busy }) {
   const [name, setName] = useState(initial?.name || '');
   const [unit, setUnit] = useState(initial?.unit || 'PORTION');
+  const [categoryId, setCategoryId] = useState(initial?.categoryId || '');
   const [priceTickets, setPrice] = useState(String(initial?.priceTickets ?? ''));
   const [quantity, setQty] = useState(String(initial?.quantity ?? '0'));
   const [isAvailable, setAvail] = useState(initial?.isAvailable !== false);
@@ -37,6 +40,16 @@ function ComponentSheet({ initial, onClose, onSave, busy }) {
         <p className="sub">Visible des étudiants seulement si disponible et en stock.</p>
         <Field label="Nom">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Riz" />
+        </Field>
+        <Field label="Catégorie">
+          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <option value="">Sans catégorie</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
         </Field>
         <Field label="Unité">
           <select value={unit} onChange={(e) => setUnit(e.target.value)}>
@@ -84,6 +97,7 @@ function ComponentSheet({ initial, onClose, onSave, busy }) {
                 unit,
                 priceTickets: Number(priceTickets),
                 isAvailable,
+                ...(categoryId ? { categoryId } : {}),
                 ...(initial ? {} : { quantity: Number(quantity || 0) }),
               })
             }
@@ -202,6 +216,33 @@ function MenuSheet({ components, initial, onClose, onSave, busy }) {
   );
 }
 
+function CategorySheet({ initial, onClose, onSave, busy }) {
+  const [name, setName] = useState(initial?.name || '');
+  return (
+    <div className="sheet-backdrop" onClick={onClose}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <h2>{initial ? 'Renommer la catégorie' : 'Nouvelle catégorie'}</h2>
+        <Field label="Nom">
+          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Ex. Protéine" />
+        </Field>
+        <div className="sheet-actions">
+          <button
+            type="button"
+            className="btn-action fill primary full"
+            disabled={busy || !name.trim()}
+            onClick={() => onSave({ name: name.trim() })}
+          >
+            {busy ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+          <button type="button" className="btn-action outline full" onClick={onClose}>
+            Annuler
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TakeawaySheet({ initial, onClose, onSave, busy }) {
   const [name, setName] = useState(initial?.name || '');
   const [priceTickets, setPrice] = useState(String(initial?.priceTickets ?? '0'));
@@ -258,6 +299,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   const vendorId = vendor?.id;
   const [tab, setTab] = useState('components');
   const [components, setComponents] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [menus, setMenus] = useState([]);
   const [options, setOptions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -268,12 +310,14 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     if (!vendorId) return;
     setLoading(true);
     try {
-      const [c, m, t] = await Promise.all([
+      const [c, cats, m, t] = await Promise.all([
         componentsApi.manage(vendorId),
+        categoriesApi.list(vendorId),
         menusApi.manage(vendorId),
         takeawayApi.manage(vendorId),
       ]);
       setComponents(c);
+      setCategories(cats);
       setMenus(m);
       setOptions(t);
     } catch (e) {
@@ -290,6 +334,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   const addLabel = useMemo(() => {
     if (tab === 'menus') return 'Ajouter un menu';
     if (tab === 'takeaway') return 'Ajouter une option';
+    if (tab === 'categories') return 'Ajouter une catégorie';
     return 'Ajouter un composant';
   }, [tab]);
 
@@ -322,6 +367,32 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       showSnack(e.message || 'Échec');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const saveCategory = async (body) => {
+    setBusy(true);
+    try {
+      if (sheet?.item) await categoriesApi.update(sheet.item.id, body);
+      else await categoriesApi.create(body);
+      setSheet(null);
+      await reload();
+      showSnack('Catégorie enregistrée');
+    } catch (e) {
+      showSnack(e.message || 'Échec');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeCategory = async (id) => {
+    const ok = window.confirm('Supprimer cette catégorie ? Les composants encore rattachés bloquent la suppression.');
+    if (!ok) return;
+    try {
+      await categoriesApi.remove(id);
+      await reload();
+    } catch (e) {
+      showSnack(e.message || 'Suppression impossible');
     }
   };
 
@@ -426,6 +497,32 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
               })
             : null}
 
+          {tab === 'categories'
+            ? categories.map((cat) => (
+                <div key={cat.id} className="catalog-card">
+                  <div className="catalog-main">
+                    <strong>{cat.name}</strong>
+                    <span>
+                      {components.filter((c) => c.categoryId === cat.id).length} composant
+                      {components.filter((c) => c.categoryId === cat.id).length > 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="catalog-actions">
+                    <button
+                      type="button"
+                      className="link-mini"
+                      onClick={() => setSheet({ type: 'categories', item: cat })}
+                    >
+                      Éditer
+                    </button>
+                    <button type="button" className="link-mini" onClick={() => removeCategory(cat.id)}>
+                      Supprimer
+                    </button>
+                  </div>
+                </div>
+              ))
+            : null}
+
           {tab === 'menus'
             ? menus.map((m) => (
                 <div key={m.id} className={`catalog-card${!m.isActive ? ' dim' : ''}`}>
@@ -475,6 +572,12 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
               <p>Ajoute ton stock pour composer des menus et recevoir des commandes.</p>
             </div>
           ) : null}
+          {tab === 'categories' && !categories.length ? (
+            <div className="empty-block">
+              <h3>Aucune catégorie</h3>
+              <p>Range tes composants pour que les étudiants les retrouvent plus vite.</p>
+            </div>
+          ) : null}
           {tab === 'menus' && !menus.length ? (
             <div className="empty-block">
               <h3>Aucun menu</h3>
@@ -499,9 +602,18 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       {sheet?.type === 'components' ? (
         <ComponentSheet
           initial={sheet.item}
+          categories={categories}
           busy={busy}
           onClose={() => setSheet(null)}
           onSave={saveComponent}
+        />
+      ) : null}
+      {sheet?.type === 'categories' ? (
+        <CategorySheet
+          initial={sheet.item}
+          busy={busy}
+          onClose={() => setSheet(null)}
+          onSave={saveCategory}
         />
       ) : null}
       {sheet?.type === 'menus' ? (

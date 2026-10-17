@@ -16,6 +16,8 @@ export default function WalletPage({ showSnack }) {
   const balance = Number(user?.walletBalance ?? 0);
 
   const [txs, setTxs] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [detail, setDetail] = useState(null);
   const [loadingTx, setLoadingTx] = useState(true);
 
   const [amount, setAmount] = useState('');
@@ -32,6 +34,12 @@ export default function WalletPage({ showSnack }) {
     try {
       const res = await transactionsApi.list({ limit: 30 });
       setTxs(res.data || []);
+      try {
+        const pays = await paymentsApi.list({ limit: 20 });
+        setPayments(pays.data || []);
+      } catch {
+        setPayments([]);
+      }
     } catch (e) {
       showSnack?.(e.message || 'Historique indisponible');
     } finally {
@@ -204,8 +212,19 @@ export default function WalletPage({ showSnack }) {
             const credit = TX_CREDIT_TYPES.has(tx.type);
             const amt = Number(tx.amount ?? 0);
             return (
-              <div key={tx.id} className="item-card">
-                <div style={{ flex: 1 }}>
+              <button
+                key={tx.id}
+                type="button"
+                className="item-card"
+                onClick={async () => {
+                  try {
+                    setDetail(await transactionsApi.get(tx.id));
+                  } catch (e) {
+                    showSnack?.(e.message || 'Détail indisponible');
+                  }
+                }}
+              >
+                <div style={{ flex: 1, textAlign: 'left' }}>
                   <h3>{TX_TYPE_LABEL[tx.type] || tx.type}</h3>
                   <p>
                     {formatTime(tx.createdAt)}
@@ -219,10 +238,72 @@ export default function WalletPage({ showSnack }) {
                   {credit ? '+' : '−'}
                   {formatTickets(amt)}
                 </div>
-              </div>
+              </button>
             );
           })
         )}
+
+        <div className="kicker" style={{ marginTop: 28 }}>
+          Recharges
+        </div>
+        {payments.length === 0 ? (
+          <p className="muted">Aucune recharge pour l’instant.</p>
+        ) : (
+          payments.map((payment) => (
+            <button
+              key={payment.id}
+              type="button"
+              className="item-card"
+              onClick={async () => {
+                try {
+                  const full = await paymentsApi.get(payment.id);
+                  setDetail({
+                    kind: 'payment',
+                    amountFcfa: full.amountFcfa,
+                    ticketsReceived: full.ticketsReceived,
+                    status: full.status,
+                    createdAt: full.createdAt,
+                  });
+                } catch (e) {
+                  showSnack?.(e.message || 'Recharge indisponible');
+                }
+              }}
+            >
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <h3>{payment.amountFcfa} FCFA</h3>
+                <p>
+                  {formatTime(payment.createdAt)} · {payment.status}
+                </p>
+              </div>
+              <div className="price">{formatTickets(payment.ticketsReceived || 0)}</div>
+            </button>
+          ))
+        )}
+        {detail ? (
+          <div className="item-card" style={{ marginTop: 12 }}>
+            <div style={{ flex: 1 }}>
+              {detail.kind === 'payment' ? (
+                <>
+                  <h3>Recharge {detail.status}</h3>
+                  <p>
+                    {detail.amountFcfa} FCFA · {formatTickets(detail.ticketsReceived || 0)}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3>{TX_TYPE_LABEL[detail.type] || detail.type}</h3>
+                  <p>
+                    {formatTickets(detail.amount)}
+                    {detail.description ? ` · ${detail.description}` : ''}
+                  </p>
+                </>
+              )}
+              <button type="button" className="link-accent" onClick={() => setDetail(null)}>
+                Fermer
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );

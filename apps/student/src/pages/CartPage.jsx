@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { catalogApi, ordersApi } from '../lib/api';
+import { catalogApi, ordersApi, scheduledOrdersApi } from '../lib/api';
 import { formatTickets } from '../lib/format';
 import { IconBack } from '../components/icons';
 
@@ -10,6 +10,7 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
   const cart = useCart();
   const [options, setOptions] = useState([]);
   const [paying, setPaying] = useState(false);
+  const [scheduleAt, setScheduleAt] = useState('');
 
   useEffect(() => {
     if (!cart.vendorId) {
@@ -33,6 +34,22 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
   const canPay = cart.lines.length > 0 && balance >= total;
   const takeawayAvailable = options.some((o) => o.isActive !== false);
 
+  const orderBody = () => {
+    const body = {
+      vendorId: cart.vendorId,
+      consumptionMode: cart.consumptionMode,
+      items: cart.lines.map((l) =>
+        l.menuId
+          ? { menuId: l.menuId, quantity: l.quantity }
+          : { componentId: l.componentId, quantity: l.quantity },
+      ),
+    };
+    if (cart.consumptionMode === 'TAKEAWAY') {
+      body.takeawayOptionId = cart.takeawayOptionId;
+    }
+    return body;
+  };
+
   const checkout = async () => {
     if (!canPay) {
       showSnack(
@@ -48,25 +65,49 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
     }
     setPaying(true);
     try {
-      const body = {
-        vendorId: cart.vendorId,
-        consumptionMode: cart.consumptionMode,
-        items: cart.lines.map((l) =>
-          l.menuId
-            ? { menuId: l.menuId, quantity: l.quantity }
-            : { componentId: l.componentId, quantity: l.quantity },
-        ),
-      };
-      if (cart.consumptionMode === 'TAKEAWAY') {
-        body.takeawayOptionId = cart.takeawayOptionId;
-      }
-      const order = await ordersApi.create(body);
+      const order = await ordersApi.create(orderBody());
       cart.clear();
       await refreshMe();
       showSnack('Commande confirmée');
       onOrdered(order.id);
     } catch (e) {
       showSnack(e.message || 'Commande impossible');
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  const schedule = async () => {
+    if (!cart.lines.length) {
+      showSnack('Ajoute des articles au panier');
+      return;
+    }
+    if (cart.consumptionMode === 'TAKEAWAY' && !cart.takeawayOptionId) {
+      showSnack('Choisis une option d’emporté');
+      return;
+    }
+    const when = new Date(scheduleAt);
+    if (Number.isNaN(when.getTime())) {
+      showSnack('Choisis une heure');
+      return;
+    }
+    const lead = when.getTime() - Date.now();
+    if (lead < 15 * 60 * 1000 || lead > 24 * 60 * 60 * 1000) {
+      showSnack('L’heure doit être entre 15 minutes et 24 heures');
+      return;
+    }
+    setPaying(true);
+    try {
+      await scheduledOrdersApi.create({
+        ...orderBody(),
+        scheduledFor: when.toISOString(),
+      });
+      cart.clear();
+      setScheduleAt('');
+      showSnack('Commande programmée. Les tickets seront débités à l’heure prévue.');
+      onBack();
+    } catch (e) {
+      showSnack(e.message || 'Programmation impossible');
     } finally {
       setPaying(false);
     }
@@ -205,6 +246,24 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
               onClick={checkout}
             >
               {paying ? 'Paiement…' : 'Commander et payer'}
+            </button>
+            <div className="field" style={{ marginTop: 18 }}>
+              <label>Ou programmer (15 min à 24 h)</label>
+              <div className="input-shell">
+                <input
+                  type="datetime-local"
+                  value={scheduleAt}
+                  onChange={(e) => setScheduleAt(e.target.value)}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn-outline"
+              disabled={paying || !cart.lines.length || !scheduleAt}
+              onClick={schedule}
+            >
+              Programmer sans débiter maintenant
             </button>
           </>
         )}

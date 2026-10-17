@@ -2,13 +2,13 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
 } from 'react';
-import { vendorAuthApi } from '../lib/api';
+import { vendorApi, vendorAuthApi } from '../lib/api';
 import {
   forgetDevice,
-  hasTokens,
   loadSession,
   saveSession,
   clearTokens,
@@ -18,14 +18,14 @@ import { PhoneFormatter } from '../lib/format';
 const AuthContext = createContext(null);
 
 function statusFromSession(session) {
-  if (hasTokens(session)) return 'authenticated';
   if (session.phone && session.pinConfigured) return 'needsPin';
   return 'needsActivation';
 }
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(() => loadSession());
-  const [status, setStatus] = useState(() => statusFromSession(loadSession()));
+  const [status, setStatus] = useState('needsActivation');
+  const [ready, setReady] = useState(false);
   const [activationStep, setActivationStep] = useState('credentials');
   const [pinLength, setPinLength] = useState(4);
   const [phoneMasked, setPhoneMasked] = useState(null);
@@ -36,6 +36,21 @@ export function AuthProvider({ children }) {
   const [pinSetupToken, setPinSetupToken] = useState(null);
 
   const clearError = useCallback(() => setErrorMessage(null), []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        await vendorApi.me();
+        setStatus('authenticated');
+      } catch {
+        const next = loadSession();
+        setSession(next);
+        setStatus(statusFromSession(next));
+      } finally {
+        setReady(true);
+      }
+    })();
+  }, []);
 
   const run = useCallback(async (fn) => {
     setIsSubmitting(true);
@@ -108,8 +123,6 @@ export function AuthProvider({ children }) {
         }
         const tokens = await vendorAuthApi.setPin(pinSetupToken, pin);
         const next = saveSession({
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
           phone: session.phone,
           pinConfigured: true,
         });
@@ -128,11 +141,7 @@ export function AuthProvider({ children }) {
       run(async () => {
         if (!session.phone) return false;
         const tokens = await vendorAuthApi.loginPin(session.phone, pin);
-        const next = saveSession({
-          accessToken: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-          pinConfigured: true,
-        });
+        const next = saveSession({ pinConfigured: true });
         setSession(next);
         setStatus('authenticated');
         setPinLocked(false);
@@ -150,7 +159,7 @@ export function AuthProvider({ children }) {
 
   const forget = useCallback(async () => {
     try {
-      if (hasTokens()) await vendorAuthApi.logout();
+      await vendorAuthApi.logout();
     } catch {
       /* ignore */
     }
@@ -176,6 +185,7 @@ export function AuthProvider({ children }) {
   const value = useMemo(
     () => ({
       status,
+      ready,
       activationStep,
       phone: session.phone,
       phoneMasked,
@@ -195,6 +205,7 @@ export function AuthProvider({ children }) {
     }),
     [
       status,
+      ready,
       activationStep,
       session.phone,
       phoneMasked,

@@ -15,6 +15,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
   const [vendor, setVendor] = useState(null);
   const [menus, setMenus] = useState([]);
   const [components, setComponents] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [compQty, setCompQty] = useState({});
 
@@ -23,14 +24,16 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
     (async () => {
       setLoading(true);
       try {
-        const [v, m, c] = await Promise.all([
+        const [v, m, c, cats] = await Promise.all([
           vendorsApi.get(vendorId),
           catalogApi.menus(vendorId),
           catalogApi.components(vendorId),
+          catalogApi.categories(vendorId),
         ]);
         setVendor(v);
         setMenus(Array.isArray(m) ? m : []);
         setComponents(Array.isArray(c) ? c : []);
+        setCategories(Array.isArray(cats) ? cats : []);
       } catch (e) {
         showSnack(e.message || 'Impossible de charger la cantine');
       } finally {
@@ -154,7 +157,30 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
 
         {tab === 1 ? (
           <>
-            {components.map((c) => (
+            {(categories.length
+              ? [
+                  ...categories.map((cat) => ({
+                    id: cat.id,
+                    name: cat.name,
+                    items: components.filter((c) => c.categoryId === cat.id),
+                  })),
+                  {
+                    id: 'other',
+                    name: 'Autres',
+                    items: components.filter(
+                      (c) => !categories.some((cat) => cat.id === c.categoryId),
+                    ),
+                  },
+                ].filter((group) => group.items.length)
+              : [{ id: 'all', name: '', items: components }]
+            ).map((group) => (
+              <div key={group.id}>
+                {group.name ? (
+                  <div className="kicker" style={{ marginTop: 8 }}>
+                    {group.name}
+                  </div>
+                ) : null}
+                {group.items.map((c) => (
               <div
                 key={c.id}
                 className={`item-card${!c.available ? ' unavailable' : ''}`}
@@ -196,6 +222,8 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                 >
                   +
                 </button>
+              </div>
+                ))}
               </div>
             ))}
             {!components.length ? (

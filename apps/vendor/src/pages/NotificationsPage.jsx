@@ -5,6 +5,7 @@ import { formatDateTime } from '../lib/format';
 
 export default function NotificationsPage({ onBack, showSnack }) {
   const [items, setItems] = useState([]);
+  const [opened, setOpened] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -23,15 +24,16 @@ export default function NotificationsPage({ onBack, showSnack }) {
     load();
   }, [load]);
 
-  const mark = async (n) => {
-    if (n.isRead) return;
+  const open = async (n) => {
     try {
-      await notificationsApi.markRead(n.id);
-      setItems((list) =>
-        list.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)),
-      );
-    } catch {
-      /* ignore */
+      const full = await notificationsApi.get(n.id);
+      setOpened(full);
+      if (!full.isRead) {
+        await notificationsApi.markRead(n.id);
+        setItems((list) => list.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
+      }
+    } catch (e) {
+      showSnack(e.message || 'Notification indisponible');
     }
   };
 
@@ -55,7 +57,7 @@ export default function NotificationsPage({ onBack, showSnack }) {
                 key={n.id}
                 type="button"
                 className={`catalog-card notif-card${!n.isRead ? ' unread' : ''}`}
-                onClick={() => mark(n)}
+                onClick={() => open(n)}
               >
                 <div className="catalog-main">
                   <strong>{n.title || 'Notification'}</strong>
@@ -67,6 +69,20 @@ export default function NotificationsPage({ onBack, showSnack }) {
               </button>
             ))
           )}
+          {opened ? (
+            <div className="catalog-card">
+              <div className="catalog-main">
+                <strong>{opened.title || 'Notification'}</strong>
+                <span>
+                  {opened.message || ''}
+                  {opened.createdAt ? ` · ${formatDateTime(opened.createdAt)}` : ''}
+                </span>
+              </div>
+              <button type="button" className="link-mini" onClick={() => setOpened(null)}>
+                Fermer
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

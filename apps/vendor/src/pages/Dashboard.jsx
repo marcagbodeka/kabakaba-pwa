@@ -185,6 +185,8 @@ export default function Dashboard({ showSnack }) {
           onNotificationTap={openNotifs}
           hasUnread={hasUnread}
           onOpenCatalog={() => setStack('catalog')}
+          onUpdated={(updated) => setVendor((v) => ({ ...v, ...updated }))}
+          showSnack={showSnack}
         />
       ) : null}
       <BottomNav current={tab} onChange={setTab} />

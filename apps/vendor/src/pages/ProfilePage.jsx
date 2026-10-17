@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import VendorHeader from '../components/VendorHeader';
 import { useAuth } from '../auth/AuthContext';
+import { vendorApi } from '../lib/api';
 import { initialsFrom } from '../lib/format';
 
 export default function ProfilePage({
@@ -8,9 +10,33 @@ export default function ProfilePage({
   onNotificationTap,
   hasUnread,
   onOpenCatalog,
+  onUpdated,
+  showSnack,
 }) {
   const auth = useAuth();
   const initials = initialsFrom(vendor?.canteenName);
+  const [editing, setEditing] = useState(false);
+  const [canteenName, setCanteenName] = useState(vendor?.canteenName || '');
+  const [description, setDescription] = useState(vendor?.description || '');
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    if (!vendor?.id) return;
+    setBusy(true);
+    try {
+      const updated = await vendorApi.update(vendor.id, {
+        canteenName: canteenName.trim(),
+        description: description.trim(),
+      });
+      onUpdated?.(updated);
+      setEditing(false);
+      showSnack?.('Cantine mise à jour');
+    } catch (e) {
+      showSnack?.(e.message || 'Mise à jour impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <div className="dashboard-body">
@@ -56,7 +82,37 @@ export default function ProfilePage({
         </div>
       </div>
 
+      {editing ? (
+        <div className="nav-rows" style={{ padding: 16 }}>
+          <div className="vfield">
+            <label>Nom de la cantine</label>
+            <input value={canteenName} onChange={(e) => setCanteenName(e.target.value)} />
+          </div>
+          <div className="vfield">
+            <label>Description</label>
+            <input value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <button type="button" className="btn-action fill primary full" disabled={busy || !canteenName.trim()} onClick={save}>
+            {busy ? 'Enregistrement…' : 'Enregistrer'}
+          </button>
+        </div>
+      ) : null}
+
       <div className="nav-rows">
+        <button
+          type="button"
+          className="nav-row"
+          onClick={() => {
+            setCanteenName(vendor?.canteenName || '');
+            setDescription(vendor?.description || '');
+            setEditing((v) => !v);
+          }}
+        >
+          <div>
+            <strong>Présentation</strong>
+            <span>Nom et description de la cantine</span>
+          </div>
+        </button>
         <button type="button" className="nav-row" onClick={onOpenCatalog}>
           <div>
             <strong>Mon catalogue</strong>

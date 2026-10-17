@@ -12,6 +12,7 @@ export default function HistoryPage({ onBack, showSnack }) {
   const [tab, setTab] = useState('withdrawals');
   const [withdrawals, setWithdrawals] = useState([]);
   const [txs, setTxs] = useState([]);
+  const [txDetail, setTxDetail] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -76,7 +77,18 @@ export default function HistoryPage({ onBack, showSnack }) {
 
           {tab === 'txs'
             ? txs.map((tx) => (
-                <div key={tx.id} className="catalog-card">
+                <button
+                  key={tx.id}
+                  type="button"
+                  className="catalog-card"
+                  onClick={async () => {
+                    try {
+                      setTxDetail(await transactionsApi.get(tx.id));
+                    } catch (e) {
+                      showSnack(e.message || 'Détail indisponible');
+                    }
+                  }}
+                >
                   <div className="catalog-main">
                     <strong>{TX_TYPE_LABEL[tx.type] || tx.type}</strong>
                     <span>
@@ -85,9 +97,24 @@ export default function HistoryPage({ onBack, showSnack }) {
                     </span>
                   </div>
                   <div className="price-tag">{formatTickets(tx.amount)}</div>
-                </div>
+                </button>
               ))
             : null}
+          {txDetail && tab === 'txs' ? (
+            <div className="catalog-card">
+              <div className="catalog-main">
+                <strong>{TX_TYPE_LABEL[txDetail.type] || txDetail.type}</strong>
+                <span>
+                  {formatTickets(txDetail.amount)}
+                  {txDetail.description ? ` · ${txDetail.description}` : ''}
+                  {txDetail.createdAt ? ` · ${formatDateTime(txDetail.createdAt)}` : ''}
+                </span>
+              </div>
+              <button type="button" className="link-mini" onClick={() => setTxDetail(null)}>
+                Fermer
+              </button>
+            </div>
+          ) : null}
 
           {tab === 'withdrawals' && !withdrawals.length ? (
             <div className="empty-block">

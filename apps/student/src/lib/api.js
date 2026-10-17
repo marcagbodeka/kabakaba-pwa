@@ -3,11 +3,13 @@
  * à un compte STUDENT (ou publiques). Aucune route legacy (menu-items,
  * packaging, transferts, ambassadeurs, etc.).
  */
-import { clearTokens, loadSession, saveSession } from './session';
+import { clearTokens } from './session';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   'https://kabakaba-backend.vercel.app/api/v1';
+
+const APP = 'student';
 
 export class ApiError extends Error {
   constructor(message, statusCode = 400) {
@@ -43,40 +45,75 @@ export function normalizeUser(user) {
 }
 
 let refreshPromise = null;
+let csrfMemory = null;
+
+function rememberCsrf(data) {
+  if (data && typeof data.csrfToken === 'string') csrfMemory = data.csrfToken;
+}
+
+function dropSession() {
+  csrfMemory = null;
+  clearTokens();
+}
+
+function csrfToken() {
+  return csrfMemory;
+}
+
+function baseHeaders(method) {
+  const headers = {
+    Accept: 'application/json',
+    'X-Kabakaba-App': APP,
+  };
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = csrfToken();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+  return headers;
+}
+
+async function ensureCsrf() {
+  if (csrfMemory) return;
+  const res = await fetch(`${API_BASE}/auth/csrf`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: baseHeaders('GET'),
+  });
+  if (!res.ok) return;
+  rememberCsrf(await res.json().catch(() => ({})));
+}
 
 async function refreshAccessToken() {
-  const { refreshToken } = loadSession();
-  if (!refreshToken) throw new ApiError('Session expirée', 401);
-
+  await ensureCsrf();
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+    credentials: 'include',
+    headers: baseHeaders('POST'),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    clearTokens();
-    throw new ApiError(extractMessage(data, 'Session expirée'), res.status);
+    dropSession();
+    throw new ApiError('Session expirée', res.status);
   }
-  saveSession({
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken ?? refreshToken,
-  });
-  return data.accessToken;
+  rememberCsrf(data);
+  return true;
 }
 
 export async function api(path, { method = 'GET', body, auth = true } = {}) {
   const opts = {
     method,
-    headers: { Accept: 'application/json' },
+    credentials: 'include',
+    headers: baseHeaders(method),
   };
   if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  if (auth) {
-    const { accessToken } = loadSession();
-    if (accessToken) opts.headers.Authorization = `Bearer ${accessToken}`;
+
+  if (auth && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    await ensureCsrf();
+    opts.headers = baseHeaders(method);
+    if (body !== undefined) opts.headers['Content-Type'] = 'application/json';
   }
 
   let res = await fetch(`${API_BASE}${path}`, opts);
@@ -88,11 +125,12 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
         refreshPromise = null;
       });
     try {
-      const token = await refreshPromise;
-      opts.headers.Authorization = `Bearer ${token}`;
+      await refreshPromise;
+      opts.headers = baseHeaders(method);
+      if (body !== undefined) opts.headers['Content-Type'] = 'application/json';
       res = await fetch(`${API_BASE}${path}`, opts);
     } catch (err) {
-      clearTokens();
+      dropSession();
       throw err;
     }
   }
@@ -102,6 +140,7 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   if (!res.ok) {
     throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
   }
+  rememberCsrf(data);
   return data;
 }
 
@@ -123,12 +162,19 @@ export const authApi = {
       auth: false,
       body: { phone, pin },
     }),
-  logout: () => api('/auth/logout', { method: 'POST', body: {} }),
+  logout: async () => {
+    try {
+      return await api('/auth/logout', { method: 'POST', body: {} });
+    } finally {
+      dropSession();
+    }
+  },
 };
 
 // --- Profil ---
 export const userApi = {
   me: async () => normalizeUser(await api('/users/me')),
+  get: async (id) => normalizeUser(await api(`/users/${id}`)),
   update: async (id, body) =>
     normalizeUser(await api(`/users/${id}`, { method: 'PATCH', body })),
 };
@@ -152,6 +198,8 @@ export const vendorsApi = {
 };
 
 export const catalogApi = {
+  categories: async (vendorId) =>
+    unwrapList(await api(`/component-categories/${vendorId}`, { auth: false })),
   components: async (vendorId) =>
     unwrapList(await api(`/components/${vendorId}`, { auth: false })),
   menus: async (vendorId) =>
@@ -186,6 +234,18 @@ export const ordersApi = {
     }),
 };
 
+export const scheduledOrdersApi = {
+  create: (body) => api('/scheduled-orders', { method: 'POST', body }),
+  list: async ({ page = 1, limit = 20, status } = {}) => {
+    const q = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (status) q.set('status', status);
+    const res = await api(`/scheduled-orders?${q}`);
+    return { data: unwrapList(res), meta: res.meta };
+  },
+  get: (id) => api(`/scheduled-orders/${id}`),
+  cancel: (id) => api(`/scheduled-orders/${id}/cancel`, { method: 'POST', body: {} }),
+};
+
 // --- Portefeuille ---
 export const transactionsApi = {
   list: async ({ page = 1, limit = 30 } = {}) => {
@@ -197,6 +257,10 @@ export const transactionsApi = {
       })),
       meta: res.meta,
     };
+  },
+  get: async (id) => {
+    const t = await api(`/transactions/${id}`);
+    return { ...t, amount: Number(t.amount ?? 0) };
   },
 };
 
@@ -237,13 +301,21 @@ export const paymentsApi = {
 export const reportsApi = {
   create: (body) => api('/reports', { method: 'POST', body }),
   list: async () => unwrapList(await api('/reports?page=1&limit=30')),
+  get: (id) => api(`/reports/${id}`),
 };
 
 export const reviewsApi = {
   create: (body) => api('/reviews', { method: 'POST', body }),
+  update: (id, body) => api(`/reviews/${id}`, { method: 'PATCH', body }),
 };
 
 export const notificationsApi = {
   list: async () => unwrapList(await api('/notifications?page=1&limit=30')),
+  get: (id) => api(`/notifications/${id}`),
   markRead: (id) => api(`/notifications/${id}`, { method: 'PATCH', body: { isRead: true } }),
+};
+
+export const partnerApplicationsApi = {
+  create: (body) =>
+    api('/partner-applications', { method: 'POST', auth: false, body }),
 };

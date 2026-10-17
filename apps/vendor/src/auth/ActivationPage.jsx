@@ -5,6 +5,29 @@ import VendorInput from '../components/VendorInput';
 import { IconInfo } from '../components/icons';
 import { PhoneFormatter } from '../lib/format';
 
+const OTP_WAIT_MS = 3 * 60 * 1000;
+const OTP_WAIT_KEY = 'kabakaba.vendor.otpWait';
+
+function readOtpWait() {
+  try {
+    const raw = sessionStorage.getItem(OTP_WAIT_KEY);
+    if (!raw) return { phone: '', until: 0 };
+    const parsed = JSON.parse(raw);
+    return {
+      phone: typeof parsed.phone === 'string' ? parsed.phone : '',
+      until: Number(parsed.until) || 0,
+    };
+  } catch {
+    return { phone: '', until: 0 };
+  }
+}
+
+function formatCountdown(total) {
+  const minutes = Math.floor(total / 60);
+  const seconds = total % 60;
+  return `${minutes}:${String(seconds).padStart(2, '0')}`;
+}
+
 function OtpBoxes({ onCompleted, disabled, resetKey }) {
   const [digits, setDigits] = useState(['', '', '', '', '', '']);
   const refs = useRef([]);
@@ -93,19 +116,35 @@ function PinDotsField({ length, value, onChange, disabled }) {
 
 export default function ActivationPage() {
   const auth = useAuth();
-  const [phone, setPhone] = useState('');
+  const [wait, setWait] = useState(readOtpWait);
+  const [phone, setPhone] = useState(() => {
+    const stored = readOtpWait().phone;
+    return stored
+      ? PhoneFormatter.formatDisplay(String(stored).replace(/^\+?228/, ''))
+      : '';
+  });
   const [password, setPassword] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [otpReset, setOtpReset] = useState(0);
-  const [seconds, setSeconds] = useState(60);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
-    if (auth.activationStep !== 'otp') return undefined;
-    setSeconds(60);
-    const t = setInterval(() => setSeconds((s) => (s > 0 ? s - 1 : 0)), 1000);
+    if (wait.until <= Date.now()) return undefined;
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
-  }, [auth.activationStep, otpReset]);
+  }, [wait.until]);
+
+  const remaining = Math.max(0, Math.ceil((wait.until - now) / 1000));
+  const sameNumberCooling =
+    remaining > 0 && PhoneFormatter.toE164(phone) === wait.phone;
+
+  const armWait = (phoneE164) => {
+    const next = { phone: phoneE164, until: Date.now() + OTP_WAIT_MS };
+    setWait(next);
+    setNow(Date.now());
+    sessionStorage.setItem(OTP_WAIT_KEY, JSON.stringify(next));
+  };
 
   const stepMeta = {
     credentials: {
@@ -173,15 +212,24 @@ export default function ActivationPage() {
               créeras ensuite ton code PIN personnel.
             </span>
           </div>
+          {sameNumberCooling ? (
+            <div className="timer">
+              Nouveau SMS dans <span>{formatCountdown(remaining)}</span>
+            </div>
+          ) : null}
           <button
             type="button"
             className="btn-fill"
             disabled={
               auth.isSubmitting ||
               !PhoneFormatter.isValidLocal(phone) ||
-              !password
+              !password ||
+              sameNumberCooling
             }
-            onClick={() => auth.startActivation(phone, password)}
+            onClick={async () => {
+              const ok = await auth.startActivation(phone, password);
+              if (ok) armWait(PhoneFormatter.toE164(phone));
+            }}
           >
             {auth.isSubmitting ? 'Envoi…' : 'Continuer'}
           </button>
@@ -196,9 +244,9 @@ export default function ActivationPage() {
             onCompleted={(code) => auth.verifyOtp(code)}
           />
           <div className="timer">
-            {seconds > 0 ? (
+            {remaining > 0 ? (
               <>
-                Renvoi possible dans <span>{seconds}s</span>
+                Renvoi possible dans <span>{formatCountdown(remaining)}</span>
               </>
             ) : (
               'Tu peux renvoyer le code'
@@ -207,10 +255,13 @@ export default function ActivationPage() {
           <button
             type="button"
             className="resend"
-            disabled={seconds > 0 || auth.isSubmitting}
+            disabled={remaining > 0 || auth.isSubmitting}
             onClick={async () => {
               const ok = await auth.resendOtp();
-              if (ok) setOtpReset((n) => n + 1);
+              if (ok) {
+                armWait(auth.phone || PhoneFormatter.toE164(phone));
+                setOtpReset((n) => n + 1);
+              }
             }}
           >
             Renvoyer le code

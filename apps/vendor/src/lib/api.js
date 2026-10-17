@@ -1,11 +1,13 @@
 /**
  * Client API vendeur — routes CDC V1.3 accessibles au rôle VENDOR.
  */
-import { clearTokens, loadSession, saveSession } from './session';
+import { clearTokens } from './session';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
   'https://kabakaba-backend.vercel.app/api/v1';
+
+const APP = 'vendor';
 
 export class ApiError extends Error {
   constructor(message, statusCode = 400) {
@@ -39,45 +41,78 @@ export function normalizeVendor(v) {
 }
 
 let refreshPromise = null;
+let csrfMemory = null;
+
+function rememberCsrf(data) {
+  if (data && typeof data.csrfToken === 'string') csrfMemory = data.csrfToken;
+}
+
+function dropSession() {
+  csrfMemory = null;
+  clearTokens();
+}
+
+function csrfToken() {
+  return csrfMemory;
+}
+
+function baseHeaders(method, extra) {
+  const headers = {
+    Accept: 'application/json',
+    'X-Kabakaba-App': APP,
+    ...extra,
+  };
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const csrf = csrfToken();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
+  return headers;
+}
+
+async function ensureCsrf() {
+  if (csrfMemory) return;
+  const res = await fetch(`${API_BASE}/auth/csrf`, {
+    method: 'GET',
+    credentials: 'include',
+    headers: baseHeaders('GET'),
+  });
+  if (!res.ok) return;
+  rememberCsrf(await res.json().catch(() => ({})));
+}
 
 async function refreshAccessToken() {
-  const { refreshToken } = loadSession();
-  if (!refreshToken) throw new ApiError('Session expirée', 401);
-
+  await ensureCsrf();
   const res = await fetch(`${API_BASE}/auth/refresh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ refreshToken }),
+    credentials: 'include',
+    headers: baseHeaders('POST'),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    clearTokens();
-    throw new ApiError(extractMessage(data, 'Session expirée'), res.status);
+    dropSession();
+    throw new ApiError('Session expirée', res.status);
   }
-  saveSession({
-    accessToken: data.accessToken,
-    refreshToken: data.refreshToken ?? refreshToken,
-  });
-  return data.accessToken;
+  rememberCsrf(data);
+  return true;
 }
 
 export async function api(path, { method = 'GET', body, auth = true, headers } = {}) {
-  const opts = {
-    method,
-    headers: {
-      Accept: 'application/json',
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...headers,
-    },
+  const build = () => {
+    const next = {
+      method,
+      credentials: 'include',
+      headers: baseHeaders(method, headers),
+    };
+    if (body !== undefined) {
+      next.headers['Content-Type'] = 'application/json';
+      next.body = JSON.stringify(body);
+    }
+    return next;
   };
-  if (body !== undefined) opts.body = JSON.stringify(body);
 
-  if (auth) {
-    const { accessToken } = loadSession();
-    if (accessToken) opts.headers.Authorization = `Bearer ${accessToken}`;
-  }
+  if (auth && !['GET', 'HEAD', 'OPTIONS'].includes(method)) await ensureCsrf();
 
-  let res = await fetch(`${API_BASE}${path}`, opts);
+  let res = await fetch(`${API_BASE}${path}`, build());
 
   if (res.status === 401 && auth) {
     refreshPromise =
@@ -86,11 +121,10 @@ export async function api(path, { method = 'GET', body, auth = true, headers } =
         refreshPromise = null;
       });
     try {
-      const token = await refreshPromise;
-      opts.headers.Authorization = `Bearer ${token}`;
-      res = await fetch(`${API_BASE}${path}`, opts);
+      await refreshPromise;
+      res = await fetch(`${API_BASE}${path}`, build());
     } catch (err) {
-      clearTokens();
+      dropSession();
       throw err;
     }
   }
@@ -101,6 +135,7 @@ export async function api(path, { method = 'GET', body, auth = true, headers } =
   if (!res.ok) {
     throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
   }
+  rememberCsrf(data);
   return data;
 }
 
@@ -135,7 +170,13 @@ export const vendorAuthApi = {
       auth: false,
       body: { phone, pin },
     }),
-  logout: () => api('/auth/logout', { method: 'POST', body: {} }),
+  logout: async () => {
+    try {
+      return await api('/auth/logout', { method: 'POST', body: {} });
+    } finally {
+      dropSession();
+    }
+  },
 };
 
 export const vendorApi = {
@@ -145,6 +186,7 @@ export const vendorApi = {
     const q = new URLSearchParams(params).toString();
     return api(`/vendors/me/sales${q ? `?${q}` : ''}`);
   },
+  update: async (id, body) => normalizeVendor(await api(`/vendors/${id}`, { method: 'PATCH', body })),
 };
 
 export const ordersApi = {
@@ -159,6 +201,13 @@ export const ordersApi = {
     api(`/orders/${id}`, { method: 'PATCH', body: { status } }),
   cancel: (id, reason) =>
     api(`/orders/${id}/cancel`, { method: 'POST', body: { reason } }),
+};
+
+export const categoriesApi = {
+  list: async (vendorId) => unwrapList(await api(`/component-categories/${vendorId}`)),
+  create: (body) => api('/component-categories', { method: 'POST', body }),
+  update: (id, body) => api(`/component-categories/${id}`, { method: 'PATCH', body }),
+  remove: (id) => api(`/component-categories/${id}`, { method: 'DELETE' }),
 };
 
 export const componentsApi = {
@@ -222,6 +271,10 @@ export const transactionsApi = {
       meta: res.meta,
     };
   },
+  get: async (id) => {
+    const t = await api(`/transactions/${id}`);
+    return { ...t, amount: Number(t.amount ?? 0) };
+  },
 };
 
 export const notificationsApi = {
@@ -229,6 +282,7 @@ export const notificationsApi = {
     const res = await api(`/notifications?page=${page}&limit=${limit}`);
     return { data: unwrapList(res), meta: res.meta };
   },
+  get: (id) => api(`/notifications/${id}`),
   markRead: (id) =>
     api(`/notifications/${id}`, { method: 'PATCH', body: { isRead: true } }),
 };

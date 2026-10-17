@@ -1,37 +1,40 @@
 const KEY = 'kabakaba.vendor.session';
 
 const empty = {
-  accessToken: null,
-  refreshToken: null,
   phone: null,
   pinConfigured: false,
 };
+
+function persist(session) {
+  const next = {
+    phone: session.phone ?? null,
+    pinConfigured: Boolean(session.pinConfigured),
+  };
+  localStorage.setItem(KEY, JSON.stringify(next));
+  return next;
+}
 
 export function loadSession() {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return { ...empty };
-    return { ...empty, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw);
+    return persist(parsed);
   } catch {
     return { ...empty };
   }
 }
 
 export function saveSession(patch) {
-  const next = { ...loadSession(), ...patch };
-  localStorage.setItem(KEY, JSON.stringify(next));
-  return next;
+  return persist({ ...loadSession(), ...patch });
 }
 
 export function clearTokens() {
-  return saveSession({ accessToken: null, refreshToken: null });
+  const { phone, pinConfigured } = loadSession();
+  return persist({ phone, pinConfigured });
 }
 
 export function forgetDevice() {
   localStorage.removeItem(KEY);
   return { ...empty };
-}
-
-export function hasTokens(session = loadSession()) {
-  return Boolean(session.accessToken && session.refreshToken);
 }
