@@ -322,14 +322,18 @@
 }
 
 .bootstrap {
-  min-height: 100%;
-  background: var(--indigo-dark);
+  flex: 1;
+  width: 100%;
+  min-height: 100dvh;
+  background: linear-gradient(165deg, var(--primary) 0%, var(--indigo-dark) 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 0;
   color: #fff;
+  padding: 32px 24px calc(32px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
 }
 
 .bootstrap-mark {
@@ -354,8 +358,23 @@
 }
 
 .bootstrap-title {
+  margin-top: 14px;
   font-size: 26px;
   font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.bootstrap-spinner {
+  margin-top: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.bootstrap-caption {
+  margin-top: 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 .mode-switch {

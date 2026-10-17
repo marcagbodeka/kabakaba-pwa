@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { authApi, normalizeUser, userApi } from '../lib/api';
+import { authApi, markSessionAlive, normalizeUser, userApi } from '../lib/api';
 import {
   clearTokens,
   forgetDevice,
@@ -128,6 +128,7 @@ export function AuthProvider({ children }) {
         if (res.user?.role && res.user.role !== 'STUDENT') {
           throw new Error('Ce compte n’est pas un compte étudiant.');
         }
+        markSessionAlive();
         const next = saveSession({ pinConfigured: true });
         setSession(next);
         setPinSetupToken(null);
@@ -148,6 +149,7 @@ export function AuthProvider({ children }) {
         if (res.user?.role && res.user.role !== 'STUDENT') {
           throw new Error('Ce compte n’est pas un compte étudiant.');
         }
+        markSessionAlive();
         const next = saveSession({
           phone: e164,
           pinConfigured: true,

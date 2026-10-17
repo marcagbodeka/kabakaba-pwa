@@ -52,6 +52,8 @@ export function normalizeUser(user) {
 
 let refreshPromise = null;
 let csrfMemory = null;
+/** Empêche la tempête csrf→refresh→401 quand les cookies sont morts. */
+let sessionDead = false;
 
 function rememberCsrf(data) {
   if (data && typeof data.csrfToken === 'string') csrfMemory = data.csrfToken;
@@ -59,7 +61,13 @@ function rememberCsrf(data) {
 
 function dropSession() {
   csrfMemory = null;
+  sessionDead = true;
   clearTokens();
+}
+
+/** À appeler après un login / set-pin réussi. */
+export function markSessionAlive() {
+  sessionDead = false;
 }
 
 function csrfToken() {
@@ -79,6 +87,9 @@ function baseHeaders(method) {
 }
 
 async function ensureCsrf(force = false) {
+  if (sessionDead) {
+    throw new ApiError('Session expirée — reconnecte-toi', 401);
+  }
   if (csrfMemory && !force) return csrfMemory;
   const res = await fetch(`${API_BASE}/auth/csrf`, {
     method: 'GET',
@@ -87,6 +98,7 @@ async function ensureCsrf(force = false) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401) dropSession();
     throw new ApiError(
       extractMessage(data, 'Session expirée — reconnecte-toi'),
       res.status,
@@ -100,6 +112,9 @@ async function ensureCsrf(force = false) {
 }
 
 async function refreshAccessToken() {
+  if (sessionDead) {
+    throw new ApiError('Session expirée — reconnecte-toi', 401);
+  }
   // Toujours relire le CSRF : un jeton en mémoire peut être périmé après rotation.
   await ensureCsrf(true);
   const res = await fetch(`${API_BASE}/auth/refresh`, {
@@ -126,6 +141,7 @@ async function refreshAccessToken() {
         });
         const retryData = await retry.json().catch(() => ({}));
         if (retry.ok) {
+          sessionDead = false;
           rememberCsrf(retryData);
           return true;
         }
@@ -136,6 +152,7 @@ async function refreshAccessToken() {
     dropSession();
     throw new ApiError(msg || 'Session expirée', res.status);
   }
+  sessionDead = false;
   rememberCsrf(data);
   return true;
 }
@@ -167,6 +184,9 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   }
 
   if (res.status === 401 && auth) {
+    if (sessionDead) {
+      throw new ApiError('Session expirée — reconnecte-toi', 401);
+    }
     refreshPromise =
       refreshPromise ||
       refreshAccessToken().finally(() => {

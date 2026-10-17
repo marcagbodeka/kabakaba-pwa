@@ -65,6 +65,7 @@ a {
   color: var(--text);
   height: 100dvh;
   min-height: 100dvh;
+  overflow: hidden;
 }
 
 .snack {
