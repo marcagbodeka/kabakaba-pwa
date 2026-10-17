@@ -113,6 +113,7 @@ function Shell() {
           setFocusOrderId(null);
           setTab('orders');
         }}
+        onRecharge={() => navigate('wallet')}
         showSnack={showSnack}
       />
     );

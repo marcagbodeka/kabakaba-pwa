@@ -10,7 +10,9 @@ import {
   formatTime,
 } from '../lib/format';
 
-const QUICK_AMOUNTS = [600, 1100, 2200, 5250];
+const QUICK_AMOUNTS = [500, 1000, 2000, 5000, 10000];
+const MIN_RECHARGE = 500;
+const MAX_RECHARGE = 10000;
 
 export default function WalletPage({ showSnack }) {
   const { user, refreshMe } = useAuth();
@@ -122,7 +124,7 @@ export default function WalletPage({ showSnack }) {
 
   useEffect(() => {
     const n = Number(amount);
-    if (!Number.isFinite(n) || n < 600) {
+    if (!Number.isFinite(n) || n < MIN_RECHARGE || n > MAX_RECHARGE) {
       setQuote(null);
       return undefined;
     }
@@ -153,8 +155,12 @@ export default function WalletPage({ showSnack }) {
 
   const recharge = async () => {
     const amountFcfa = Math.floor(Number(amount));
-    if (!Number.isFinite(amountFcfa) || amountFcfa < 600) {
-      showSnack?.('Montant minimum : 600 FCFA');
+    if (!Number.isFinite(amountFcfa) || amountFcfa < MIN_RECHARGE) {
+      showSnack?.(`Montant minimum : ${MIN_RECHARGE} FCFA`);
+      return;
+    }
+    if (amountFcfa > MAX_RECHARGE) {
+      showSnack?.(`Montant maximum : ${MAX_RECHARGE} FCFA`);
       return;
     }
     if (!PhoneFormatter.isValidLocal(phone)) {
@@ -315,8 +321,10 @@ export default function WalletPage({ showSnack }) {
           <div className="input-shell">
             <input
               value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/\D/g, '').slice(0, 5))}
-              placeholder="Ex. 2200"
+              onChange={(e) =>
+                setAmount(e.target.value.replace(/\D/g, '').slice(0, 5))
+              }
+              placeholder={`Ex. 1000 (${MIN_RECHARGE}–${MAX_RECHARGE})`}
               inputMode="numeric"
             />
           </div>
@@ -352,12 +360,19 @@ export default function WalletPage({ showSnack }) {
         </div>
 
         {quoting ? (
-          <p className="muted">Calcul du barème…</p>
+          <div className="recharge-recap recharge-recap--muted">Calcul…</div>
         ) : quote ? (
-          <p className="muted" style={{ marginBottom: 12 }}>
-            {(quote.summaryLines || []).join(' · ') ||
-              `${formatTickets(quote.ticketsReceived)} crédités · frais ${quote.feeFcfa} FCFA`}
-          </p>
+          <div className="recharge-recap">
+            <strong>
+              {formatTickets(quote.amountFcfa)} FCFA →{' '}
+              {formatTicketCount(quote.ticketsReceived)} tickets
+            </strong>
+            <span>Frais de service inclus</span>
+          </div>
+        ) : amount && Number(amount) > 0 ? (
+          <div className="recharge-recap recharge-recap--muted">
+            Entre {MIN_RECHARGE} et {MAX_RECHARGE} FCFA
+          </div>
         ) : null}
 
         <button

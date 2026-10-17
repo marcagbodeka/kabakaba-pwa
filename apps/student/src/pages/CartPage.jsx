@@ -5,7 +5,14 @@ import { catalogApi, ordersApi, scheduledOrdersApi, vendorsApi } from '../lib/ap
 import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
 import { IconBack } from '../components/icons';
 
-export default function CartPage({ onBack, onOrdered, onScheduled, onDiscover, showSnack }) {
+export default function CartPage({
+  onBack,
+  onOrdered,
+  onScheduled,
+  onDiscover,
+  onRecharge,
+  showSnack,
+}) {
   const { user, refreshMe } = useAuth();
   const cart = useCart();
   const [options, setOptions] = useState([]);
@@ -296,7 +303,8 @@ export default function CartPage({ onBack, onOrdered, onScheduled, onDiscover, s
             disabled={paying || (canPay && cart.consumptionMode === 'TAKEAWAY' && !cart.takeawayOptionId)}
             onClick={() => {
               if (!canPay) {
-                showSnack?.('Solde insuffisant — Recharger');
+                if (onRecharge) onRecharge();
+                else showSnack?.('Solde insuffisant — Recharger');
                 return;
               }
               checkout();
