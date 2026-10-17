@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { campusApi } from '../lib/api';
 import { PhoneFormatter } from '../lib/format';
@@ -113,12 +113,37 @@ export default function LoginPage() {
     return () => clearInterval(t);
   }, [step, otpReset]);
 
-  useEffect(() => {
-    campusApi
-      .list()
-      .then((list) => setCampuses(Array.isArray(list) ? list : []))
-      .catch(() => setCampuses([]));
+  const [campusesError, setCampusesError] = useState('');
+  const [campusesLoading, setCampusesLoading] = useState(false);
+
+  const loadCampuses = useCallback(async () => {
+    setCampusesLoading(true);
+    setCampusesError('');
+    try {
+      const list = await campusApi.list();
+      const rows = Array.isArray(list) ? list : [];
+      setCampuses(rows);
+      if (!rows.length) {
+        setCampusesError('Aucun campus disponible pour le moment.');
+      }
+    } catch (err) {
+      setCampuses([]);
+      setCampusesError(
+        err?.message ||
+          'Impossible de charger les campus. Vérifie ta connexion ou réessaie.',
+      );
+    } finally {
+      setCampusesLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadCampuses();
+  }, [loadCampuses]);
+
+  useEffect(() => {
+    if (step === 'campus') loadCampuses();
+  }, [step, loadCampuses]);
 
   const onPhoneChange = (raw) => {
     const digits = PhoneFormatter.digitsOf(raw).slice(0, 8);
@@ -151,10 +176,12 @@ export default function LoginPage() {
         setStep('pinSetup');
       }
     } catch (err) {
-      const msg = String(err.message || '');
-      if (msg.toLowerCase().includes('campus')) {
+      const msg = String(err.message || err?.payload?.message || '');
+      // Première inscription : le backend exige un campus (400 attendu).
+      if (/campus/i.test(msg)) {
         pendingCode.current = code;
         setStep('campus');
+        loadCampuses();
       }
     }
   };
@@ -317,20 +344,38 @@ export default function LoginPage() {
             <div className="auth-card-body">
               <div className="field">
                 <label>Campus</label>
-                <div className="input-shell">
-                  <select
-                    value={campusId}
-                    onChange={(e) => setCampusId(e.target.value)}
-                  >
-                    <option value="">Choisir…</option>
-                    {campuses.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                {campusesLoading ? (
+                  <p className="muted" style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13 }}>
+                    Chargement des campus…
+                  </p>
+                ) : null}
+                <div className="campus-picker" role="listbox" aria-label="Campus">
+                  {campuses.map((c) => {
+                    const active = campusId === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        className={`campus-option${active ? ' active' : ''}`}
+                        onClick={() => setCampusId(c.id)}
+                      >
+                        <strong>{c.name}</strong>
+                        {c.city ? <span>{c.city}</span> : null}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
+              {campusesError ? (
+                <p style={{ color: '#f87171', fontSize: 13, marginTop: 8 }}>
+                  {campusesError}{' '}
+                  <button type="button" className="link-btn" onClick={loadCampuses}>
+                    Réessayer
+                  </button>
+                </p>
+              ) : null}
             </div>
             <div className="auth-card-footer">
               <button
