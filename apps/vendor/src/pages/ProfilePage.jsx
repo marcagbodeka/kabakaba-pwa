@@ -1,8 +1,10 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import VendorHeader from '../components/VendorHeader';
 import { useAuth } from '../auth/AuthContext';
 import { mediaApi, vendorApi } from '../lib/api';
-import { initialsFrom } from '../lib/format';
+import { CAPACITY_LABEL, initialsFrom } from '../lib/format';
+
+const ORDER_SOUND_MUTE_KEY = 'kaba_vendor_order_sounds_muted';
 
 export default function ProfilePage({
   vendor,
@@ -23,6 +25,17 @@ export default function ProfilePage({
   const [canteenName, setCanteenName] = useState(vendor?.canteenName || '');
   const [description, setDescription] = useState(vendor?.description || '');
   const [busy, setBusy] = useState(false);
+  const [soundMuted, setSoundMuted] = useState(
+    () => localStorage.getItem(ORDER_SOUND_MUTE_KEY) === '1',
+  );
+
+  useEffect(() => {
+    setCanteenName(vendor?.canteenName || '');
+    setDescription(vendor?.description || '');
+  }, [vendor?.canteenName, vendor?.description]);
+
+  const suspended = vendor?.isActive === false;
+  const capacity = vendor?.capacityStatus || 'CLOSED';
 
   const upload = async (kind, file) => {
     if (!file) return;
@@ -40,10 +53,9 @@ export default function ProfilePage({
   };
 
   const save = async () => {
-    if (!vendor?.id) return;
     setBusy(true);
     try {
-      const updated = await vendorApi.update(vendor.id, {
+      const updated = await vendorApi.patchMe({
         canteenName: canteenName.trim(),
         description: description.trim(),
       });
@@ -57,6 +69,13 @@ export default function ProfilePage({
     }
   };
 
+  const toggleSound = () => {
+    const next = !soundMuted;
+    setSoundMuted(next);
+    localStorage.setItem(ORDER_SOUND_MUTE_KEY, next ? '1' : '0');
+    showSnack?.(next ? 'Sons de commande coupés' : 'Sons de commande activés');
+  };
+
   return (
     <div className="dashboard-body">
       <VendorHeader
@@ -66,13 +85,24 @@ export default function ProfilePage({
         onNotificationTap={onNotificationTap}
         onCapacityTap={onCapacityTap}
       />
+
+      {suspended ? (
+        <div className="suspension-banner">
+          <strong>Compte suspendu</strong>
+          <p>
+            {vendor?.suspensionReason ||
+              'Ton espace vendeur est temporairement désactivé. Contacte l’administration.'}
+          </p>
+        </div>
+      ) : null}
+
       <div className="profile-card">
         <div className="profile-banner">
           {vendor?.bannerUrl ? <img src={vendor.bannerUrl} alt="" /> : null}
           <button
             type="button"
             className="profile-media-btn"
-            disabled={uploading === 'banner'}
+            disabled={uploading === 'banner' || suspended}
             onClick={() => bannerRef.current?.click()}
           >
             {uploading === 'banner' ? '…' : 'Bannière'}
@@ -95,7 +125,7 @@ export default function ProfilePage({
           <button
             type="button"
             className="profile-media-btn profile-media-btn--logo"
-            disabled={uploading === 'logo'}
+            disabled={uploading === 'logo' || suspended}
             onClick={() => logoRef.current?.click()}
           >
             {uploading === 'logo' ? '…' : 'Logo'}
@@ -113,26 +143,11 @@ export default function ProfilePage({
           <div>
             <div className="profile-name">{vendor?.canteenName || '—'}</div>
             {vendor?.campusName ? (
-              <span
-                style={{
-                  display: 'inline-block',
-                  marginTop: 6,
-                  padding: '2px 8px',
-                  borderRadius: 8,
-                  background: 'var(--indigo-light)',
-                  color: 'var(--primary)',
-                  fontSize: 12,
-                  fontWeight: 700,
-                }}
-              >
-                {vendor.campusName}
-              </span>
+              <span className="profile-campus-pill">{vendor.campusName}</span>
             ) : null}
-            {vendor?.phone ? (
-              <div style={{ marginTop: 6, fontSize: 13, color: 'var(--text-secondary)' }}>
-                {vendor.phone}
-              </div>
-            ) : null}
+            <span className="profile-active-pill">
+              {suspended ? 'Suspendu' : 'Vendeur actif'}
+            </span>
           </div>
         </div>
       </div>
@@ -150,7 +165,7 @@ export default function ProfilePage({
           <button
             type="button"
             className="btn-action fill primary full"
-            disabled={busy || !canteenName.trim()}
+            disabled={busy || !canteenName.trim() || suspended}
             onClick={save}
           >
             {busy ? 'Enregistrement…' : 'Enregistrer'}
@@ -158,6 +173,7 @@ export default function ProfilePage({
         </div>
       ) : null}
 
+      <div className="profile-section-label">Carte</div>
       <div className="nav-rows">
         <button
           type="button"
@@ -173,18 +189,60 @@ export default function ProfilePage({
             <span>Nom et description de la cantine</span>
           </div>
         </button>
-        <button type="button" className="nav-row" onClick={onOpenCatalog}>
+        <button type="button" className="nav-row" onClick={onOpenCatalog} disabled={suspended}>
           <div>
             <strong>Mon catalogue</strong>
             <span>Stock, menus et options d’emporté</span>
           </div>
         </button>
-        <button type="button" className="nav-row" onClick={onCapacityTap}>
+        <button type="button" className="nav-row" onClick={onCapacityTap} disabled={suspended}>
           <div>
             <strong>Disponibilité</strong>
-            <span>Ouverte · Occupée · Fermée</span>
+            <span>{CAPACITY_LABEL[capacity] || 'Fermée'} — Ouverte · Occupée · Fermée</span>
           </div>
         </button>
+      </div>
+
+      <div className="profile-section-label">Établissement</div>
+      <div className="nav-rows">
+        <div className="nav-row nav-row--static">
+          <div>
+            <strong>{vendor?.canteenName || '—'}</strong>
+            <span>Nom géré avec l’administration</span>
+          </div>
+        </div>
+        <div className="nav-row nav-row--static">
+          <div>
+            <strong>{vendor?.campusName || '—'}</strong>
+            <span>Campus</span>
+          </div>
+        </div>
+        <div className="nav-row nav-row--static">
+          <div>
+            <strong>{vendor?.phone || '—'}</strong>
+            <span>Téléphone du compte</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="profile-section-label">Préférences</div>
+      <div className="nav-rows">
+        <button type="button" className="nav-row" onClick={onNotificationTap}>
+          <div>
+            <strong>Notifications</strong>
+            <span>Commandes, retraits et alertes</span>
+          </div>
+        </button>
+        <button type="button" className="nav-row" onClick={toggleSound}>
+          <div>
+            <strong>Son nouvelle commande</strong>
+            <span>{soundMuted ? 'Coupé' : 'Activé'}</span>
+          </div>
+        </button>
+      </div>
+
+      <div className="profile-section-label">Compte</div>
+      <div className="nav-rows">
         <button type="button" className="nav-row" onClick={() => auth.logout()}>
           <div>
             <strong>Se déconnecter</strong>
@@ -196,7 +254,7 @@ export default function ProfilePage({
           className="nav-row"
           onClick={async () => {
             const ok = window.confirm(
-              'Ton code sera oublié sur cet appareil. Tu devras te reconnecter avec ton numéro et ton mot de passe temporaire.',
+              'Tu quittes ce compte sur cet appareil. Tu pourras te reconnecter avec ton numéro et ton code PIN.',
             );
             if (ok) await auth.forget();
           }}

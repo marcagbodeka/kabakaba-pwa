@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import VendorHeader from '../components/VendorHeader';
+import SectionTabs from '../components/SectionTabs';
 import { IconCheck, IconClose, IconReceipt } from '../components/icons';
 import { ORDER_BUCKETS, ordersApi } from '../lib/api';
 import {
@@ -7,6 +8,7 @@ import {
   consumptionLabel,
   formatTickets,
   formatTime,
+  orderDisplayCode,
 } from '../lib/format';
 
 const ORDER_SOUND_MUTE_KEY = 'kaba_vendor_order_sounds_muted';
@@ -19,7 +21,7 @@ function playNewOrderSound() {
 }
 
 const TABS = [
-  { key: 'incoming', label: 'Nouvelles' },
+  { key: 'incoming', label: 'Confirmées' },
   { key: 'preparing', label: 'Préparation' },
   { key: 'ready', label: 'Prêtes' },
   { key: 'history', label: 'Historique' },
@@ -27,7 +29,6 @@ const TABS = [
 
 const CANCEL_CHIPS = [
   'Rupture de stock',
-  'Cantine surchargée',
   'Ingrédient manquant',
   'Erreur de préparation',
   'Autre',
@@ -46,13 +47,41 @@ function StatusBadge({ status }) {
   );
 }
 
+function OrderTimeline({ currentStep }) {
+  const steps = ['Confirmée', 'Préparation', 'Prête'];
+  return (
+    <div className="order-timeline">
+      {steps.map((label, i) => {
+        const step = i + 1;
+        const done = step < currentStep;
+        const current = step === currentStep;
+        return (
+          <div
+            key={label}
+            className={`order-timeline-step${done ? ' done' : ''}${current ? ' current' : ''}`}
+          >
+            <div className="order-timeline-rail">
+              <span className="order-timeline-dot">{done ? '✓' : step}</span>
+              {i < steps.length - 1 ? <span className="order-timeline-line" /> : null}
+            </div>
+            <span className="order-timeline-label">{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function CancelSheet({ onClose, onConfirm, busy }) {
   const [selected, setSelected] = useState(null);
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <h2>Pourquoi annuler cette commande ?</h2>
-        <p className="sub">Les tickets seront immédiatement recrédités à l&apos;étudiant.</p>
+        <p className="sub">
+          Un motif est obligatoire. Les tickets seront remboursés à l&apos;étudiant et le stock
+          restitué.
+        </p>
         <div className="chips">
           {CANCEL_CHIPS.map((c) => (
             <button
@@ -89,6 +118,7 @@ function OrderCard({ order, onChanged, showSnack }) {
   const studentName = order.student
     ? `${order.student.firstName || ''} ${order.student.lastName || ''}`.trim()
     : 'Étudiant';
+  const code = orderDisplayCode(order);
 
   const run = async (fn, failMsg) => {
     setBusy(true);
@@ -109,7 +139,14 @@ function OrderCard({ order, onChanged, showSnack }) {
         ? 'prep'
         : order.status === 'READY'
           ? 'ready'
-          : 'done';
+          : order.status === 'CANCELLED'
+            ? 'cancelled'
+            : 'done';
+
+  const meta =
+    order.status === 'READY'
+      ? `N° ${code} · en attente de retrait`
+      : `${studentName} · ${formatTime(order.createdAt)}`;
 
   return (
     <>
@@ -118,11 +155,9 @@ function OrderCard({ order, onChanged, showSnack }) {
           <div className="icon-box">
             <IconReceipt />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="order-num">Commande #{order.orderNumber}</div>
-            <div className="order-meta">
-              {studentName} · {formatTime(order.createdAt)}
-            </div>
+          <div className="order-top-text">
+            <div className="order-num">Commande {code}</div>
+            <div className="order-meta">{meta}</div>
           </div>
           {order.status === 'CONFIRMED' ? (
             <div className="order-amount">{formatTickets(order.totalTickets)}</div>
@@ -144,6 +179,7 @@ function OrderCard({ order, onChanged, showSnack }) {
 
         {order.status === 'CONFIRMED' ? (
           <>
+            <OrderTimeline currentStep={1} />
             <button
               type="button"
               className="btn-action fill primary full"
@@ -172,6 +208,7 @@ function OrderCard({ order, onChanged, showSnack }) {
 
         {order.status === 'IN_PREPARATION' ? (
           <>
+            <OrderTimeline currentStep={2} />
             <button
               type="button"
               className="btn-action fill accent full"
@@ -196,16 +233,36 @@ function OrderCard({ order, onChanged, showSnack }) {
         ) : null}
 
         {order.status === 'READY' ? (
-          <button
-            type="button"
-            className="btn-action fill green full"
-            disabled={busy}
-            onClick={() =>
-              run(() => ordersApi.updateStatus(order.id, 'RECEIVED'), 'Mise à jour impossible.')
-            }
-          >
-            <IconCheck /> Marquer comme récupérée
-          </button>
+          <>
+            <div className="order-number-banner">
+              <span>Numéro de commande</span>
+              <strong>{code}</strong>
+            </div>
+            {order.unclaimedAt ? (
+              <div className="unclaimed-banner">
+                Non récupérée depuis {formatTime(order.unclaimedAt)} — vérifie au comptoir.
+              </div>
+            ) : null}
+            <div className="ready-banner">
+              <div className="ready-banner-title">
+                <IconCheck /> Commande prête · montants crédités
+              </div>
+              <p>
+                L&apos;étudiant a été notifié. Remets la commande au comptoir puis marque-la
+                récupérée.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="btn-action fill green full"
+              disabled={busy}
+              onClick={() =>
+                run(() => ordersApi.updateStatus(order.id, 'RECEIVED'), 'Mise à jour impossible.')
+              }
+            >
+              <IconCheck /> Marquer comme récupérée
+            </button>
+          </>
         ) : null}
 
         {(order.status === 'RECEIVED' || order.status === 'CANCELLED') && (
@@ -297,12 +354,16 @@ export default function OrdersPage({
   }, [refresh]);
 
   const emptyCopy = {
-    incoming:
-      'Les commandes des étudiants apparaîtront ici dès qu’ils passeront commande.',
+    incoming: 'Les commandes des étudiants apparaîtront ici dès qu’ils passeront commande.',
     preparing: 'Aucune commande en cours de préparation.',
     ready: 'Aucune commande prête à remettre pour le moment.',
     history: 'L’historique de tes commandes apparaîtra ici.',
   };
+
+  const tabs = TABS.map((t) => ({
+    ...t,
+    badgeCount: t.key === 'history' ? null : counts[t.key] || 0,
+  }));
 
   return (
     <div className="dashboard-body">
@@ -314,21 +375,7 @@ export default function OrdersPage({
         onCapacityTap={onCapacityTap}
       />
 
-      <div className="section-tabs">
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={`section-tab${tab === t.key ? ' active' : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-            {t.key !== 'history' && counts[t.key] > 0 ? (
-              <span className="tab-badge">{counts[t.key]}</span>
-            ) : null}
-          </button>
-        ))}
-      </div>
+      <SectionTabs tabs={tabs} selectedKey={tab} onSelect={setTab} />
 
       <div className="orders-list">
         {loading ? (
@@ -337,11 +384,13 @@ export default function OrdersPage({
           </div>
         ) : orders.length === 0 ? (
           <div className="empty-card">
-            <IconReceipt size={36} />
+            <div className="empty-nest">
+              <div className="empty-nest-inner">
+                <IconReceipt size={28} />
+              </div>
+            </div>
             <h3>
-              {tab === 'history'
-                ? 'Pas encore d’historique'
-                : 'Aucune commande pour l’instant'}
+              {tab === 'history' ? 'Pas encore d’historique' : 'Aucune commande pour l’instant'}
             </h3>
             <p>{emptyCopy[tab]}</p>
           </div>
@@ -356,7 +405,6 @@ export default function OrdersPage({
           ))
         )}
       </div>
-
     </div>
   );
 }

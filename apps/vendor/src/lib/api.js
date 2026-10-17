@@ -32,11 +32,24 @@ export function unwrapList(payload) {
 
 export function normalizeVendor(v) {
   if (!v) return null;
+  const campuses = Array.isArray(v.campuses) ? v.campuses : [];
+  const campusName =
+    v.campusName || campuses[0]?.name || campuses[0]?.campus?.name || '';
+  const balanceFcfa = Number(v.balanceFcfa ?? 0);
+  const isActive = v.isActive !== false;
+  const phone = v.phone || v.user?.phone || null;
   return {
     ...v,
-    balanceFcfa: Number(v.balanceFcfa ?? 0),
+    campuses,
+    campusName,
+    phone,
+    balanceFcfa,
     pendingAmountTickets: Number(v.pendingAmountTickets ?? 0),
     pendingOrdersCount: Number(v.pendingOrdersCount ?? 0),
+    isActive,
+    suspendedAt: v.suspendedAt || null,
+    suspensionReason: v.suspensionReason || null,
+    canWithdraw: Boolean(v.canWithdraw ?? (isActive && balanceFcfa > 0)),
   };
 }
 
@@ -342,7 +355,7 @@ export const notificationsApi = {
 };
 
 export const ORDER_BUCKETS = {
-  incoming: { label: 'Nouvelles', statuses: ['CONFIRMED'] },
+  incoming: { label: 'Confirmées', statuses: ['CONFIRMED'] },
   preparing: { label: 'Préparation', statuses: ['IN_PREPARATION'] },
   ready: { label: 'Prêtes', statuses: ['READY'] },
   history: { label: 'Historique', statuses: ['RECEIVED', 'CANCELLED'] },

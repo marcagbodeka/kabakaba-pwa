@@ -19,11 +19,12 @@ export default function BottomNav({ current, onChange }) {
               type="button"
               className={`nav-item${active ? ' active' : ''}`}
               onClick={() => onChange(key)}
+              aria-current={active ? 'page' : undefined}
             >
-              <span className="ico">
+              <span className="ico" aria-hidden>
                 <Icon />
               </span>
-              <span>{label}</span>
+              <span className="nav-label">{label}</span>
             </button>
           );
         })}

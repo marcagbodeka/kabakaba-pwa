@@ -45,12 +45,15 @@ function Field({ label, children }) {
   );
 }
 
-function ComponentSheet({ initial, categories = [], onClose, onSave, busy }) {
+function ComponentSheet({ initial, categories = [], onClose, onSave, onDelete, busy }) {
   const [name, setName] = useState(initial?.name || '');
   const [unit, setUnit] = useState(initial?.unit || 'PORTION');
   const [categoryId, setCategoryId] = useState(initial?.categoryId || '');
   const [priceTickets, setPrice] = useState(String(initial?.priceTickets ?? ''));
   const [quantity, setQty] = useState(String(initial?.quantity ?? '0'));
+  const [lowStockThreshold, setLowStock] = useState(
+    String(initial?.lowStockThreshold ?? '5'),
+  );
   const [isAvailable, setAvail] = useState(initial?.isAvailable !== false);
 
   return (
@@ -98,6 +101,14 @@ function ComponentSheet({ initial, categories = [], onClose, onSave, busy }) {
             />
           </Field>
         ) : null}
+        <Field label="Seuil stock faible">
+          <input
+            inputMode="numeric"
+            value={lowStockThreshold}
+            onChange={(e) => setLowStock(e.target.value.replace(/\D/g, ''))}
+            placeholder="5"
+          />
+        </Field>
         <label className="check-row">
           <input
             type="checkbox"
@@ -118,12 +129,23 @@ function ComponentSheet({ initial, categories = [], onClose, onSave, busy }) {
                 priceTickets: Number(priceTickets),
                 isAvailable,
                 categoryId: categoryId || null,
+                lowStockThreshold: Number(lowStockThreshold || 0),
                 ...(initial ? {} : { quantity: Number(quantity || 0) }),
               })
             }
           >
             {busy ? 'Enregistrement…' : 'Enregistrer'}
           </button>
+          {initial && onDelete ? (
+            <button
+              type="button"
+              className="btn-action outline full"
+              disabled={busy}
+              onClick={() => onDelete(initial)}
+            >
+              Supprimer
+            </button>
+          ) : null}
           <button type="button" className="btn-action outline full" onClick={onClose}>
             Annuler
           </button>
@@ -133,7 +155,7 @@ function ComponentSheet({ initial, categories = [], onClose, onSave, busy }) {
   );
 }
 
-function MenuSheet({ components, initial, onClose, onSave, busy }) {
+function MenuSheet({ components, initial, onClose, onSave, onDelete, busy }) {
   const [name, setName] = useState(initial?.name || '');
   const [description, setDesc] = useState(initial?.description || '');
   const [isActive, setActive] = useState(initial?.isActive !== false);
@@ -227,6 +249,16 @@ function MenuSheet({ components, initial, onClose, onSave, busy }) {
           >
             {busy ? 'Enregistrement…' : 'Enregistrer'}
           </button>
+          {initial && onDelete ? (
+            <button
+              type="button"
+              className="btn-action outline full"
+              disabled={busy}
+              onClick={() => onDelete(initial)}
+            >
+              Supprimer
+            </button>
+          ) : null}
           <button type="button" className="btn-action outline full" onClick={onClose}>
             Annuler
           </button>
@@ -263,7 +295,7 @@ function CategorySheet({ initial, onClose, onSave, busy }) {
   );
 }
 
-function TakeawaySheet({ initial, onClose, onSave, busy }) {
+function TakeawaySheet({ initial, onClose, onSave, onDelete, busy }) {
   const [name, setName] = useState(initial?.name || '');
   const [priceTickets, setPrice] = useState(String(initial?.priceTickets ?? '0'));
   const [isActive, setActive] = useState(initial?.isActive !== false);
@@ -306,6 +338,16 @@ function TakeawaySheet({ initial, onClose, onSave, busy }) {
           >
             {busy ? 'Enregistrement…' : 'Enregistrer'}
           </button>
+          {initial && onDelete ? (
+            <button
+              type="button"
+              className="btn-action outline full"
+              disabled={busy}
+              onClick={() => onDelete(initial)}
+            >
+              Supprimer
+            </button>
+          ) : null}
           <button type="button" className="btn-action outline full" onClick={onClose}>
             Annuler
           </button>
@@ -355,7 +397,6 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     if (tab === 'categories') return 'Ajouter une catégorie';
     if (tab === 'menus') return 'Ajouter un menu';
     if (tab === 'takeaway') return 'Ajouter une option';
-    if (tab === 'categories') return 'Ajouter une catégorie';
     return 'Ajouter un composant';
   }, [tab]);
 
@@ -424,13 +465,65 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   };
 
   const removeCategory = async (id) => {
-    const ok = window.confirm('Supprimer cette catégorie ? Les composants encore rattachés bloquent la suppression.');
+    const ok = window.confirm(
+      'Supprimer cette catégorie ? Les composants encore rattachés bloquent la suppression.',
+    );
     if (!ok) return;
     try {
       await categoriesApi.remove(id);
+      setSheet(null);
       await reload();
+      showSnack('Catégorie supprimée');
     } catch (e) {
       showSnack(e.message || 'Suppression impossible');
+    }
+  };
+
+  const removeComponent = async (item) => {
+    const ok = window.confirm(`Supprimer « ${item.name} » ?`);
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await componentsApi.remove(item.id);
+      setSheet(null);
+      await reload();
+      showSnack('Composant supprimé');
+    } catch (e) {
+      showSnack(e.message || 'Suppression impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeMenu = async (item) => {
+    const ok = window.confirm(`Supprimer le menu « ${item.name} » ?`);
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await menusApi.remove(item.id);
+      setSheet(null);
+      await reload();
+      showSnack('Menu supprimé');
+    } catch (e) {
+      showSnack(e.message || 'Suppression impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeTakeaway = async (item) => {
+    const ok = window.confirm(`Supprimer l’option « ${item.name} » ?`);
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await takeawayApi.remove(item.id);
+      setSheet(null);
+      await reload();
+      showSnack('Option supprimée');
+    } catch (e) {
+      showSnack(e.message || 'Suppression impossible');
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -487,16 +580,20 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                   {section.items.map((c) => {
                     const available =
                       c.isAvailable !== false && Number(c.quantity) > 0;
+                    const threshold = Number(c.lowStockThreshold ?? 0);
+                    const lowStock =
+                      threshold > 0 && Number(c.quantity) <= threshold;
                     return (
                       <div
                         key={c.id}
-                        className={`catalog-card${!available ? ' dim' : ''}`}
+                        className={`catalog-card${!available ? ' dim' : ''}${lowStock ? ' low-stock' : ''}`}
                       >
                         <div className="catalog-main">
                           <strong>{c.name}</strong>
                           <span>
                             {formatTickets(c.priceTickets)} · stock {c.quantity}{' '}
                             {UNIT_LABEL[c.unit] || ''}
+                            {lowStock ? ' · stock faible' : ''}
                             {!c.isAvailable ? ' · masqué' : ''}
                           </span>
                         </div>
@@ -545,84 +642,36 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
             : null}
 
           {tab === 'categories'
-            ? categories.map((cat) => (
-                <div key={cat.id} className="catalog-card">
-                  <div className="catalog-main">
-                    <strong>{cat.name}</strong>
-                    <span>
-                      {
-                        components.filter((c) => c.categoryId === cat.id).length
-                      }{' '}
-                      composant(s)
-                    </span>
+            ? categories.map((cat) => {
+                const count = components.filter((c) => c.categoryId === cat.id).length;
+                return (
+                  <div key={cat.id} className="catalog-card">
+                    <div className="catalog-main">
+                      <strong>{cat.name}</strong>
+                      <span>
+                        {count} composant{count > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <div className="catalog-actions">
+                      <button
+                        type="button"
+                        className="link-mini"
+                        onClick={() => setSheet({ type: 'categories', item: cat })}
+                      >
+                        Éditer
+                      </button>
+                      <button
+                        type="button"
+                        className="link-mini"
+                        style={{ color: 'var(--red)' }}
+                        onClick={() => removeCategory(cat.id)}
+                      >
+                        Supprimer
+                      </button>
+                    </div>
                   </div>
-                  <div className="catalog-actions">
-                    <button
-                      type="button"
-                      className="link-mini"
-                      onClick={async () => {
-                        const name = window.prompt('Renommer la catégorie', cat.name);
-                        if (!name?.trim() || name.trim() === cat.name) return;
-                        try {
-                          await categoriesApi.update(cat.id, { name: name.trim() });
-                          await reload();
-                          showSnack('Catégorie renommée');
-                        } catch (e) {
-                          showSnack(e.message || 'Échec');
-                        }
-                      }}
-                    >
-                      Renommer
-                    </button>
-                    <button
-                      type="button"
-                      className="link-mini"
-                      style={{ color: 'var(--red)' }}
-                      onClick={async () => {
-                        const ok = window.confirm(
-                          `Supprimer « ${cat.name} » ? (Impossible si des composants y sont rattachés.)`,
-                        );
-                        if (!ok) return;
-                        try {
-                          await categoriesApi.remove(cat.id);
-                          await reload();
-                          showSnack('Catégorie supprimée');
-                        } catch (e) {
-                          showSnack(e.message || 'Échec');
-                        }
-                      }}
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
-              ))
-            : null}
-
-          {tab === 'categories'
-            ? categories.map((cat) => (
-                <div key={cat.id} className="catalog-card">
-                  <div className="catalog-main">
-                    <strong>{cat.name}</strong>
-                    <span>
-                      {components.filter((c) => c.categoryId === cat.id).length} composant
-                      {components.filter((c) => c.categoryId === cat.id).length > 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <div className="catalog-actions">
-                    <button
-                      type="button"
-                      className="link-mini"
-                      onClick={() => setSheet({ type: 'categories', item: cat })}
-                    >
-                      Éditer
-                    </button>
-                    <button type="button" className="link-mini" onClick={() => removeCategory(cat.id)}>
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
-              ))
+                );
+              })
             : null}
 
           {tab === 'menus'
@@ -636,13 +685,23 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                       {!m.isActive ? ' · inactif' : ''}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    className="link-mini"
-                    onClick={() => setSheet({ type: 'menus', item: m })}
-                  >
-                    Éditer
-                  </button>
+                  <div className="catalog-actions">
+                    <button
+                      type="button"
+                      className="link-mini"
+                      onClick={() => setSheet({ type: 'menus', item: m })}
+                    >
+                      Éditer
+                    </button>
+                    <button
+                      type="button"
+                      className="link-mini"
+                      style={{ color: 'var(--red)' }}
+                      onClick={() => removeMenu(m)}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
                 </div>
               ))
             : null}
@@ -657,13 +716,23 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                       {!o.isActive ? ' · inactive' : ''}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    className="link-mini"
-                    onClick={() => setSheet({ type: 'takeaway', item: o })}
-                  >
-                    Éditer
-                  </button>
+                  <div className="catalog-actions">
+                    <button
+                      type="button"
+                      className="link-mini"
+                      onClick={() => setSheet({ type: 'takeaway', item: o })}
+                    >
+                      Éditer
+                    </button>
+                    <button
+                      type="button"
+                      className="link-mini"
+                      style={{ color: 'var(--red)' }}
+                      onClick={() => removeTakeaway(o)}
+                    >
+                      Supprimer
+                    </button>
+                  </div>
                 </div>
               ))
             : null}
@@ -708,6 +777,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           busy={busy}
           onClose={() => setSheet(null)}
           onSave={saveComponent}
+          onDelete={removeComponent}
         />
       ) : null}
       {sheet?.type === 'categories' ? (
@@ -725,6 +795,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           busy={busy}
           onClose={() => setSheet(null)}
           onSave={saveMenu}
+          onDelete={removeMenu}
         />
       ) : null}
       {sheet?.type === 'takeaway' ? (
@@ -733,6 +804,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           busy={busy}
           onClose={() => setSheet(null)}
           onSave={saveTakeaway}
+          onDelete={removeTakeaway}
         />
       ) : null}
     </div>

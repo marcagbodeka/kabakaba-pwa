@@ -167,6 +167,7 @@ export default function Dashboard({ showSnack }) {
           hasUnread={hasUnread}
           onWithdraw={() => setStack('withdraw')}
           onHistory={() => setStack('history')}
+          showSnack={showSnack}
         />
       ) : null}
       {tab === 'stats' ? (

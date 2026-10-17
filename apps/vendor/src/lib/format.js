@@ -97,13 +97,26 @@ export const UNIT_OPTIONS = [
 ];
 
 export const TX_TYPE_LABEL = {
-  DEPOSIT: 'Dépôt',
+  DEPOSIT: 'Recharge',
   PAYMENT: 'Paiement',
   SALE: 'Vente',
   REFUND: 'Remboursement',
   WITHDRAWAL: 'Retrait',
-  REFERRAL_BONUS: 'Bonus',
+  REFERRAL_BONUS: 'Bonus de parrainage',
 };
+
+/** Mouvements qui créditent le solde vendeur. */
+export const TX_CREDIT_TYPES = new Set([
+  'SALE',
+  'DEPOSIT',
+  'REFUND',
+  'REFERRAL_BONUS',
+]);
+
+export function orderDisplayCode(order) {
+  const code = String(order?.orderNumber || order?.activeOrderNumber || '').trim();
+  return code || '—';
+}
 
 export const WITHDRAWAL_STATUS_LABEL = {
   PENDING: 'En attente',
