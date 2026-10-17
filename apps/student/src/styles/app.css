@@ -399,13 +399,14 @@
   padding-bottom: 8px;
 }
 
-/* Accueil : rail horizontal (max 3 via JS) */
+/* Accueil : rail horizontal (max 3 via JS) — aligné sur la marge du sheet */
 .canteen-cover-rail {
   display: flex;
   gap: 12px;
   overflow-x: auto;
-  margin: 0 -20px;
-  padding: 0 20px 10px;
+  /* gauche = marge sheet ; droite déborde pour laisser peeker la carte suivante */
+  margin: 0 -20px 0 0;
+  padding: 0 20px 4px 0;
   scroll-snap-type: x mandatory;
   -webkit-overflow-scrolling: touch;
 }
@@ -429,9 +430,24 @@
 }
 
 .canteen-cover-card--rail {
-  width: min(280px, 78vw);
-  height: 168px;
+  width: min(268px, 72vw);
+  height: 132px;
   scroll-snap-align: start;
+}
+
+.canteen-cover-card--rail .canteen-poster-pill {
+  top: 10px;
+  left: 10px;
+}
+
+.canteen-cover-card--rail .canteen-cover-meta {
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+}
+
+.canteen-cover-card--rail .canteen-cover-meta strong {
+  font-size: 16px;
 }
 
 .canteen-cover-card img,
