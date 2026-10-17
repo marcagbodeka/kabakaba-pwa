@@ -23,6 +23,14 @@ function statusFromSession(session) {
   return 'needsOtp';
 }
 
+export function isIdentityComplete(user) {
+  return Boolean(user?.firstName?.trim() && user?.lastName?.trim());
+}
+
+function statusAfterUser(user) {
+  return isIdentityComplete(user) ? 'authenticated' : 'needsIdentity';
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(() => loadSession());
   const [status, setStatus] = useState(() => statusFromSession(loadSession()));
@@ -43,8 +51,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     (async () => {
       try {
-        await refreshMe();
-        setStatus('authenticated');
+        const me = await refreshMe();
+        setStatus(statusAfterUser(me));
       } catch {
         const next = loadSession();
         setSession(next);
@@ -57,7 +65,7 @@ export function AuthProvider({ children }) {
   }, [refreshMe]);
 
   useEffect(() => {
-    if (status === 'authenticated' && ready) {
+    if ((status === 'authenticated' || status === 'needsIdentity') && ready) {
       registerWebPush().catch(() => {});
     }
   }, [status, ready]);
@@ -125,7 +133,7 @@ export function AuthProvider({ children }) {
         setPinSetupToken(null);
         const me = await userApi.me().catch(() => normalizeUser(res.user));
         setUser(me);
-        setStatus('authenticated');
+        setStatus(statusAfterUser(me));
         registerWebPush().catch(() => {});
         return true;
       }),
@@ -147,11 +155,26 @@ export function AuthProvider({ children }) {
         setSession(next);
         const me = await userApi.me().catch(() => normalizeUser(res.user));
         setUser(me);
-        setStatus('authenticated');
+        setStatus(statusAfterUser(me));
         registerWebPush().catch(() => {});
         return true;
       }),
     [run],
+  );
+
+  const completeIdentity = useCallback(
+    ({ firstName, lastName }) =>
+      run(async () => {
+        if (!user?.id) throw new Error('Session expirée. Reconnecte-toi.');
+        const updated = await userApi.update(user.id, {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+        });
+        setUser(updated);
+        setStatus('authenticated');
+        return updated;
+      }),
+    [run, user?.id],
   );
 
   const logout = useCallback(async () => {
@@ -187,6 +210,7 @@ export function AuthProvider({ children }) {
       ready,
       status,
       authenticated: status === 'authenticated',
+      needsIdentity: status === 'needsIdentity',
       user,
       busy,
       error,
@@ -199,6 +223,7 @@ export function AuthProvider({ children }) {
       verifyOtp,
       setPin,
       loginWithPin,
+      completeIdentity,
       logout,
       forget,
       refreshMe,
@@ -217,6 +242,7 @@ export function AuthProvider({ children }) {
       verifyOtp,
       setPin,
       loginWithPin,
+      completeIdentity,
       logout,
       forget,
       refreshMe,

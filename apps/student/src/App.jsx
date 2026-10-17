@@ -4,6 +4,7 @@ import { CartProvider, useCart } from './context/CartContext';
 import BottomNav from './components/BottomNav';
 import Toast from './components/Toast';
 import LoginPage from './pages/LoginPage';
+import IdentityPage from './pages/IdentityPage';
 import HomePage from './pages/HomePage';
 import CanteenListPage from './pages/CanteenListPage';
 import CanteenDetailPage from './pages/CanteenDetailPage';
@@ -143,6 +144,21 @@ function Root() {
   }, [auth.error, auth]);
 
   if (!auth.ready) return <Bootstrap />;
+
+  if (auth.needsIdentity) {
+    return (
+      <div className="app-shell app-shell--dark">
+        <Toast
+          message={toast?.message}
+          variant={toast?.variant}
+          onClose={() => setToast(null)}
+        />
+        <IdentityPage />
+        <InstallPrompt />
+      </div>
+    );
+  }
+
   if (!auth.authenticated) {
     return (
       <div className="app-shell app-shell--dark">
