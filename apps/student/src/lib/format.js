@@ -1,6 +1,10 @@
-export function formatTickets(amount, currency = 'FCFA') {
+export function formatTicketCount(amount) {
   const n = Number(amount) || 0;
-  return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n)} ${currency}`;
+  return new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n);
+}
+
+export function formatTickets(amount, currency = 'FCFA') {
+  return `${formatTicketCount(amount)} ${currency}`;
 }
 
 export function formatTime(iso) {
@@ -70,8 +74,8 @@ export const UNIT_LABEL = {
 };
 
 export const TX_TYPE_LABEL = {
-  DEPOSIT: 'Recharge',
-  PAYMENT: 'Paiement',
+  DEPOSIT: 'Rechargement',
+  PAYMENT: 'Commande',
   SALE: 'Vente',
   REFUND: 'Remboursement',
   WITHDRAWAL: 'Retrait',

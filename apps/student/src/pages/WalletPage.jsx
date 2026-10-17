@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { paymentsApi, transactionsApi } from '../lib/api';
 import {
   PhoneFormatter,
   TX_CREDIT_TYPES,
   TX_TYPE_LABEL,
+  formatTicketCount,
   formatTickets,
   formatTime,
 } from '../lib/format';
@@ -14,6 +15,8 @@ const QUICK_AMOUNTS = [600, 1100, 2200, 5250];
 export default function WalletPage({ showSnack }) {
   const { user, refreshMe } = useAuth();
   const balance = Number(user?.walletBalance ?? 0);
+  const rechargeRef = useRef(null);
+  const historyRef = useRef(null);
 
   const [txs, setTxs] = useState([]);
   const [payments, setPayments] = useState([]);
@@ -28,6 +31,8 @@ export default function WalletPage({ showSnack }) {
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
   const [paying, setPaying] = useState(false);
+
+  const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const loadTx = useCallback(async () => {
     setLoadingTx(true);
@@ -108,20 +113,89 @@ export default function WalletPage({ showSnack }) {
     }
   };
 
+  const firstName = user?.firstName || 'Étudiant';
+
   return (
-    <div className="page">
-      <div className="topbar">
-        <div style={{ width: 40 }} />
-        <h1>Portefeuille</h1>
-        <div style={{ width: 40 }} />
-      </div>
-      <div className="wallet-card">
-        <label>Solde disponible</label>
-        <strong>{formatTickets(balance)}</strong>
+    <div className="page page--flush">
+      <div className="hero hero--wallet">
+        <div className="hero-top">
+          <div>
+            <div className="hero-greet" style={{ fontSize: 11, letterSpacing: '0.03em' }}>
+              Mon portefeuille
+            </div>
+            <div className="hero-name" style={{ fontSize: 17 }}>
+              Bonjour, {firstName}
+            </div>
+          </div>
+          <button
+            type="button"
+            className="hero-icon-btn"
+            aria-label="Historique"
+            onClick={() => scrollTo(historyRef)}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 12a9 9 0 1 0 3-6.7" />
+              <path d="M3 4v5h5" />
+              <path d="M12 7v5l3 2" />
+            </svg>
+          </button>
+        </div>
+        <div className="hero-balance-row">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <span>Solde tickets</span>
+        </div>
+        <div className="hero-balance-amount">{formatTicketCount(balance)} tickets</div>
+        <div className="hero-pills hero-pills--3">
+          <button type="button" className="hero-pill hero-pill--primary" onClick={() => scrollTo(rechargeRef)}>
+            Recharger
+          </button>
+          <button
+            type="button"
+            className="hero-pill"
+            onClick={() => showSnack?.('Envoi de tickets bientôt disponible')}
+          >
+            Envoyer
+          </button>
+          <button type="button" className="hero-pill" onClick={() => scrollTo(historyRef)}>
+            Historique
+          </button>
+        </div>
       </div>
 
-      <div className="list-pad">
-        <div className="kicker">Recharger</div>
+      <div className="sheet-body">
+        {(() => {
+          const incoming = txs
+            .filter((tx) => TX_CREDIT_TYPES.has(tx.type) && String(tx.status).toUpperCase() === 'COMPLETED')
+            .reduce((s, tx) => s + Number(tx.amount || 0), 0);
+          const outgoing = txs
+            .filter((tx) => !TX_CREDIT_TYPES.has(tx.type) && String(tx.status).toUpperCase() === 'COMPLETED')
+            .reduce((s, tx) => s + Number(tx.amount || 0), 0);
+          return (
+            <div className="wallet-stats">
+              <div className="wallet-stat">
+                <span className="wallet-stat-icon in">↓</span>
+                <div>
+                  <label>Entrées</label>
+                  <strong>+{formatTicketCount(incoming)}</strong>
+                </div>
+              </div>
+              <div className="wallet-stat">
+                <span className="wallet-stat-icon out">↑</span>
+                <div>
+                  <label>Sorties</label>
+                  <strong>-{formatTicketCount(outgoing)}</strong>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        <div ref={rechargeRef} className="kicker kicker--muted">
+          Recharger
+        </div>
         <div className="section-title">Mobile Money</div>
 
         <div className="mode-row" style={{ marginBottom: 14 }}>
@@ -196,17 +270,24 @@ export default function WalletPage({ showSnack }) {
           {paying ? 'Envoi…' : 'Recharger'}
         </button>
 
-        <div className="kicker" style={{ marginTop: 28 }}>
-          Historique
+        <div ref={historyRef} className="section-row" style={{ marginTop: 28 }}>
+          <div>
+            <div className="kicker kicker--muted">Mouvements</div>
+            <div className="section-title" style={{ marginBottom: 0 }}>
+              Dernières transactions
+            </div>
+          </div>
         </div>
-        <div className="section-title">Mouvements</div>
 
         {loadingTx ? (
           <div style={{ display: 'grid', placeItems: 'center', padding: 32 }}>
             <div className="spinner" />
           </div>
         ) : txs.length === 0 ? (
-          <p className="muted">Aucun mouvement pour l’instant.</p>
+          <div className="empty-state">
+            <h3>Aucun mouvement</h3>
+            <p>Tes recharges et paiements de commandes apparaîtront ici.</p>
+          </div>
         ) : (
           txs.map((tx) => {
             const credit = TX_CREDIT_TYPES.has(tx.type);
@@ -215,7 +296,7 @@ export default function WalletPage({ showSnack }) {
               <button
                 key={tx.id}
                 type="button"
-                className="item-card"
+                className="tx-card"
                 onClick={async () => {
                   try {
                     setDetail(await transactionsApi.get(tx.id));
@@ -224,6 +305,7 @@ export default function WalletPage({ showSnack }) {
                   }
                 }}
               >
+                <span className={`tx-icon${credit ? ' in' : ' out'}`}>{credit ? '+' : '−'}</span>
                 <div style={{ flex: 1, textAlign: 'left' }}>
                   <h3>{TX_TYPE_LABEL[tx.type] || tx.type}</h3>
                   <p>
@@ -231,12 +313,9 @@ export default function WalletPage({ showSnack }) {
                     {tx.description ? ` · ${tx.description}` : ''}
                   </p>
                 </div>
-                <div
-                  className="price"
-                  style={{ color: credit ? 'var(--green)' : 'var(--text-primary)' }}
-                >
+                <div className="price" style={{ color: credit ? 'var(--green)' : 'var(--text-primary)' }}>
                   {credit ? '+' : '−'}
-                  {formatTickets(amt)}
+                  {formatTicketCount(amt)} tickets
                 </div>
               </button>
             );

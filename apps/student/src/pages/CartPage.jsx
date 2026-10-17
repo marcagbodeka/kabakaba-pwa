@@ -1,26 +1,32 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
-import { catalogApi, ordersApi, scheduledOrdersApi } from '../lib/api';
-import { formatTickets } from '../lib/format';
+import { catalogApi, ordersApi, scheduledOrdersApi, vendorsApi } from '../lib/api';
+import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
 import { IconBack } from '../components/icons';
 
-export default function CartPage({ onBack, onOrdered, showSnack }) {
+export default function CartPage({ onBack, onOrdered, onDiscover, showSnack }) {
   const { user, refreshMe } = useAuth();
   const cart = useCart();
   const [options, setOptions] = useState([]);
+  const [vendor, setVendor] = useState(null);
   const [paying, setPaying] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
 
   useEffect(() => {
     if (!cart.vendorId) {
       setOptions([]);
+      setVendor(null);
       return;
     }
     catalogApi
       .takeawayOptions(cart.vendorId)
       .then((list) => setOptions(Array.isArray(list) ? list : []))
       .catch(() => setOptions([]));
+    vendorsApi
+      .get(cart.vendorId)
+      .then(setVendor)
+      .catch(() => setVendor(null));
   }, [cart.vendorId]);
 
   const takeawayFee = useMemo(() => {
@@ -51,16 +57,18 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
   };
 
   const checkout = async () => {
+    if (!cart.lines.length) {
+      showSnack?.('Ajoute des articles au panier');
+      return;
+    }
     if (!canPay) {
-      showSnack(
-        balance < total
-          ? 'Solde insuffisant pour cette commande'
-          : 'Ajoute des articles au panier',
+      showSnack?.(
+        balance < total ? 'Solde insuffisant — recharge ton portefeuille' : 'Ajoute des articles au panier',
       );
       return;
     }
     if (cart.consumptionMode === 'TAKEAWAY' && !cart.takeawayOptionId) {
-      showSnack('Choisis une option d’emporté');
+      showSnack?.('Choisis une option d’emporté');
       return;
     }
     setPaying(true);
@@ -68,10 +76,10 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
       const order = await ordersApi.create(orderBody());
       cart.clear();
       await refreshMe();
-      showSnack('Commande confirmée');
+      showSnack?.('Commande confirmée', 'success');
       onOrdered(order.id);
     } catch (e) {
-      showSnack(e.message || 'Commande impossible');
+      showSnack?.(e.message || 'Commande impossible');
     } finally {
       setPaying(false);
     }
@@ -79,21 +87,21 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
 
   const schedule = async () => {
     if (!cart.lines.length) {
-      showSnack('Ajoute des articles au panier');
+      showSnack?.('Ajoute des articles au panier');
       return;
     }
     if (cart.consumptionMode === 'TAKEAWAY' && !cart.takeawayOptionId) {
-      showSnack('Choisis une option d’emporté');
+      showSnack?.('Choisis une option d’emporté');
       return;
     }
     const when = new Date(scheduleAt);
     if (Number.isNaN(when.getTime())) {
-      showSnack('Choisis une heure');
+      showSnack?.('Choisis une heure');
       return;
     }
     const lead = when.getTime() - Date.now();
     if (lead < 15 * 60 * 1000 || lead > 24 * 60 * 60 * 1000) {
-      showSnack('L’heure doit être entre 15 minutes et 24 heures');
+      showSnack?.('L’heure doit être entre 15 minutes et 24 heures');
       return;
     }
     setPaying(true);
@@ -104,82 +112,104 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
       });
       cart.clear();
       setScheduleAt('');
-      showSnack('Commande programmée. Les tickets seront débités à l’heure prévue.');
+      showSnack?.('Commande programmée. Les tickets seront débités à l’heure prévue.', 'success');
       onBack();
     } catch (e) {
-      showSnack(e.message || 'Programmation impossible');
+      showSnack?.(e.message || 'Programmation impossible');
     } finally {
       setPaying(false);
     }
   };
 
   return (
-    <div className="page">
+    <div className={`page page--flush${cart.lines.length ? ' page--sticky' : ''}`}>
       <div className="topbar">
         <button type="button" className="icon-btn" onClick={onBack} aria-label="Retour">
           <IconBack />
         </button>
         <h1>Mon panier</h1>
-        <div style={{ width: 40 }} />
+        {cart.lines.length ? (
+          <span className="topbar-badge">{cart.itemCount}</span>
+        ) : (
+          <div style={{ width: 40 }} />
+        )}
       </div>
 
-      <div className="list-pad" style={{ paddingTop: 8 }}>
+      <div className="list-pad" style={{ paddingBottom: cart.lines.length ? 110 : 24 }}>
         {!cart.lines.length ? (
-          <div className="empty">
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M6 7h15l-1.5 9h-12z" />
+                <path d="M6 7 5 3H2" />
+                <circle cx="9" cy="20" r="1" />
+                <circle cx="17" cy="20" r="1" />
+              </svg>
+            </div>
             <h3>Panier vide</h3>
-            <p>Choisis une cantine pour composer ton repas.</p>
+            <p>Ajoute des plats depuis les cantines de ton campus.</p>
+            <button type="button" className="btn-fill" style={{ marginTop: 16 }} onClick={onDiscover}>
+              Découvrir les cantines
+            </button>
           </div>
         ) : (
           <>
-            <p className="muted" style={{ marginBottom: 12 }}>
-              {cart.vendorName}
-            </p>
+            <button type="button" className="light-card canteen-header-card" onClick={onBack}>
+              <div className="canteen-thumb" style={{ width: 52, height: 52, borderRadius: 14 }}>
+                {vendor?.logoUrl || vendor?.bannerUrl ? (
+                  <img src={vendor.logoUrl || vendor.bannerUrl} alt="" />
+                ) : (
+                  (cart.vendorName || 'C').slice(0, 2).toUpperCase()
+                )}
+              </div>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <strong>{cart.vendorName || 'Cantine'}</strong>
+                <p>
+                  {cart.itemCount} article{cart.itemCount > 1 ? 's' : ''}
+                </p>
+              </div>
+              {vendor ? (
+                <span className={`status-pill ${String(vendor.capacityStatus || 'CLOSED').toLowerCase()}`}>
+                  {CAPACITY_LABEL[vendor.capacityStatus] || 'Fermée'}
+                </span>
+              ) : null}
+            </button>
+
             {cart.lines.map((line) => {
               const key = cart.lineKey(line);
               return (
-                <div key={key} className="cart-line">
-                  <div style={{ flex: 1 }}>
+                <div key={key} className="light-card cart-item-card">
+                  <div className="cart-item-icon">{line.menuId ? 'M' : 'C'}</div>
+                  <div className="cart-item-body">
                     <strong>{line.name}</strong>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: 12.5 }}>
-                      {formatTickets(line.unitPrice)} / unité
-                    </div>
+                    <span>{line.menuId ? 'Menu' : 'Composant'}</span>
+                    <em>{formatTicketCount(line.unitPrice)} tickets</em>
                   </div>
-                  <button
-                    type="button"
-                    className="qty-btn"
-                    onClick={() => cart.setQty(key, line.quantity - 1)}
-                  >
-                    −
-                  </button>
-                  <strong>{line.quantity}</strong>
-                  <button
-                    type="button"
-                    className="qty-btn"
-                    onClick={() => cart.setQty(key, line.quantity + 1)}
-                  >
-                    +
-                  </button>
-                  <div className="price" style={{ minWidth: 72, textAlign: 'right' }}>
-                    {formatTickets(line.unitPrice * line.quantity)}
+                  <div className="qty-stepper">
+                    <button type="button" className="qty-btn" onClick={() => cart.setQty(key, line.quantity - 1)}>
+                      −
+                    </button>
+                    <strong>{line.quantity}</strong>
+                    <button type="button" className="qty-btn" onClick={() => cart.setQty(key, line.quantity + 1)}>
+                      +
+                    </button>
                   </div>
                 </div>
               );
             })}
 
-            <div className="kicker" style={{ marginTop: 22 }}>
-              Mode de consommation
-            </div>
-            <div className="mode-row">
+            <div className="section-label">Mode de consommation</div>
+            <div className="mode-row mode-row--cards">
               <button
                 type="button"
-                className={`mode-chip${cart.consumptionMode === 'ON_SITE' ? ' active' : ''}`}
+                className={`mode-card${cart.consumptionMode === 'ON_SITE' ? ' active' : ''}`}
                 onClick={() => cart.setConsumption('ON_SITE')}
               >
                 Sur place
               </button>
               <button
                 type="button"
-                className={`mode-chip${cart.consumptionMode === 'TAKEAWAY' ? ' active' : ''}`}
+                className={`mode-card${cart.consumptionMode === 'TAKEAWAY' ? ' active' : ''}`}
                 disabled={!takeawayAvailable}
                 onClick={() => cart.setConsumption('TAKEAWAY')}
               >
@@ -188,65 +218,46 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
             </div>
 
             {cart.consumptionMode === 'TAKEAWAY' ? (
-              <div className="mode-row" style={{ flexDirection: 'column' }}>
-                {options.map((opt) => (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    className={`mode-chip${cart.takeawayOptionId === opt.id ? ' active' : ''}`}
-                    onClick={() => cart.setTakeaway(opt.id)}
-                    style={{ width: '100%' }}
-                  >
-                    {opt.name} · {formatTickets(opt.priceTickets)}
-                  </button>
-                ))}
-              </div>
+              options.length ? (
+                <div className="takeaway-options">
+                  {options.map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      className={`takeaway-option${cart.takeawayOptionId === opt.id ? ' active' : ''}`}
+                      onClick={() => cart.setTakeaway(opt.id)}
+                    >
+                      <span>{opt.name}</span>
+                      <strong>
+                        {Number(opt.priceTickets) > 0
+                          ? `+${formatTicketCount(opt.priceTickets)} tickets`
+                          : 'Sans supplément'}
+                      </strong>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">Aucune option d’emporté pour cette cantine.</p>
+              )
             ) : null}
 
-            <div style={{ marginTop: 18, fontSize: 13.5, color: 'var(--text-secondary)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div className="light-card summary-card">
+              <div className="summary-row">
                 <span>Sous-total</span>
-                <strong style={{ color: 'var(--text-primary)' }}>
-                  {formatTickets(cart.subtotal)}
-                </strong>
+                <strong>{formatTicketCount(cart.subtotal)} tickets</strong>
               </div>
               {takeawayFee > 0 ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <div className="summary-row">
                   <span>Emporté</span>
-                  <strong style={{ color: 'var(--text-primary)' }}>
-                    {formatTickets(takeawayFee)}
-                  </strong>
+                  <strong>{formatTicketCount(takeawayFee)} tickets</strong>
                 </div>
               ) : null}
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span>Solde</span>
-                <strong style={{ color: 'var(--text-primary)' }}>
-                  {formatTickets(balance)}
-                </strong>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  marginTop: 10,
-                  fontSize: 16,
-                  color: 'var(--text-primary)',
-                }}
-              >
-                <strong>Total</strong>
-                <strong>{formatTickets(total)}</strong>
+              <div className="summary-row summary-row--total">
+                <span>Total</span>
+                <strong>{formatTicketCount(total)} tickets</strong>
               </div>
             </div>
 
-            <button
-              type="button"
-              className="btn-fill"
-              style={{ marginTop: 22 }}
-              disabled={paying || !canPay}
-              onClick={checkout}
-            >
-              {paying ? 'Paiement…' : 'Commander et payer'}
-            </button>
             <div className="field" style={{ marginTop: 18 }}>
               <label>Ou programmer (15 min à 24 h)</label>
               <div className="input-shell">
@@ -260,7 +271,7 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
             <button
               type="button"
               className="btn-outline"
-              disabled={paying || !cart.lines.length || !scheduleAt}
+              disabled={paying || !scheduleAt}
               onClick={schedule}
             >
               Programmer sans débiter maintenant
@@ -268,6 +279,36 @@ export default function CartPage({ onBack, onOrdered, showSnack }) {
           </>
         )}
       </div>
+
+      {cart.lines.length ? (
+        <div className="sticky-bar sticky-bar--checkout">
+          <div className="meta">
+            <strong>Ton solde</strong>
+            <span style={{ color: canPay ? 'var(--green)' : 'var(--red)' }}>
+              {formatTicketCount(balance)} tickets
+            </span>
+          </div>
+          <button
+            type="button"
+            className="btn-fill"
+            style={{ width: 'auto', minWidth: 160, padding: '0 14px', height: 44 }}
+            disabled={paying || (canPay && cart.consumptionMode === 'TAKEAWAY' && !cart.takeawayOptionId)}
+            onClick={() => {
+              if (!canPay) {
+                showSnack?.('Solde insuffisant — Recharger');
+                return;
+              }
+              checkout();
+            }}
+          >
+            {paying
+              ? 'Confirmation…'
+              : canPay
+                ? 'Confirmer la commande'
+                : 'Solde insuffisant — Recharger'}
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

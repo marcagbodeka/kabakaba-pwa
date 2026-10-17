@@ -30,6 +30,8 @@ function Shell() {
   const [stack, setStack] = useState(null);
   const [toast, setToast] = useState(null);
   const [focusOrderId, setFocusOrderId] = useState(null);
+  const [profilePanel, setProfilePanel] = useState(null);
+  const [orderDetailOpen, setOrderDetailOpen] = useState(false);
 
   const showSnack = useCallback((message, variant = 'error') => {
     if (!message) return;
@@ -47,7 +49,11 @@ function Shell() {
     if (['home', 'orders', 'wallet', 'profile', 'cart'].includes(name)) {
       setStack(null);
       setTab(name);
-      if (name !== 'orders') setFocusOrderId(null);
+      if (name !== 'orders') {
+        setFocusOrderId(null);
+        setOrderDetailOpen(false);
+      }
+      setProfilePanel(name === 'profile' ? props.panel || null : null);
       return;
     }
     setStack({ name, props });
@@ -56,6 +62,7 @@ function Shell() {
   const hideNav =
     Boolean(stack) ||
     tab === 'cart' ||
+    orderDetailOpen ||
     stack?.name === 'canteen' ||
     stack?.name === 'canteens';
 
@@ -80,11 +87,18 @@ function Shell() {
   } else if (tab === 'home') {
     screen = <HomePage onNavigate={navigate} showSnack={showSnack} />;
   } else if (tab === 'orders') {
-    screen = <OrdersPage focusOrderId={focusOrderId} showSnack={showSnack} />;
+    screen = (
+      <OrdersPage
+        focusOrderId={focusOrderId}
+        showSnack={showSnack}
+        onDetailOpenChange={setOrderDetailOpen}
+      />
+    );
   } else if (tab === 'cart') {
     screen = (
       <CartPage
         onBack={() => setTab('home')}
+        onDiscover={() => navigate('canteens')}
         onOrdered={(orderId) => {
           setFocusOrderId(orderId);
           setTab('orders');
@@ -95,7 +109,7 @@ function Shell() {
   } else if (tab === 'wallet') {
     screen = <WalletPage showSnack={showSnack} />;
   } else if (tab === 'profile') {
-    screen = <ProfilePage showSnack={showSnack} />;
+    screen = <ProfilePage showSnack={showSnack} initialPanel={profilePanel} />;
   }
 
   return (

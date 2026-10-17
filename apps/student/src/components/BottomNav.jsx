@@ -44,7 +44,7 @@ export default function BottomNav({ current, onChange, cartCount = 0 }) {
           aria-label="Panier"
         >
           <IconCart />
-          {cartCount > 0 ? <span className="badge">{cartCount}</span> : null}
+          {cartCount > 0 ? <span className="badge">{cartCount > 9 ? '9+' : cartCount}</span> : null}
         </button>
       </nav>
     </div>

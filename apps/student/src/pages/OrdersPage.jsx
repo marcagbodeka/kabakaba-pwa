@@ -1,7 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ordersApi, reportsApi, reviewsApi, scheduledOrdersApi } from '../lib/api';
-import { ORDER_STATUS_LABEL, formatTickets, formatTime } from '../lib/format';
+import {
+  ORDER_STATUS_LABEL,
+  formatTicketCount,
+  formatTickets,
+  formatTime,
+} from '../lib/format';
 import { IconBack } from '../components/icons';
+
+const ORDER_TABS = [
+  { key: 'confirmed', label: 'Confirmées', statuses: ['CONFIRMED'] },
+  { key: 'active', label: 'En cours', statuses: ['IN_PREPARATION', 'READY'] },
+  { key: 'history', label: 'Historique', statuses: ['RECEIVED', 'CANCELLED'] },
+];
 
 const REPORT_TYPES = [
   { value: 'WRONG_MEAL', label: 'Mauvais repas' },
@@ -58,6 +69,7 @@ export default function OrdersPage({
   focusOrderId,
   onBack,
   showSnack,
+  onDetailOpenChange,
 }) {
   const [orders, setOrders] = useState([]);
   const [scheduled, setScheduled] = useState([]);
@@ -65,12 +77,18 @@ export default function OrdersPage({
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState(0);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [reportType, setReportType] = useState('WRONG_MEAL');
   const [reportComment, setReportComment] = useState('');
   const prevStatusRef = useRef({});
   const playedReadyRef = useRef(new Set());
+
+  useEffect(() => {
+    onDetailOpenChange?.(Boolean(selected || selectedPlan));
+    return () => onDetailOpenChange?.(false);
+  }, [selected, selectedPlan, onDetailOpenChange]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -264,8 +282,24 @@ export default function OrdersPage({
     const storedReview = readStoredReview(selected.id);
     const canReview = selected.status === 'RECEIVED';
     const canReport = selected.status === 'READY' || selected.status === 'RECEIVED';
+    const steps = ['Envoyée', 'Préparation', 'Prête', 'Retirée'];
+    const progress =
+      selected.status === 'CONFIRMED'
+        ? 1
+        : selected.status === 'IN_PREPARATION'
+          ? 2
+          : selected.status === 'READY'
+            ? 3
+            : selected.status === 'RECEIVED'
+              ? 4
+              : 0;
+    const failed = selected.status === 'CANCELLED';
+    const code = selected.displayCode || selected.orderNumber || '—';
+    const statusLabel =
+      selected.status === 'READY' ? 'Prête à retirer' : ORDER_STATUS_LABEL[selected.status];
+
     return (
-      <div className="page">
+      <div className="page page--flush">
         <div className="topbar">
           <button
             type="button"
@@ -275,38 +309,66 @@ export default function OrdersPage({
           >
             <IconBack />
           </button>
-          <h1>Commande #{selected.orderNumber}</h1>
+          <h1>Commande</h1>
           <div style={{ width: 40 }} />
         </div>
         <div className="list-pad">
-          <span className={`status ${selected.status}`}>
-            {ORDER_STATUS_LABEL[selected.status]}
-          </span>
-          <p style={{ marginTop: 12, color: 'var(--text-secondary)' }}>
-            {selected.vendor?.canteenName} · {formatTime(selected.createdAt)}
-          </p>
-          <div style={{ marginTop: 16 }}>
-            {(selected.items || []).map((item) => (
-              <div key={item.id} className="item-card">
-                <div style={{ flex: 1 }}>
-                  <h3>
-                    {item.quantity}× {item.name}
-                  </h3>
-                </div>
-                <div className="price">
-                  {formatTickets(Number(item.unitPrice ?? 0) * Number(item.quantity ?? 0))}
-                </div>
+          <div className="order-hero-card">
+            <div className="order-hero-top">
+              <span className={`status ${selected.status}`}>{statusLabel}</span>
+              <span className="order-hero-ref">#{code}</span>
+            </div>
+            <h2>{selected.vendor?.canteenName || 'Cantine'}</h2>
+            <p>{formatTime(selected.createdAt)}</p>
+            <div className="order-timeline">
+              {steps.map((label, i) => {
+                const active = !failed && i < progress;
+                const current = !failed && i === progress - 1;
+                return (
+                  <div key={label} className="order-timeline-step">
+                    {i > 0 ? (
+                      <span className={`order-timeline-line${i < progress && !failed ? ' on' : ''}`} />
+                    ) : null}
+                    <span className={`order-timeline-dot${active ? ' on' : ''}${current ? ' current' : ''}`} />
+                    <span className="order-timeline-label">{label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="pickup-code-card">
+            <div className="kicker kicker--muted">Numéro de commande</div>
+            <strong>{code}</strong>
+            <p>Présente ce numéro au vendeur pour récupérer ta commande.</p>
+          </div>
+
+          <div className="section-label">Articles</div>
+          {(selected.items || []).map((item) => (
+            <div key={item.id || `${item.name}-${item.quantity}`} className="light-card cart-item-card">
+              <div className="cart-item-icon">·</div>
+              <div className="cart-item-body">
+                <strong>{item.name}</strong>
+                <span>{item.quantity}x</span>
               </div>
-            ))}
+              <div className="price accent">
+                {formatTicketCount(Number(item.unitPrice ?? 0) * Number(item.quantity ?? 0))}
+              </div>
+            </div>
+          ))}
+
+          <div className="light-card summary-card">
+            <div className="summary-row summary-row--total">
+              <span>Total</span>
+              <strong className="accent">{formatTicketCount(selected.totalTickets)} tickets</strong>
+            </div>
           </div>
-          <div style={{ marginTop: 12, fontWeight: 800 }}>
-            Total {formatTickets(Number(selected.totalTickets ?? 0))}
-          </div>
+
           {selected.status === 'CONFIRMED' ? (
             <button
               type="button"
-              className="btn-outline"
-              style={{ marginTop: 20, borderColor: 'var(--red)', color: 'var(--red)' }}
+              className="btn-logout"
+              style={{ marginTop: 16 }}
               disabled={busy}
               onClick={() => cancel(selected)}
             >
@@ -316,8 +378,10 @@ export default function OrdersPage({
 
           {canReview ? (
             <div style={{ marginTop: 28 }}>
-              <div className="kicker">Avis</div>
-              <div className="section-title">{storedReview ? 'Modifier ton avis' : 'Noter cette commande'}</div>
+              <div className="kicker kicker--muted">Avis</div>
+              <div className="section-title">
+                {storedReview ? 'Modifier ton avis' : 'Noter ta dernière commande'}
+              </div>
               <div className="mode-row" style={{ marginBottom: 12 }}>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <button
@@ -331,7 +395,7 @@ export default function OrdersPage({
                 ))}
               </div>
               <div className="field">
-                <label>Commentaire (optionnel)</label>
+                <label>Commentaire optionnel</label>
                 <div className="input-shell">
                   <input
                     value={comment}
@@ -349,7 +413,7 @@ export default function OrdersPage({
 
           {canReport ? (
             <div style={{ marginTop: 28 }}>
-              <div className="kicker">Signalement</div>
+              <div className="kicker kicker--muted">Signalement</div>
               <div className="section-title">Un problème sur cette commande</div>
               <div className="mode-row" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
                 {REPORT_TYPES.map((type) => (
@@ -384,32 +448,46 @@ export default function OrdersPage({
     );
   }
 
-  return (
-    <div className="page">
-      {!embedded ? (
-        <div className="topbar">
-          <button type="button" className="icon-btn" onClick={onBack} aria-label="Retour">
-            <IconBack />
-          </button>
-          <h1>Mes commandes</h1>
-          <div style={{ width: 40 }} />
-        </div>
-      ) : (
-        <div className="topbar">
-          <div style={{ width: 40 }} />
-          <h1>Mes commandes</h1>
-          <div style={{ width: 40 }} />
-        </div>
-      )}
+  const activeTab = ORDER_TABS[tab];
+  const filtered = orders.filter((o) => activeTab.statuses.includes(o.status));
 
-      <div className="list-pad">
+  return (
+    <div className="page page--flush">
+      <div className="hero hero--orders">
+        <div className="hero-top">
+          <div>
+            {!embedded ? (
+              <button type="button" className="hero-icon-btn" onClick={onBack} aria-label="Retour" style={{ marginBottom: 10 }}>
+                <IconBack />
+              </button>
+            ) : null}
+            <div className="hero-greet">Suivi</div>
+            <div className="hero-name">Mes commandes</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="sheet-body">
+        <div className="light-tabs">
+          {ORDER_TABS.map((t, i) => (
+            <button
+              key={t.key}
+              type="button"
+              className={`light-tab${tab === i ? ' active' : ''}`}
+              onClick={() => setTab(i)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div style={{ display: 'grid', placeItems: 'center', padding: 40 }}>
             <div className="spinner" />
           </div>
         ) : (
           <>
-            {scheduled.length ? (
+            {tab === 0 && scheduled.length ? (
               <>
                 <div className="kicker">Programmées</div>
                 {scheduled.map((plan) => (
@@ -429,30 +507,75 @@ export default function OrdersPage({
                 ))}
               </>
             ) : null}
-            {orders.length === 0 && scheduled.length === 0 ? (
-              <div className="empty">
-                <h3>Pas encore de commande</h3>
-                <p>Tes commandes confirmées apparaîtront ici.</p>
+            {filtered.length === 0 && !(tab === 0 && scheduled.length) ? (
+              <div className="empty-state">
+                <h3>
+                  {tab === 0
+                    ? 'Aucune commande confirmée'
+                    : tab === 1
+                      ? 'Rien en préparation'
+                      : 'Aucune commande passée'}
+                </h3>
+                <p>
+                  {tab === 0
+                    ? 'Tes commandes confirmées apparaîtront ici.'
+                    : tab === 1
+                      ? 'Les commandes en préparation ou prêtes s’affichent ici.'
+                      : 'Tes commandes terminées et annulées apparaîtront ici.'}
+                </p>
               </div>
             ) : (
-              orders.map((order) => (
-                <button
-                  key={order.id}
-                  type="button"
-                  className="order-card"
-                  onClick={() => openOrder(order)}
-                >
-                  <h3>
-                    #{order.orderNumber} · {order.vendor?.canteenName || 'Cantine'}
-                  </h3>
-                  <p>
-                    {formatTime(order.createdAt)} · {formatTickets(order.totalTickets)}
-                  </p>
-                  <span className={`status ${order.status}`}>
-                    {ORDER_STATUS_LABEL[order.status]}
-                  </span>
-                </button>
-              ))
+              filtered.map((order) => {
+                const progress =
+                  order.status === 'CONFIRMED'
+                    ? 1
+                    : order.status === 'IN_PREPARATION'
+                      ? 2
+                      : order.status === 'READY'
+                        ? 3
+                        : order.status === 'RECEIVED'
+                          ? 4
+                          : 0;
+                const steps = ['Confirmée', 'En préparation', 'Prête', 'Retirée'];
+                return (
+                  <button
+                    key={order.id}
+                    type="button"
+                    className="order-card order-card--rich"
+                    onClick={() => openOrder(order)}
+                  >
+                    <div className="order-card-top">
+                      <div className="order-vendor-tile">
+                        {(order.vendor?.canteenName || 'C').slice(0, 2).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, textAlign: 'left' }}>
+                        <h3>{order.vendor?.canteenName || 'Cantine'}</h3>
+                        <p>N° {order.displayCode || order.orderNumber || '—'}</p>
+                      </div>
+                      <span className={`status ${order.status}`}>
+                        {ORDER_STATUS_LABEL[order.status]}
+                      </span>
+                    </div>
+                    {progress > 0 ? (
+                      <div className="order-progress">
+                        {steps.map((label, i) => (
+                          <span
+                            key={label}
+                            className={`order-progress-step${i < progress ? ' on' : ''}`}
+                            title={label}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                    <p className="order-card-total">
+                      {formatTime(order.createdAt)} · {itemCount(order.items)} article
+                      {itemCount(order.items) > 1 ? 's' : ''} · {formatTicketCount(order.totalTickets)}{' '}
+                      tickets ·{' '}
+                      {order.consumptionMode === 'TAKEAWAY' ? 'À emporter' : 'Sur place'}
+                    </p>
+                  </button>
+                );
+              })
             )}
           </>
         )}
