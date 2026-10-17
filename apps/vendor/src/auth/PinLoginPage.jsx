@@ -58,7 +58,7 @@ export default function PinLoginPage() {
         className="pin-link"
         onClick={async () => {
           const ok = window.confirm(
-            'Ton code sera oublié sur cet appareil. Tu devras te reconnecter avec ton numéro et ton mot de passe temporaire.',
+            'Tu quittes ce compte sur cet appareil. Tu pourras te reconnecter avec ton numéro et ton code PIN.',
           );
           if (ok) await auth.forget();
         }}

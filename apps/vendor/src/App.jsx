@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import ActivationPage from './auth/ActivationPage';
+import LoginPage from './auth/LoginPage';
 import PinLoginPage from './auth/PinLoginPage';
 import Dashboard from './pages/Dashboard';
 import InstallPrompt from './components/InstallPrompt';
@@ -46,8 +47,10 @@ function Root() {
       screen = <Dashboard showSnack={showSnack} />;
     } else if (auth.status === 'needsPin') {
       screen = <PinLoginPage />;
-    } else {
+    } else if (auth.status === 'needsActivation') {
       screen = <ActivationPage />;
+    } else {
+      screen = <LoginPage />;
     }
   }
 

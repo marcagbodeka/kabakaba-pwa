@@ -149,9 +149,9 @@ export default function ActivationPage() {
   const stepMeta = {
     credentials: {
       step: 1,
-      title: 'Connexion vendeur',
+      title: 'Activer mon compte',
       subtitle:
-        'Saisis ton numéro et le mot de passe temporaire reçu de l’administration.',
+        'Première connexion : numéro + mot de passe temporaire reçu de l’administration.',
     },
     otp: {
       step: 2,
@@ -183,8 +183,10 @@ export default function ActivationPage() {
       }
       heroTitle={stepMeta.title}
       heroSubtitle={stepMeta.subtitle}
-      showBackButton={auth.activationStep !== 'credentials'}
-      onBack={auth.backToCredentials}
+      showBackButton
+      onBack={
+        auth.activationStep === 'credentials' ? auth.goToLogin : auth.backToCredentials
+      }
     >
       {auth.activationStep === 'credentials' ? (
         <>
@@ -232,6 +234,9 @@ export default function ActivationPage() {
             }}
           >
             {auth.isSubmitting ? 'Envoi…' : 'Continuer'}
+          </button>
+          <button type="button" className="auth-switch" onClick={auth.goToLogin}>
+            Déjà un code PIN ? Se connecter
           </button>
         </>
       ) : null}

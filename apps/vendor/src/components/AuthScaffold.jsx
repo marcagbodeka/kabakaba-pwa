@@ -8,11 +8,13 @@ export default function AuthScaffold({
   heroTitle,
   heroSubtitle,
   showBackButton = true,
+  showProgress = true,
   onBack,
   children,
 }) {
   useKeyboardInset();
-  const progress = Math.min(1, currentStep / totalSteps);
+  const hasSteps = showProgress && currentStep != null;
+  const progress = hasSteps ? Math.min(1, currentStep / totalSteps) : 0;
 
   return (
     <div className="auth-scaffold">
@@ -25,16 +27,22 @@ export default function AuthScaffold({
           ) : (
             <div className="auth-back ghost" />
           )}
-          <div className="auth-pill">
-            Étape {currentStep}/{totalSteps}
-          </div>
+          {hasSteps ? (
+            <div className="auth-pill">
+              Étape {currentStep}/{totalSteps}
+            </div>
+          ) : (
+            <div className="auth-pill auth-pill--quiet">Vendeur</div>
+          )}
         </div>
         <div className="auth-icon">{heroIcon}</div>
         <h1>{heroTitle}</h1>
         <p>{heroSubtitle}</p>
-        <div className="auth-progress">
-          <span style={{ width: `${progress * 100}%` }} />
-        </div>
+        {hasSteps ? (
+          <div className="auth-progress">
+            <span style={{ width: `${progress * 100}%` }} />
+          </div>
+        ) : null}
       </div>
       <div className="auth-card">{children}</div>
     </div>

@@ -20,12 +20,12 @@ const AuthContext = createContext(null);
 
 function statusFromSession(session) {
   if (session.phone && session.pinConfigured) return 'needsPin';
-  return 'needsActivation';
+  return 'needsLogin';
 }
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(() => loadSession());
-  const [status, setStatus] = useState('needsActivation');
+  const [status, setStatus] = useState('needsLogin');
   const [ready, setReady] = useState(false);
   const [activationStep, setActivationStep] = useState('credentials');
   const [pinLength, setPinLength] = useState(4);
@@ -76,6 +76,23 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const goToLogin = useCallback(() => {
+    setStatus('needsLogin');
+    setActivationStep('credentials');
+    setOnboardingToken(null);
+    setPinSetupToken(null);
+    setErrorMessage(null);
+    setPinLocked(false);
+  }, []);
+
+  const goToActivation = useCallback(() => {
+    setStatus('needsActivation');
+    setActivationStep('credentials');
+    setOnboardingToken(null);
+    setPinSetupToken(null);
+    setErrorMessage(null);
+  }, []);
+
   const startActivation = useCallback(
     (phoneLocal, password) =>
       run(async () => {
@@ -84,7 +101,7 @@ export function AuthProvider({ children }) {
         setOnboardingToken(challenge.onboardingToken);
         setPhoneMasked(challenge.phoneMasked);
         setPinLength(challenge.pinLength || 4);
-        setSession(saveSession({ phone }));
+        setSession(saveSession({ phone, pinConfigured: false }));
         setActivationStep('otp');
         return true;
       }),
@@ -128,7 +145,7 @@ export function AuthProvider({ children }) {
           setErrorMessage('Session d’activation expirée. Recommence la connexion.');
           return false;
         }
-        const tokens = await vendorAuthApi.setPin(pinSetupToken, pin);
+        await vendorAuthApi.setPin(pinSetupToken, pin);
         const next = saveSession({
           phone: session.phone,
           pinConfigured: true,
@@ -143,12 +160,26 @@ export function AuthProvider({ children }) {
     [pinSetupToken, run, session.phone],
   );
 
+  /**
+   * Connexion vendeur existant.
+   * - loginWithPin(pin) → utilise le téléphone mémorisé (déverrouillage appareil)
+   * - loginWithPin(phoneLocal, pin) → téléphone + PIN (nouvel appareil / login)
+   */
   const loginWithPin = useCallback(
-    (pin) =>
+    (phoneOrPin, maybePin) =>
       run(async () => {
-        if (!session.phone) return false;
-        const tokens = await vendorAuthApi.loginPin(session.phone, pin);
-        const next = saveSession({ pinConfigured: true });
+        const hasPhoneArg = maybePin !== undefined;
+        const pin = hasPhoneArg ? maybePin : phoneOrPin;
+        const phoneLocal = hasPhoneArg ? phoneOrPin : null;
+        const phone = phoneLocal
+          ? PhoneFormatter.toE164(phoneLocal)
+          : session.phone;
+        if (!phone) {
+          setErrorMessage('Numéro requis');
+          return false;
+        }
+        await vendorAuthApi.loginPin(phone, pin);
+        const next = saveSession({ phone, pinConfigured: true });
         setSession(next);
         setStatus('authenticated');
         setPinLocked(false);
@@ -173,10 +204,11 @@ export function AuthProvider({ children }) {
     }
     forgetDevice();
     setSession(loadSession());
-    setStatus('needsActivation');
+    setStatus('needsLogin');
     setActivationStep('credentials');
     setOnboardingToken(null);
     setPinSetupToken(null);
+    setPinLocked(false);
   }, []);
 
   const logout = useCallback(async () => {
@@ -188,7 +220,8 @@ export function AuthProvider({ children }) {
     }
     const next = clearTokens();
     setSession(next);
-    setStatus(next.phone && next.pinConfigured ? 'needsPin' : 'needsActivation');
+    setStatus(statusFromSession(next));
+    setPinLocked(false);
   }, []);
 
   const value = useMemo(
@@ -203,6 +236,8 @@ export function AuthProvider({ children }) {
       errorMessage,
       pinLocked,
       clearError,
+      goToLogin,
+      goToActivation,
       startActivation,
       resendOtp,
       verifyOtp,
@@ -223,6 +258,8 @@ export function AuthProvider({ children }) {
       errorMessage,
       pinLocked,
       clearError,
+      goToLogin,
+      goToActivation,
       startActivation,
       resendOtp,
       verifyOtp,
