@@ -119,12 +119,12 @@ export function AuthProvider({ children }) {
   );
 
   const setPin = useCallback(
-    (pin) =>
+    (pin, identity) =>
       run(async () => {
         if (!pinSetupToken) {
           throw new Error('Session expirée. Recommence la connexion.');
         }
-        const res = await authApi.setPin(pinSetupToken, pin);
+        const res = await authApi.setPin(pinSetupToken, pin, identity);
         if (res.user?.role && res.user.role !== 'STUDENT') {
           throw new Error('Ce compte n’est pas un compte étudiant.');
         }

@@ -13,22 +13,22 @@ function Poster({ vendor, onSelect }) {
   return (
     <button
       type="button"
-      className={`canteen-poster canteen-poster--list${!open ? ' is-closed' : ''}`}
+      className={`canteen-cover-card${!open ? ' is-closed' : ''}`}
       onClick={() => onSelect(vendor.id)}
     >
       {image ? (
         <img src={image} alt="" />
       ) : (
-        <div className="canteen-poster-fallback">
+        <div className="canteen-cover-fallback">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M4 3v8a2 2 0 0 0 2 2h1v8" />
             <path d="M7 3v6M10 3v6M18 3v18M18 3a3 3 0 0 1 0 6" />
           </svg>
         </div>
       )}
-      <span className="canteen-poster-shade" />
+      <span className="canteen-cover-shade" />
       <span className={`canteen-poster-pill${open ? ' open' : ''}`}>{open ? 'Ouverte' : 'Fermée'}</span>
-      <span className="canteen-poster-meta">
+      <span className="canteen-cover-meta">
         <strong>{vendor.canteenName}</strong>
         {vendor.description ? <span>{vendor.description}</span> : null}
       </span>
@@ -150,7 +150,7 @@ export default function CanteenListPage({ onBack, onSelect, showSnack }) {
             <p>Rien ne correspond à ta recherche pour le moment.</p>
           </div>
         ) : (
-          <div className="canteen-list-stack">
+          <div className="canteen-cover-stack">
             {filtered.map((v) => (
               <Poster key={v.id} vendor={v} onSelect={onSelect} />
             ))}

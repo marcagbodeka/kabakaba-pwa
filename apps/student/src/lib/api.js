@@ -1,7 +1,7 @@
 /**
  * Client API étudiant — uniquement les routes backend CDC V1.3 accessibles
  * à un compte STUDENT (ou publiques). Aucune route legacy (menu-items,
- * packaging, transferts, ambassadeurs, etc.).
+ * packaging, transferts, parrainage, etc.).
  */
 import { clearTokens } from './session';
 
@@ -35,12 +35,18 @@ export function unwrapList(payload) {
 
 export function normalizeUser(user) {
   if (!user) return null;
+  const firstName = user.firstName || '';
+  const lastName = user.lastName || '';
   return {
     ...user,
     walletBalance: Number(user.walletBalance ?? 0),
-    firstName: user.firstName || '',
-    lastName: user.lastName || '',
+    firstName,
+    lastName,
     hasPin: Boolean(user.hasPin),
+    profileComplete:
+      typeof user.profileComplete === 'boolean'
+        ? user.profileComplete
+        : Boolean(firstName.trim() && lastName.trim()),
   };
 }
 
@@ -182,11 +188,16 @@ export const authApi = {
     api('/auth/send-otp', { method: 'POST', auth: false, body: { phone } }),
   verifyOtp: (body) =>
     api('/auth/verify-otp', { method: 'POST', auth: false, body }),
-  setPin: (pinSetupToken, pin) =>
+  setPin: (pinSetupToken, pin, identity) =>
     api('/auth/student/set-pin', {
       method: 'POST',
       auth: false,
-      body: { pinSetupToken, pin },
+      body: {
+        pinSetupToken,
+        pin,
+        ...(identity?.firstName ? { firstName: identity.firstName } : {}),
+        ...(identity?.lastName ? { lastName: identity.lastName } : {}),
+      },
     }),
   loginPin: (phone, pin) =>
     api('/auth/student/login-pin', {

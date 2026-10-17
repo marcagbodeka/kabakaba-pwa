@@ -141,31 +141,26 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
 
   return (
     <div className="page page--flush page--sticky">
-      <div className="topbar">
-        <button type="button" className="icon-btn" onClick={onBack} aria-label="Retour">
+      <div className="canteen-detail-hero">
+        {vendor?.bannerUrl || vendor?.logoUrl ? (
+          <img src={vendor.bannerUrl || vendor.logoUrl} alt="" />
+        ) : (
+          <div className="canteen-detail-hero-fallback" />
+        )}
+        <div className="canteen-detail-hero-fade" />
+        <button type="button" className="canteen-detail-back" onClick={onBack} aria-label="Retour">
           <IconBack />
         </button>
-        <h1>{vendor?.canteenName || 'Cantine'}</h1>
-        <div style={{ width: 40 }} />
+        <div className="canteen-detail-hero-meta">
+          <span className={`status-pill ${String(vendor?.capacityStatus || 'CLOSED').toLowerCase()}`}>
+            {CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}
+          </span>
+          <h1>{vendor?.canteenName || 'Cantine'}</h1>
+          {vendor?.description ? <p>{vendor.description}</p> : null}
+        </div>
       </div>
 
-      <div className="list-pad" style={{ paddingBottom: 100 }}>
-        <div className="cover cover--detail">
-          {vendor?.bannerUrl || vendor?.logoUrl ? (
-            <img src={vendor.bannerUrl || vendor.logoUrl} alt="" />
-          ) : (
-            <div className="cover-fallback" />
-          )}
-          <div className="cover-shade" />
-          <div className="cover-meta">
-            <span className={`status-pill ${String(vendor?.capacityStatus || 'CLOSED').toLowerCase()}`}>
-              {CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}
-            </span>
-            <h2>{vendor?.canteenName}</h2>
-            {vendor?.description ? <p>{vendor.description}</p> : null}
-          </div>
-        </div>
-
+      <div className="list-pad canteen-detail-body">
         <div className="kicker kicker--muted">Cantine du campus</div>
         <div className="meta-chips">
           <span className="meta-chip">{CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}</span>

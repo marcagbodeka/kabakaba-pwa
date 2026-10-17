@@ -104,6 +104,8 @@ export default function LoginPage() {
   const [otpReset, setOtpReset] = useState(0);
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const pendingCode = useRef(null);
 
   useEffect(() => {
@@ -173,7 +175,8 @@ export default function LoginPage() {
       if (res?.stage === 'PIN_SETUP_REQUIRED') {
         setPin('');
         setConfirmPin('');
-        setStep('pinSetup');
+        // Identité avant PIN (exigé par le backend sur set-pin).
+        setStep('identity');
       }
     } catch (err) {
       const msg = String(err.message || err?.payload?.message || '');
@@ -191,32 +194,36 @@ export default function LoginPage() {
       ? 'Code PIN'
       : step === 'pinSetup' || step === 'pinConfirm'
         ? 'Crée ton code'
-        : step === 'campus'
-          ? 'Ton campus'
-          : step === 'otp'
-            ? 'Code SMS'
-            : mode === 'pin'
-              ? 'Connexion'
-              : 'Connexion';
+        : step === 'identity'
+          ? 'Comment t’appelles-tu ?'
+          : step === 'campus'
+            ? 'Ton campus'
+            : step === 'otp'
+              ? 'Code SMS'
+              : mode === 'pin'
+                ? 'Connexion'
+                : 'Connexion';
 
   const subtitle =
     step === 'pin'
       ? `Entre ton code à ${auth.pinLength} chiffres pour ${PhoneFormatter.formatDisplay(
           (e164 || phone || rememberedPhone).replace(/^\+?228/, ''),
         )}.`
-      : step === 'pinSetup'
-        ? 'Choisis un code PIN à 4 chiffres. Tu l’utiliseras pour te reconnecter sans SMS.'
-        : step === 'pinConfirm'
-          ? 'Saisis encore une fois le même code pour confirmer.'
-          : step === 'campus'
-            ? 'Choisis ton campus pour finaliser ton inscription.'
-            : step === 'otp'
-              ? `Saisis le code envoyé au ${PhoneFormatter.formatDisplay(
-                  (e164 || phone).replace(/^\+?228/, ''),
-                )}.`
-              : mode === 'pin'
-                ? 'Numéro et code PIN — sans SMS.'
-                : 'Première connexion ou code oublié : on t’envoie un SMS.';
+      : step === 'identity'
+        ? 'Ces informations créent ton profil étudiant kabakaba.'
+        : step === 'pinSetup'
+          ? 'Choisis un code PIN à 4 chiffres. Tu l’utiliseras pour te reconnecter sans SMS.'
+          : step === 'pinConfirm'
+            ? 'Saisis encore une fois le même code pour confirmer.'
+            : step === 'campus'
+              ? 'Choisis ton campus pour finaliser ton inscription.'
+              : step === 'otp'
+                ? `Saisis le code envoyé au ${PhoneFormatter.formatDisplay(
+                    (e164 || phone).replace(/^\+?228/, ''),
+                  )}.`
+                : mode === 'pin'
+                  ? 'Numéro et code PIN — sans SMS.'
+                  : 'Première connexion ou code oublié : on t’envoie un SMS.';
 
   return (
     <div className="auth-scaffold">
@@ -390,6 +397,52 @@ export default function LoginPage() {
           </>
         ) : null}
 
+        {step === 'identity' ? (
+          <>
+            <div className="auth-card-body">
+              <div className="field">
+                <label>Prénom(s)</label>
+                <div className="input-shell">
+                  <input
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Prénom"
+                    autoComplete="given-name"
+                    autoCapitalize="words"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="field">
+                <label>Nom</label>
+                <div className="input-shell">
+                  <input
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Nom"
+                    autoComplete="family-name"
+                    autoCapitalize="words"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="auth-card-footer">
+              <button
+                type="button"
+                className="btn-fill"
+                disabled={!firstName.trim() || !lastName.trim()}
+                onClick={() => {
+                  setPin('');
+                  setConfirmPin('');
+                  setStep('pinSetup');
+                }}
+              >
+                Continuer
+              </button>
+            </div>
+          </>
+        ) : null}
+
         {step === 'pinSetup' ? (
           <>
             <div className="auth-card-body">
@@ -408,8 +461,8 @@ export default function LoginPage() {
               />
             </div>
             <div className="auth-card-footer">
-              <button type="button" className="link-btn" onClick={() => setStep('phone')}>
-                Annuler
+              <button type="button" className="link-btn" onClick={() => setStep('identity')}>
+                Retour
               </button>
             </div>
           </>
@@ -434,7 +487,10 @@ export default function LoginPage() {
                     return;
                   }
                   try {
-                    await auth.setPin(v);
+                    await auth.setPin(v, {
+                      firstName: firstName.trim(),
+                      lastName: lastName.trim(),
+                    });
                   } catch {
                     setPin('');
                     setConfirmPin('');

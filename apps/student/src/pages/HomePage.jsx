@@ -240,8 +240,8 @@ export default function HomePage({ onNavigate, showSnack }) {
             <IconCrown />
           </span>
           <span className="promo-banner-text">
-            <strong>Programme ambassadeur</strong>
-            <span>Parraine le campus, gagne des commissions</span>
+            <strong>Parrainage kabakaba</strong>
+            <span>Invite un ami : 100 tickets à sa 1ʳᵉ recharge</span>
           </span>
           <span className="promo-banner-arrow">→</span>
         </button>
@@ -268,7 +268,7 @@ export default function HomePage({ onNavigate, showSnack }) {
             <p>Aucune cantine pour le moment</p>
           </div>
         ) : (
-          <div className="canteen-rail">
+          <div className="canteen-cover-stack">
             {vendors.map((v) => {
               const open = isVendorOpen(v);
               const image = v.bannerUrl || v.logoUrl;
@@ -276,21 +276,21 @@ export default function HomePage({ onNavigate, showSnack }) {
                 <button
                   key={v.id}
                   type="button"
-                  className={`canteen-poster${!open ? ' is-closed' : ''}`}
+                  className={`canteen-cover-card${!open ? ' is-closed' : ''}`}
                   onClick={() => onNavigate('canteen', { vendorId: v.id })}
                 >
                   {image ? (
                     <img src={image} alt="" />
                   ) : (
-                    <div className="canteen-poster-fallback">
+                    <div className="canteen-cover-fallback">
                       <IconRestaurant />
                     </div>
                   )}
-                  <span className="canteen-poster-shade" />
+                  <span className="canteen-cover-shade" />
                   <span className={`canteen-poster-pill${open ? ' open' : ''}`}>
                     {open ? 'Ouverte' : 'Fermée'}
                   </span>
-                  <span className="canteen-poster-meta">
+                  <span className="canteen-cover-meta">
                     <strong>{v.canteenName}</strong>
                     {v.description ? <span>{v.description}</span> : null}
                   </span>
