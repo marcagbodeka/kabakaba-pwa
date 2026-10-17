@@ -150,14 +150,19 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
   return data;
 }
 
+/** POST multipart (avatar) — cookies + CSRF ; Cloudinary est géré côté backend. */
 export async function apiUpload(path, file) {
+  await ensureCsrf();
   const form = new FormData();
   form.append('file', file);
-  const headers = { Accept: 'application/json' };
-  const { accessToken } = loadSession();
-  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  const headers = baseHeaders('POST');
 
-  let res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: form });
+  let res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+    body: form,
+  });
 
   if (res.status === 401) {
     refreshPromise =
@@ -166,11 +171,15 @@ export async function apiUpload(path, file) {
         refreshPromise = null;
       });
     try {
-      const token = await refreshPromise;
-      headers.Authorization = `Bearer ${token}`;
-      res = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: form });
+      await refreshPromise;
+      res = await fetch(`${API_BASE}${path}`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: baseHeaders('POST'),
+        body: form,
+      });
     } catch (err) {
-      clearTokens();
+      dropSession();
       throw err;
     }
   }
@@ -179,6 +188,7 @@ export async function apiUpload(path, file) {
   if (!res.ok) {
     throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
   }
+  rememberCsrf(data);
   return data;
 }
 

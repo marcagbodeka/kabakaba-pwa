@@ -391,12 +391,27 @@
   font-weight: 700;
 }
 
-/* Cartes couverture larges (accueil + liste) */
+/* Cartes couverture — liste pleine largeur */
 .canteen-cover-stack {
   display: flex;
   flex-direction: column;
   gap: 14px;
   padding-bottom: 8px;
+}
+
+/* Accueil : rail horizontal (max 3 via JS) */
+.canteen-cover-rail {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  margin: 0 -20px;
+  padding: 0 20px 10px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.canteen-cover-rail::-webkit-scrollbar {
+  display: none;
 }
 
 .canteen-cover-card {
@@ -410,6 +425,13 @@
   text-align: left;
   border: none;
   display: block;
+  flex-shrink: 0;
+}
+
+.canteen-cover-card--rail {
+  width: min(280px, 78vw);
+  height: 168px;
+  scroll-snap-align: start;
 }
 
 .canteen-cover-card img,
@@ -1457,6 +1479,26 @@
   border-radius: 16px;
 }
 
+.light-tabs--scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.light-tabs--scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.light-tabs--scroll .light-tab {
+  flex: 1 0 auto;
+  min-width: 88px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
 .light-tab {
   flex: 1;
   height: 36px;
@@ -1471,6 +1513,57 @@
   background: var(--accent);
   color: #fff;
   box-shadow: 0 4px 12px rgba(240, 120, 64, 0.35);
+}
+
+.light-tab-badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 99px;
+  background: rgba(13, 20, 56, 0.18);
+  color: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.light-tab.active .light-tab-badge {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.status--schedule-pending {
+  background: rgba(27, 42, 107, 0.12);
+  color: var(--primary);
+}
+
+.status--schedule-placed {
+  background: rgba(22, 163, 74, 0.14);
+  color: #16a34a;
+}
+
+.status--schedule-failed {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+}
+
+.status--schedule-cancelled {
+  background: rgba(139, 147, 167, 0.18);
+  color: var(--text-secondary);
+}
+
+.schedule-note {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.order-vendor-tile--schedule {
+  font-size: 16px;
+  background: #e8ecff;
+  color: var(--primary);
 }
 
 .empty-state {
@@ -1651,6 +1744,12 @@
   color: var(--text-secondary);
   line-height: 1.4;
   margin-bottom: 14px;
+}
+
+.hint-box--error {
+  background: #fee2e2;
+  border-color: rgba(220, 38, 38, 0.25);
+  color: #b91c1c;
 }
 
 .compose-summary {
@@ -1868,6 +1967,83 @@
 .price.accent,
 .accent {
   color: var(--accent) !important;
+}
+
+.recharge-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #e8ecff;
+}
+
+.recharge-status--success {
+  background: #dcfce7;
+  border-color: rgba(22, 163, 74, 0.25);
+}
+
+.recharge-status--failed {
+  background: #fee2e2;
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+.recharge-status--pending {
+  background: #fff4de;
+  border-color: rgba(245, 158, 11, 0.3);
+}
+
+.recharge-status-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 18px;
+  background: #fff;
+  color: var(--primary);
+  flex-shrink: 0;
+}
+
+.recharge-status--success .recharge-status-icon {
+  color: #16a34a;
+}
+
+.recharge-status--failed .recharge-status-icon {
+  color: #dc2626;
+}
+
+.recharge-status--pending .recharge-status-icon {
+  color: #f07840;
+}
+
+.recharge-status-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.recharge-status-body strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.recharge-status-body span {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.35;
+}
+
+.spinner--sm {
+  width: 22px;
+  height: 22px;
+  border-width: 2px;
+  flex-shrink: 0;
 }
 
 .wallet-stats {

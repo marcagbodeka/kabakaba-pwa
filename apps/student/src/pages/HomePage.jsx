@@ -254,7 +254,7 @@ export default function HomePage({ onNavigate, showSnack }) {
             </div>
           </div>
           <button type="button" className="link-accent" onClick={() => onNavigate('canteens')}>
-            Voir tout
+            Voir plus
           </button>
         </div>
 
@@ -268,15 +268,15 @@ export default function HomePage({ onNavigate, showSnack }) {
             <p>Aucune cantine pour le moment</p>
           </div>
         ) : (
-          <div className="canteen-cover-stack">
-            {vendors.map((v) => {
+          <div className="canteen-cover-rail">
+            {vendors.slice(0, 3).map((v) => {
               const open = isVendorOpen(v);
               const image = v.bannerUrl || v.logoUrl;
               return (
                 <button
                   key={v.id}
                   type="button"
-                  className={`canteen-cover-card${!open ? ' is-closed' : ''}`}
+                  className={`canteen-cover-card canteen-cover-card--rail${!open ? ' is-closed' : ''}`}
                   onClick={() => onNavigate('canteen', { vendorId: v.id })}
                 >
                   {image ? (

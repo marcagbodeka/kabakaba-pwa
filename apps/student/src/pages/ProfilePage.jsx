@@ -85,6 +85,14 @@ export default function ProfilePage({ showSnack, initialPanel }) {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showSnack?.('Choisis une image (JPG, PNG…)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showSnack?.('Image trop lourde (max 5 Mo)');
+      return;
+    }
     setUploading(true);
     try {
       await userApi.uploadAvatar(file);

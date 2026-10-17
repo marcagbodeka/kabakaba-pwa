@@ -5,7 +5,7 @@ import { catalogApi, ordersApi, scheduledOrdersApi, vendorsApi } from '../lib/ap
 import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
 import { IconBack } from '../components/icons';
 
-export default function CartPage({ onBack, onOrdered, onDiscover, showSnack }) {
+export default function CartPage({ onBack, onOrdered, onScheduled, onDiscover, showSnack }) {
   const { user, refreshMe } = useAuth();
   const cart = useCart();
   const [options, setOptions] = useState([]);
@@ -113,7 +113,8 @@ export default function CartPage({ onBack, onOrdered, onDiscover, showSnack }) {
       cart.clear();
       setScheduleAt('');
       showSnack?.('Commande programmée. Les tickets seront débités à l’heure prévue.', 'success');
-      onBack();
+      if (onScheduled) onScheduled();
+      else onBack();
     } catch (e) {
       showSnack?.(e.message || 'Programmation impossible');
     } finally {

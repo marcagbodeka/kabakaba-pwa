@@ -31,6 +31,10 @@ export default function WalletPage({ showSnack }) {
   const [quote, setQuote] = useState(null);
   const [quoting, setQuoting] = useState(false);
   const [paying, setPaying] = useState(false);
+  /** @type {[{ id: string, amountFcfa: number, ticketsReceived: number, status: string }|null, Function]} */
+  const [pendingPay, setPendingPay] = useState(null);
+  const pollRef = useRef(null);
+  const pollStartedRef = useRef(null);
 
   const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -51,6 +55,66 @@ export default function WalletPage({ showSnack }) {
       setLoadingTx(false);
     }
   }, [showSnack]);
+
+  const stopPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    pollStartedRef.current = null;
+  }, []);
+
+  useEffect(() => () => stopPoll(), [stopPoll]);
+
+  const startPoll = useCallback(
+    (paymentId, meta) => {
+      stopPoll();
+      setPendingPay({ id: paymentId, status: 'PENDING', ...meta });
+      pollStartedRef.current = Date.now();
+      const tick = async () => {
+        try {
+          const payment = await paymentsApi.get(paymentId);
+          const status = String(payment?.status || '').toUpperCase();
+          setPendingPay((prev) =>
+            prev?.id === paymentId
+              ? {
+                  ...prev,
+                  status,
+                  ticketsReceived: Number(
+                    payment.ticketsReceived ?? prev.ticketsReceived ?? 0,
+                  ),
+                }
+              : prev,
+          );
+          if (status === 'SUCCESS' || status === 'FAILED') {
+            stopPoll();
+            await refreshMe();
+            await loadTx();
+            if (status === 'SUCCESS') {
+              showSnack?.('Recharge réussie — tickets crédités', 'success');
+            } else {
+              showSnack?.('Paiement échoué ou annulé');
+            }
+            return;
+          }
+          if (
+            pollStartedRef.current &&
+            Date.now() - pollStartedRef.current > 90_000
+          ) {
+            stopPoll();
+            showSnack?.(
+              'Toujours en attente. Vérifie Flooz / Mixx, ou réessaie plus tard.',
+            );
+          }
+        } catch {
+          /* ignore transient poll errors */
+        }
+      };
+      tick();
+      pollRef.current = setInterval(tick, 4000);
+    },
+    [loadTx, refreshMe, showSnack, stopPoll],
+  );
 
   useEffect(() => {
     loadTx();
@@ -101,10 +165,14 @@ export default function WalletPage({ showSnack }) {
     try {
       const intent = await paymentsApi.createIntent({ amountFcfa, operator });
       await paymentsApi.initiate(intent.id, PhoneFormatter.toE164(phone));
-      showSnack?.('Paiement initié — valide sur ton téléphone');
       setAmount('');
       setQuote(null);
-      await refreshMe();
+      showSnack?.('Paiement initié — valide sur ton téléphone');
+      startPoll(intent.id, {
+        amountFcfa: intent.amountFcfa || amountFcfa,
+        ticketsReceived: intent.ticketsReceived || 0,
+        operator,
+      });
       await loadTx();
     } catch (e) {
       showSnack?.(e.message || 'Recharge impossible');
@@ -197,6 +265,37 @@ export default function WalletPage({ showSnack }) {
           Recharger
         </div>
         <div className="section-title">Mobile Money</div>
+
+        {pendingPay ? (
+          <div className={`recharge-status recharge-status--${String(pendingPay.status).toLowerCase()}`}>
+            <div className="recharge-status-icon" aria-hidden>
+              {pendingPay.status === 'SUCCESS' ? '✓' : pendingPay.status === 'FAILED' ? '!' : '…'}
+            </div>
+            <div className="recharge-status-body">
+              <strong>
+                {pendingPay.status === 'SUCCESS'
+                  ? 'Recharge réussie'
+                  : pendingPay.status === 'FAILED'
+                    ? 'Paiement échoué'
+                    : 'Valide sur ton téléphone'}
+              </strong>
+              <span>
+                {pendingPay.status === 'SUCCESS'
+                  ? `${formatTicketCount(pendingPay.ticketsReceived)} tickets crédités`
+                  : pendingPay.status === 'FAILED'
+                    ? 'Le paiement a été refusé ou annulé. Tu peux réessayer.'
+                    : `Confirme ${pendingPay.operator || 'Mobile Money'} · ${pendingPay.amountFcfa || '—'} FCFA`}
+              </span>
+            </div>
+            {pendingPay.status !== 'PENDING' ? (
+              <button type="button" className="link-accent" onClick={() => setPendingPay(null)}>
+                OK
+              </button>
+            ) : (
+              <div className="spinner spinner--sm" />
+            )}
+          </div>
+        ) : null}
 
         <div className="mode-row" style={{ marginBottom: 14 }}>
           {QUICK_AMOUNTS.map((a) => (

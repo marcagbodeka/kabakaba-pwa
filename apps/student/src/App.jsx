@@ -104,6 +104,10 @@ function Shell() {
           setFocusOrderId(orderId);
           setTab('orders');
         }}
+        onScheduled={() => {
+          setFocusOrderId(null);
+          setTab('orders');
+        }}
         showSnack={showSnack}
       />
     );
