@@ -84,8 +84,12 @@ export default function ProfilePage({
         hasUnread={hasUnread}
         onNotificationTap={onNotificationTap}
         onCapacityTap={onCapacityTap}
+        eyebrow="Mon profil"
+        compact
       />
 
+      <div className="sheet-body">
+      <div className="profile-scroll">
       {suspended ? (
         <div className="suspension-banner">
           <strong>Compte suspendu</strong>
@@ -264,6 +268,8 @@ export default function ProfilePage({
             <span>Oublier ce téléphone</span>
           </div>
         </button>
+      </div>
+      </div>
       </div>
     </div>
   );

@@ -1,12 +1,17 @@
 import { CAPACITY_LABEL, initialsFrom } from '../lib/format';
 import { IconBell } from './icons';
 
+/**
+ * Hero indigo type étudiant — identité cantine + capacité + notifs.
+ */
 export default function VendorHeader({
   vendor,
   showNotification = false,
   hasUnread = false,
   onNotificationTap,
   onCapacityTap,
+  eyebrow = 'Espace vendeur',
+  compact = false,
 }) {
   const name = vendor?.canteenName || 'Chargement…';
   const campus = vendor?.campusName || '';
@@ -16,33 +21,40 @@ export default function VendorHeader({
     capacity === 'OPEN' ? 'open' : capacity === 'BUSY' ? 'busy' : 'closed';
 
   return (
-    <header className="vheader">
-      <div className="vheader-avatar">
-        {vendor?.logoUrl ? <img src={vendor.logoUrl} alt="" /> : initials}
+    <header className={`vhero${compact ? ' vhero--compact' : ''}`}>
+      <div className="vhero-top">
+        <div className="vhero-identity">
+          <div className="vhero-avatar">
+            {vendor?.logoUrl ? <img src={vendor.logoUrl} alt="" /> : initials}
+          </div>
+          <div className="vhero-text">
+            <div className="vhero-eyebrow">{eyebrow}</div>
+            <div className="vhero-name">{name}</div>
+            {campus ? <div className="vhero-campus">{campus}</div> : null}
+          </div>
+        </div>
+        <div className="vhero-actions">
+          {showNotification ? (
+            <button
+              type="button"
+              className={`vhero-icon-btn${hasUnread ? ' alert' : ''}`}
+              onClick={onNotificationTap}
+              aria-label="Notifications"
+            >
+              <IconBell />
+              {hasUnread ? <span className="dot" /> : null}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className={`vhero-chip ${chipClass}`}
+            onClick={onCapacityTap}
+          >
+            <span className="pip" />
+            {CAPACITY_LABEL[capacity] || 'Fermée'}
+          </button>
+        </div>
       </div>
-      <div className="vheader-text">
-        <div className="vheader-name">{name}</div>
-        {campus ? <div className="vheader-campus">{campus}</div> : null}
-      </div>
-      {showNotification ? (
-        <button
-          type="button"
-          className="circle-action"
-          onClick={onNotificationTap}
-          aria-label="Notifications"
-        >
-          <IconBell />
-          {hasUnread ? <span className="dot" /> : null}
-        </button>
-      ) : null}
-      <button
-        type="button"
-        className={`status-chip ${chipClass}`}
-        onClick={onCapacityTap}
-      >
-        <span className="pip" />
-        {CAPACITY_LABEL[capacity] || 'Fermée'}
-      </button>
     </header>
   );
 }

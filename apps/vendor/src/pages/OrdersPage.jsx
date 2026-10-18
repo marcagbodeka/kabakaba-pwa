@@ -373,37 +373,44 @@ export default function OrdersPage({
         hasUnread={hasUnread}
         onNotificationTap={onNotificationTap}
         onCapacityTap={onCapacityTap}
+        eyebrow="Commandes live"
       />
 
-      <SectionTabs tabs={tabs} selectedKey={tab} onSelect={setTab} />
+      <div className="sheet-body">
+        <SectionTabs tabs={tabs} selectedKey={tab} onSelect={setTab} />
 
-      <div className="orders-list">
-        {loading ? (
-          <div style={{ display: 'grid', placeItems: 'center', padding: 40 }}>
-            <div className="spinner" />
-          </div>
-        ) : orders.length === 0 ? (
-          <div className="empty-card">
-            <div className="empty-nest">
-              <div className="empty-nest-inner">
-                <IconReceipt size={28} />
-              </div>
+        <div className="orders-list">
+          {loading ? (
+            <div className="skeleton-stack" aria-busy="true" aria-label="Chargement">
+              <div className="skeleton-card" />
+              <div className="skeleton-card" />
+              <div className="skeleton-card" />
             </div>
-            <h3>
-              {tab === 'history' ? 'Pas encore d’historique' : 'Aucune commande pour l’instant'}
-            </h3>
-            <p>{emptyCopy[tab]}</p>
-          </div>
-        ) : (
-          orders.map((order) => (
-            <OrderCard
-              key={order.id}
-              order={order}
-              onChanged={refresh}
-              showSnack={showSnack}
-            />
-          ))
-        )}
+          ) : orders.length === 0 ? (
+            <div className="empty-card">
+              <div className="empty-nest">
+                <div className="empty-nest-inner">
+                  <IconReceipt size={28} />
+                </div>
+              </div>
+              <h3>
+                {tab === 'history'
+                  ? 'Pas encore d’historique'
+                  : 'Aucune commande pour l’instant'}
+              </h3>
+              <p>{emptyCopy[tab]}</p>
+            </div>
+          ) : (
+            orders.map((order) => (
+              <OrderCard
+                key={order.id}
+                order={order}
+                onChanged={refresh}
+                showSnack={showSnack}
+              />
+            ))
+          )}
+        </div>
       </div>
     </div>
   );

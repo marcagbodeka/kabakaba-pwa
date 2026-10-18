@@ -80,69 +80,73 @@ export default function WalletPage({
         hasUnread={hasUnread}
         onNotificationTap={onNotificationTap}
         onCapacityTap={onCapacityTap}
+        eyebrow="Portefeuille"
       />
 
-      <div className="wallet-scroll">
-        <div className="wallet-card">
-          <div className="wallet-card-deco wallet-card-deco--a" aria-hidden />
-          <div className="wallet-card-deco wallet-card-deco--b" aria-hidden />
-          <div className="wallet-card-inner">
-            <div className="wallet-label">Solde disponible</div>
-            <div className="wallet-amount">{formatTickets(balance)}</div>
-            <div className="wallet-pending">
-              {pending > 0
-                ? `${formatTickets(pending)} en attente · ${pendingCount} commande${pendingCount > 1 ? 's' : ''}`
-                : 'Aucun montant en attente'}
-            </div>
-            <div className="wallet-actions">
-              <button
-                type="button"
-                className="primary"
-                disabled={!canWithdraw}
-                onClick={onWithdraw}
-              >
-                Retirer
-              </button>
-              <button type="button" onClick={onHistory}>
-                Historique
-              </button>
-            </div>
-          </div>
-        </div>
-
-        <div className="wallet-section">
-          <div className="section-label-row">
-            <span>Mouvements récents</span>
-            <span className="section-label-line" />
-          </div>
-
-          {loadingTx ? (
-            <div className="wallet-tx-card wallet-tx-card--center">
-              <div className="spinner" />
-            </div>
-          ) : txs.length === 0 ? (
-            <div className="wallet-tx-card wallet-tx-card--empty">
-              <div className="empty-nest">
-                <div className="empty-nest-inner">
-                  <IconReceipt size={24} />
-                </div>
+      <div className="sheet-body">
+        <div className="wallet-scroll">
+          <div className="wallet-card">
+            <div className="wallet-card-deco wallet-card-deco--a" aria-hidden />
+            <div className="wallet-card-deco wallet-card-deco--b" aria-hidden />
+            <div className="wallet-card-inner">
+              <div className="wallet-label">Solde disponible</div>
+              <div className="wallet-amount">{formatTickets(balance)}</div>
+              <div className="wallet-pending">
+                {pending > 0
+                  ? `${formatTickets(pending)} en attente · ${pendingCount} commande${pendingCount > 1 ? 's' : ''}`
+                  : 'Aucun montant en attente'}
               </div>
-              <h3>Aucune opération pour l&apos;instant</h3>
-              <p>L&apos;historique de tes mouvements apparaîtra ici.</p>
+              <div className="wallet-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  disabled={!canWithdraw}
+                  onClick={onWithdraw}
+                >
+                  Retirer
+                </button>
+                <button type="button" onClick={onHistory}>
+                  Historique
+                </button>
+              </div>
             </div>
-          ) : (
-            <div className="wallet-tx-card">
-              {txs.map((tx) => (
-                <TxRow key={tx.id} tx={tx} />
-              ))}
-            </div>
-          )}
-        </div>
+          </div>
 
-        <p className="wallet-footnote">
-          Les tickets d’une commande apparaissent en attente tant qu’elle n’est pas « Prête »,
-          puis sont crédités à ton solde disponible.
-        </p>
+          <div className="wallet-section">
+            <div className="section-label-row">
+              <span>Mouvements récents</span>
+              <span className="section-label-line" />
+            </div>
+
+            {loadingTx ? (
+              <div className="skeleton-stack">
+                <div className="skeleton-card" style={{ height: 72 }} />
+                <div className="skeleton-card" style={{ height: 72 }} />
+              </div>
+            ) : txs.length === 0 ? (
+              <div className="wallet-tx-card wallet-tx-card--empty">
+                <div className="empty-nest">
+                  <div className="empty-nest-inner">
+                    <IconReceipt size={24} />
+                  </div>
+                </div>
+                <h3>Aucune opération pour l&apos;instant</h3>
+                <p>L&apos;historique de tes mouvements apparaîtra ici.</p>
+              </div>
+            ) : (
+              <div className="wallet-tx-card">
+                {txs.map((tx) => (
+                  <TxRow key={tx.id} tx={tx} />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <p className="wallet-footnote">
+            Les tickets d’une commande apparaissent en attente tant qu’elle n’est pas « Prête »,
+            puis sont crédités à ton solde disponible.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-/* Tokens alignés sur kabakaba-vendeur/lib/core/theme/app_colors.dart */
+/* ADN étudiant + ops premium vendeur */
 :root {
   --primary: #1b2a6b;
   --indigo-dark: #0d1438;
@@ -13,7 +13,7 @@
   --muted: rgba(255, 255, 255, 0.5);
   --muted-soft: rgba(255, 255, 255, 0.38);
 
-  --bg: #f7f8fc;
+  --bg: #f4f6ff;
   --surface: #ffffff;
   --text-primary: #0d1438;
   --text-secondary: #5c6584;
@@ -21,12 +21,22 @@
   --surface-secondary: #eef1fa;
   --indigo-light: #eef1fa;
   --orange-light: #fef0e9;
-  --green: #16a34a;
-  --green-light: #f0fdf4;
-  --red: #dc2626;
-  --red-light: #fef2f2;
-  --gray-light: #f1f3f8;
+  --peach: #ffe8dc;
+  --border: rgba(27, 42, 107, 0.1);
   --border-light: #e4e9f4;
+  --field-light: #f0f3fa;
+  --green: #10b981;
+  --green-light: #ecfdf5;
+  --red: #ef4444;
+  --red-light: #fff1f2;
+  --gray-light: #f1f3f8;
+  --amber: #f59e0b;
+
+  --shadow-card: 0 8px 28px rgba(13, 20, 56, 0.07);
+  --shadow-nav: 0 -8px 28px rgba(13, 20, 56, 0.1);
+  --radius-sheet: 28px;
+  --radius-card: 20px;
 
   --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --nav-clearance: calc(72px + env(safe-area-inset-bottom, 0px));
 }

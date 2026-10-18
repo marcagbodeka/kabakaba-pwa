@@ -173,8 +173,10 @@ export default function StatsPage({
         hasUnread={hasUnread}
         onNotificationTap={onNotificationTap}
         onCapacityTap={onCapacityTap}
+        eyebrow="Performance"
       />
 
+      <div className="sheet-body">
       <SectionTabs
         tabs={TABS}
         selectedKey={tab}
@@ -182,8 +184,9 @@ export default function StatsPage({
       />
 
       {loading ? (
-        <div style={{ display: 'grid', placeItems: 'center', padding: 48 }}>
-          <div className="spinner" />
+        <div className="skeleton-stack">
+          <div className="skeleton-card" />
+          <div className="skeleton-card" />
         </div>
       ) : (
         <div className="stats-scroll">
@@ -287,6 +290,7 @@ export default function StatsPage({
           ) : null}
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -10,7 +10,7 @@ const ITEMS = [
 export default function BottomNav({ current, onChange }) {
   return (
     <div className="bottom-nav-wrap">
-      <nav className="bottom-nav" aria-label="Navigation principale">
+      <nav className="bottom-bar" aria-label="Navigation principale">
         {ITEMS.map(({ key, label, Icon }) => {
           const active = current === key;
           return (
@@ -21,9 +21,7 @@ export default function BottomNav({ current, onChange }) {
               onClick={() => onChange(key)}
               aria-current={active ? 'page' : undefined}
             >
-              <span className="ico" aria-hidden>
-                <Icon />
-              </span>
+              <Icon />
               <span className="nav-label">{label}</span>
             </button>
           );
