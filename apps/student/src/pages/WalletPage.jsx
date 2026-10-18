@@ -99,25 +99,28 @@ export default function WalletPage({ showSnack }) {
             if (status === 'SUCCESS') {
               showSnack?.('Recharge réussie — tickets crédités', 'success');
             } else {
-              showSnack?.('Paiement échoué ou annulé');
+              showSnack?.(
+                'Paiement refusé. Vérifie Flooz/Mixx, le numéro, et que tu valides le prompt sur le téléphone.',
+              );
             }
             return;
           }
           if (
             pollStartedRef.current &&
-            Date.now() - pollStartedRef.current > 90_000
+            Date.now() - pollStartedRef.current > 180_000
           ) {
             stopPoll();
             showSnack?.(
-              'Toujours en attente. Vérifie Flooz / Mixx, ou réessaie plus tard.',
+              'Toujours en attente. Valide le prompt Mobile Money, ou réessaie plus tard.',
             );
           }
         } catch {
           /* ignore transient poll errors */
         }
       };
-      tick();
-      pollRef.current = setInterval(tick, 4000);
+      // Laisse le temps au push USSD d’arriver avant le 1er sync.
+      setTimeout(tick, 2500);
+      pollRef.current = setInterval(tick, 5000);
     },
     [loadTx, refreshMe, showSnack, stopPoll],
   );
@@ -350,25 +353,26 @@ export default function WalletPage({ showSnack }) {
         ) : null}
 
         <p className="recharge-hint">
-          Choisis les tickets que tu veux recevoir. Les frais Mobile Money sont
-          ajoutés au montant à payer.
+          Indique uniquement le nombre de tickets à créditer. Les frais sont
+          calculés automatiquement.
         </p>
 
-        <div className="mode-row" style={{ marginBottom: 14 }}>
+        <div className="mode-row mode-row--tickets" style={{ marginBottom: 14 }}>
           {QUICK_TICKETS.map((t) => (
             <button
               key={t}
               type="button"
-              className={`mode-chip${Number(ticketsWanted) === t ? ' active' : ''}`}
+              className={`mode-chip mode-chip--tickets${Number(ticketsWanted) === t ? ' active' : ''}`}
               onClick={() => setTicketsWanted(String(t))}
             >
-              {t}
+              <strong>{formatTicketCount(t)}</strong>
+              <span>tickets</span>
             </button>
           ))}
         </div>
 
         <div className="field">
-          <label>Tickets souhaités</label>
+          <label>Nombre de tickets</label>
           <div className="input-shell">
             <input
               value={ticketsWanted}
@@ -378,6 +382,7 @@ export default function WalletPage({ showSnack }) {
               placeholder={`Ex. 500 (${MIN_TICKETS}–${MAX_TICKETS})`}
               inputMode="numeric"
             />
+            <span className="suffix">tickets</span>
           </div>
         </div>
 
@@ -444,7 +449,7 @@ export default function WalletPage({ showSnack }) {
           {paying
             ? 'Envoi…'
             : quote
-              ? `Payer ${formatTickets(quote.amountFcfa)} FCFA`
+              ? `Recharger ${formatTicketCount(quote.ticketsReceived)} tickets`
               : 'Recharger'}
         </button>
 
@@ -494,7 +499,10 @@ export default function WalletPage({ showSnack }) {
                 >
                   <span className="tx-icon in">+</span>
                   <div className="tx-card-body">
-                    <h3>Recharge · {formatTickets(item.amountFcfa)}</h3>
+                    <h3>
+                      Recharge · {formatTicketCount(item.ticketsReceived)}{' '}
+                      tickets
+                    </h3>
                     <p>
                       {formatTime(item.createdAt)}
                       <span className={`tx-status tx-status--${statusMod}`}>
@@ -503,7 +511,7 @@ export default function WalletPage({ showSnack }) {
                     </p>
                   </div>
                   <div className="price" style={{ color: 'var(--green)' }}>
-                    +{formatTicketCount(item.ticketsReceived)} tickets
+                    +{formatTicketCount(item.ticketsReceived)}
                   </div>
                 </button>
               );

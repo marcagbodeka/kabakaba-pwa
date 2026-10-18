@@ -319,6 +319,8 @@ export default function OrdersPage({
   const backoffUntilRef = useRef(0);
   const tabRef = useRef(tab);
   tabRef.current = tab;
+  const showSnackRef = useRef(showSnack);
+  showSnackRef.current = showSnack;
 
   const applyLiveOrders = useCallback((list) => {
     const next = { incoming: [], preparing: [], ready: [] };
@@ -357,17 +359,17 @@ export default function OrdersPage({
       } catch (e) {
         if (e?.statusCode === 429) {
           backoffUntilRef.current = Date.now() + 60_000;
-          if (!silent) showSnack?.('Trop de requêtes — pause 1 min');
+          if (!silent) showSnackRef.current?.('Trop de requêtes — pause 1 min');
         } else if (e?.statusCode === 401) {
-          showSnack?.(e.message || 'Session expirée — reconnecte-toi');
+          showSnackRef.current?.(e.message || 'Session expirée — reconnecte-toi');
         } else if (!silent) {
-          showSnack?.(e.message || 'Impossible de charger les commandes');
+          showSnackRef.current?.(e.message || 'Impossible de charger les commandes');
         }
       } finally {
         if (!silent) setLoading(false);
       }
     },
-    [applyLiveOrders, showSnack],
+    [applyLiveOrders],
   );
 
   const loadHistory = useCallback(async () => {
@@ -387,29 +389,35 @@ export default function OrdersPage({
       if (e?.statusCode === 429) {
         backoffUntilRef.current = Date.now() + 60_000;
       } else {
-        showSnack?.(e.message || 'Historique indisponible');
+        showSnackRef.current?.(e.message || 'Historique indisponible');
       }
     }
-  }, [showSnack]);
+  }, []);
+
+  const loadLiveRef = useRef(loadLive);
+  loadLiveRef.current = loadLive;
+  const loadHistoryRef = useRef(loadHistory);
+  loadHistoryRef.current = loadHistory;
 
   const refresh = useCallback(async () => {
-    await loadLive({ silent: false });
-    if (tabRef.current === 'history') await loadHistory();
-  }, [loadHistory, loadLive]);
+    await loadLiveRef.current({ silent: false });
+    if (tabRef.current === 'history') await loadHistoryRef.current();
+  }, []);
+
+  // Mount once — jamais re-déclencher sur identité de callback.
+  useEffect(() => {
+    loadLiveRef.current({ silent: false });
+  }, []);
 
   useEffect(() => {
-    loadLive({ silent: false });
-  }, [loadLive]);
-
-  useEffect(() => {
-    if (tab === 'history') loadHistory();
-  }, [tab, loadHistory]);
+    if (tab === 'history') loadHistoryRef.current();
+  }, [tab]);
 
   useEffect(() => {
     const tick = () => {
       if (document.visibilityState !== 'visible') return;
-      loadLive({ silent: true });
-      if (tabRef.current === 'history') loadHistory();
+      loadLiveRef.current({ silent: true });
+      if (tabRef.current === 'history') loadHistoryRef.current();
     };
     const t = setInterval(tick, POLL_MS);
     const onVis = () => {
@@ -420,7 +428,7 @@ export default function OrdersPage({
       clearInterval(t);
       document.removeEventListener('visibilitychange', onVis);
     };
-  }, [loadHistory, loadLive]);
+  }, []);
 
   const emptyCopy = {
     incoming: 'Dès qu’un étudiant commande, elle apparaît ici en direct.',

@@ -206,6 +206,15 @@
   border-right: 1px solid var(--line);
 }
 
+.input-shell .suffix {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--muted);
+  padding-left: 9px;
+  border-left: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
 .input-shell input,
 .input-shell select {
   border: none;

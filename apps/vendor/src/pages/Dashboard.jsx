@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import BottomNav from '../components/BottomNav';
 import { notificationsApi, vendorApi } from '../lib/api';
 import OrdersPage from './OrdersPage';
@@ -69,18 +69,21 @@ export default function Dashboard({ showSnack }) {
   const [savingCapacity, setSavingCapacity] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
 
+  const showSnackRef = useRef(showSnack);
+  showSnackRef.current = showSnack;
+
   const loadVendor = useCallback(async () => {
     try {
       const me = await vendorApi.me();
       setVendor(me);
     } catch (e) {
       if (e?.statusCode !== 429) {
-        showSnack(e.message || 'Profil vendeur indisponible');
+        showSnackRef.current?.(e.message || 'Profil vendeur indisponible');
       }
     } finally {
       setLoading(false);
     }
-  }, [showSnack]);
+  }, []);
 
   const refreshUnread = useCallback(async () => {
     if (document.visibilityState !== 'visible') return;

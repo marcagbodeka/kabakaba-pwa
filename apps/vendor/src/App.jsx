@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './auth/AuthContext';
 import ActivationPage from './auth/ActivationPage';
 import LoginPage from './auth/LoginPage';
@@ -36,10 +36,12 @@ function Root() {
     return undefined;
   }, [auth.errorMessage]);
 
-  const showSnack = (message) => {
+  // Stable identity — sinon OrdersPage/Dashboard rechargent en boucle (storm 429).
+  const showSnack = useCallback((message) => {
+    if (!message) return;
     setSnack(message);
     setTimeout(() => setSnack(null), 3200);
-  };
+  }, []);
 
   let screen = <Bootstrap />;
   if (!booting && auth.ready) {
