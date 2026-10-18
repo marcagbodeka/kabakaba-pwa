@@ -7,7 +7,7 @@ import {
   useState,
 } from 'react';
 import { registerWebPush, unregisterWebPush } from '../lib/push';
-import { vendorApi, vendorAuthApi } from '../lib/api';
+import { markSessionAlive, vendorApi, vendorAuthApi } from '../lib/api';
 import {
   forgetDevice,
   loadSession,
@@ -42,15 +42,38 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         await vendorApi.me();
+        markSessionAlive();
         setStatus('authenticated');
-      } catch {
-        const next = loadSession();
-        setSession(next);
-        setStatus(statusFromSession(next));
+      } catch (err) {
+        // Soft fail réseau / 429 : garder l’état local, ne pas forcer le login.
+        if (err?.statusCode === 429 || (err?.statusCode >= 500)) {
+          const next = loadSession();
+          setSession(next);
+          if (next.phone && next.pinConfigured) {
+            setStatus('authenticated');
+          } else {
+            setStatus(statusFromSession(next));
+          }
+        } else {
+          const next = loadSession();
+          setSession(next);
+          setStatus(statusFromSession(next));
+        }
       } finally {
         setReady(true);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    const onExpired = () => {
+      const next = loadSession();
+      setSession(next);
+      setStatus(statusFromSession(next));
+      setErrorMessage('Session expirée — reconnecte-toi avec ton PIN');
+    };
+    window.addEventListener('kaba:session-expired', onExpired);
+    return () => window.removeEventListener('kaba:session-expired', onExpired);
   }, []);
 
   useEffect(() => {
@@ -146,6 +169,7 @@ export function AuthProvider({ children }) {
           return false;
         }
         await vendorAuthApi.setPin(pinSetupToken, pin);
+        markSessionAlive();
         const next = saveSession({
           phone: session.phone,
           pinConfigured: true,
@@ -179,6 +203,7 @@ export function AuthProvider({ children }) {
           return false;
         }
         await vendorAuthApi.loginPin(phone, pin);
+        markSessionAlive();
         const next = saveSession({ phone, pinConfigured: true });
         setSession(next);
         setStatus('authenticated');

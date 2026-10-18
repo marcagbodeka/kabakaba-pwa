@@ -38,5 +38,6 @@
   --radius-card: 20px;
 
   --font: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --nav-clearance: calc(72px + env(safe-area-inset-bottom, 0px));
+  /* Espace sous le contenu pour dégager la bottom bar flottante */
+  --nav-clearance: calc(96px + env(safe-area-inset-bottom, 0px));
 }

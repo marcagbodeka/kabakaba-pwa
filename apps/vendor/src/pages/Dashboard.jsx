@@ -74,26 +74,36 @@ export default function Dashboard({ showSnack }) {
       const me = await vendorApi.me();
       setVendor(me);
     } catch (e) {
-      showSnack(e.message || 'Profil vendeur indisponible');
+      if (e?.statusCode !== 429) {
+        showSnack(e.message || 'Profil vendeur indisponible');
+      }
     } finally {
       setLoading(false);
     }
   }, [showSnack]);
 
   const refreshUnread = useCallback(async () => {
+    if (document.visibilityState !== 'visible') return;
     try {
       const res = await notificationsApi.list({ limit: 20 });
       setHasUnread((res.data || []).some((n) => !n.isRead));
     } catch {
-      /* ignore */
+      /* ignore — 401/429 gérés par le client API */
     }
   }, []);
 
   useEffect(() => {
     loadVendor();
     refreshUnread();
-    const t = setInterval(refreshUnread, 60000);
-    return () => clearInterval(t);
+    const t = setInterval(refreshUnread, 90_000);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refreshUnread();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
+    };
   }, [loadVendor, refreshUnread]);
 
   const openCapacity = () => setCapacityOpen(true);

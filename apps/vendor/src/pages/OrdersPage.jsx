@@ -289,6 +289,16 @@ function OrderCard({ order, onChanged, showSnack }) {
   );
 }
 
+const LIVE_STATUSES = ['CONFIRMED', 'IN_PREPARATION', 'READY'];
+const POLL_MS = 45_000;
+
+function bucketKeyForStatus(status) {
+  if (status === 'CONFIRMED') return 'incoming';
+  if (status === 'IN_PREPARATION') return 'preparing';
+  if (status === 'READY') return 'ready';
+  return 'history';
+}
+
 export default function OrdersPage({
   vendor,
   showSnack,
@@ -297,68 +307,138 @@ export default function OrdersPage({
   hasUnread,
 }) {
   const [tab, setTab] = useState('incoming');
-  const [orders, setOrders] = useState([]);
+  const [ordersByBucket, setOrdersByBucket] = useState({
+    incoming: [],
+    preparing: [],
+    ready: [],
+    history: [],
+  });
   const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const knownConfirmedRef = useRef(null);
+  const backoffUntilRef = useRef(0);
+  const tabRef = useRef(tab);
+  tabRef.current = tab;
 
-  const loadBucket = useCallback(async (key) => {
-    const { statuses } = ORDER_BUCKETS[key];
-    const res = await ordersApi.list({ statuses, limit: 50 });
-    return { data: res.data || [], total: res.meta?.total ?? (res.data || []).length };
-  }, []);
+  const applyLiveOrders = useCallback((list) => {
+    const next = { incoming: [], preparing: [], ready: [] };
+    for (const o of list) {
+      const key = bucketKeyForStatus(o.status);
+      if (key !== 'history') next[key].push(o);
+    }
+    setOrdersByBucket((prev) => ({ ...prev, ...next }));
+    setCounts((prev) => ({
+      ...prev,
+      incoming: next.incoming.length,
+      preparing: next.preparing.length,
+      ready: next.ready.length,
+    }));
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    try {
-      const results = await Promise.all(
-        Object.keys(ORDER_BUCKETS).map(async (key) => {
-          const r = await loadBucket(key);
-          return [key, r];
-        }),
-      );
-      const nextCounts = {};
-      let current = [];
-      for (const [key, r] of results) {
-        nextCounts[key] = r.total;
-        if (key === tab) current = r.data;
-      }
-      setCounts(nextCounts);
-      setOrders(current);
-
-      const incoming = results.find(([key]) => key === 'incoming')?.[1]?.data || [];
-      const confirmedIds = incoming
-        .filter((o) => o.status === 'CONFIRMED')
-        .map((o) => o.id);
-      if (knownConfirmedRef.current === null) {
-        knownConfirmedRef.current = new Set(confirmedIds);
-      } else {
-        for (const id of confirmedIds) {
-          if (!knownConfirmedRef.current.has(id)) {
-            playNewOrderSound();
-            knownConfirmedRef.current.add(id);
-          }
+    const confirmedIds = next.incoming.map((o) => o.id);
+    if (knownConfirmedRef.current === null) {
+      knownConfirmedRef.current = new Set(confirmedIds);
+    } else {
+      for (const id of confirmedIds) {
+        if (!knownConfirmedRef.current.has(id)) {
+          playNewOrderSound();
+          knownConfirmedRef.current.add(id);
         }
       }
-    } catch (e) {
-      showSnack(e.message || 'Impossible de charger les commandes');
-    } finally {
-      setLoading(false);
     }
-  }, [loadBucket, showSnack, tab]);
+  }, []);
+
+  const loadLive = useCallback(
+    async ({ silent = false } = {}) => {
+      if (Date.now() < backoffUntilRef.current) return;
+      if (!silent) setLoading(true);
+      try {
+        const res = await ordersApi.list({ statuses: LIVE_STATUSES, limit: 80 });
+        applyLiveOrders(res.data || []);
+      } catch (e) {
+        if (e?.statusCode === 429) {
+          backoffUntilRef.current = Date.now() + 60_000;
+          if (!silent) showSnack?.('Trop de requêtes — pause 1 min');
+        } else if (e?.statusCode === 401) {
+          showSnack?.(e.message || 'Session expirée — reconnecte-toi');
+        } else if (!silent) {
+          showSnack?.(e.message || 'Impossible de charger les commandes');
+        }
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [applyLiveOrders, showSnack],
+  );
+
+  const loadHistory = useCallback(async () => {
+    if (Date.now() < backoffUntilRef.current) return;
+    try {
+      const res = await ordersApi.list({
+        statuses: ORDER_BUCKETS.history.statuses,
+        limit: 40,
+      });
+      const data = res.data || [];
+      setOrdersByBucket((prev) => ({ ...prev, history: data }));
+      setCounts((prev) => ({
+        ...prev,
+        history: res.meta?.total ?? data.length,
+      }));
+    } catch (e) {
+      if (e?.statusCode === 429) {
+        backoffUntilRef.current = Date.now() + 60_000;
+      } else {
+        showSnack?.(e.message || 'Historique indisponible');
+      }
+    }
+  }, [showSnack]);
+
+  const refresh = useCallback(async () => {
+    await loadLive({ silent: false });
+    if (tabRef.current === 'history') await loadHistory();
+  }, [loadHistory, loadLive]);
 
   useEffect(() => {
-    refresh();
-    const t = setInterval(refresh, 20000);
-    return () => clearInterval(t);
-  }, [refresh]);
+    loadLive({ silent: false });
+  }, [loadLive]);
+
+  useEffect(() => {
+    if (tab === 'history') loadHistory();
+  }, [tab, loadHistory]);
+
+  useEffect(() => {
+    const tick = () => {
+      if (document.visibilityState !== 'visible') return;
+      loadLive({ silent: true });
+      if (tabRef.current === 'history') loadHistory();
+    };
+    const t = setInterval(tick, POLL_MS);
+    const onVis = () => {
+      if (document.visibilityState === 'visible') tick();
+    };
+    document.addEventListener('visibilitychange', onVis);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener('visibilitychange', onVis);
+    };
+  }, [loadHistory, loadLive]);
 
   const emptyCopy = {
-    incoming: 'Les commandes des étudiants apparaîtront ici dès qu’ils passeront commande.',
-    preparing: 'Aucune commande en cours de préparation.',
-    ready: 'Aucune commande prête à remettre pour le moment.',
-    history: 'L’historique de tes commandes apparaîtra ici.',
+    incoming: 'Dès qu’un étudiant commande, elle apparaît ici en direct.',
+    preparing: 'Passe une commande confirmée en préparation pour la suivre ici.',
+    ready: 'Les commandes prêtes à remettre s’affichent ici.',
+    history: 'Les commandes récupérées ou annulées se retrouvent ici.',
   };
+
+  const emptyTitle = {
+    incoming: 'En attente de commandes',
+    preparing: 'Rien en préparation',
+    ready: 'Rien à remettre',
+    history: 'Historique vide',
+  };
+
+  const orders = ordersByBucket[tab] || [];
+  const liveTotal =
+    (counts.incoming || 0) + (counts.preparing || 0) + (counts.ready || 0);
 
   const tabs = TABS.map((t) => ({
     ...t,
@@ -374,9 +454,10 @@ export default function OrdersPage({
         onNotificationTap={onNotificationTap}
         onCapacityTap={onCapacityTap}
         eyebrow="Commandes live"
+        liveCount={liveTotal}
       />
 
-      <div className="sheet-body">
+      <div className="sheet-body sheet-body--orders">
         <SectionTabs tabs={tabs} selectedKey={tab} onSelect={setTab} />
 
         <div className="orders-list">
@@ -387,17 +468,14 @@ export default function OrdersPage({
               <div className="skeleton-card" />
             </div>
           ) : orders.length === 0 ? (
-            <div className="empty-card">
-              <div className="empty-nest">
-                <div className="empty-nest-inner">
-                  <IconReceipt size={28} />
+            <div className="empty-state">
+              <div className="empty-orb" aria-hidden>
+                <div className="empty-orb-ring" />
+                <div className="empty-orb-core">
+                  <IconReceipt size={30} />
                 </div>
               </div>
-              <h3>
-                {tab === 'history'
-                  ? 'Pas encore d’historique'
-                  : 'Aucune commande pour l’instant'}
-              </h3>
+              <h3>{emptyTitle[tab]}</h3>
               <p>{emptyCopy[tab]}</p>
             </div>
           ) : (

@@ -12,6 +12,7 @@ export default function VendorHeader({
   onCapacityTap,
   eyebrow = 'Espace vendeur',
   compact = false,
+  liveCount = null,
 }) {
   const name = vendor?.canteenName || 'Chargement…';
   const campus = vendor?.campusName || '';
@@ -28,7 +29,16 @@ export default function VendorHeader({
             {vendor?.logoUrl ? <img src={vendor.logoUrl} alt="" /> : initials}
           </div>
           <div className="vhero-text">
-            <div className="vhero-eyebrow">{eyebrow}</div>
+            <div className="vhero-eyebrow">
+              {liveCount != null && liveCount > 0 ? (
+                <span className="vhero-live">
+                  <span className="vhero-live-pip" />
+                  {liveCount} en cours
+                </span>
+              ) : (
+                eyebrow
+              )}
+            </div>
             <div className="vhero-name">{name}</div>
             {campus ? <div className="vhero-campus">{campus}</div> : null}
           </div>
