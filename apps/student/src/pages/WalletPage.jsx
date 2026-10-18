@@ -425,11 +425,11 @@ export default function WalletPage({ showSnack }) {
             </div>
             <div className="recharge-recap-row">
               <span>Frais de service</span>
-              <strong>{formatTickets(quote.feeFcfa)} FCFA</strong>
+              <strong>{formatTickets(quote.feeFcfa)}</strong>
             </div>
             <div className="recharge-recap-row recharge-recap-row--total">
               <span>Tu paies</span>
-              <strong>{formatTickets(quote.amountFcfa)} FCFA</strong>
+              <strong>{formatTickets(quote.amountFcfa)}</strong>
             </div>
           </div>
         ) : ticketsWanted && Number(ticketsWanted) > 0 ? (
