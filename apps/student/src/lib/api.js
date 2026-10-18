@@ -392,14 +392,25 @@ export const transactionsApi = {
 };
 
 export const paymentsApi = {
-  preview: (amountFcfa) =>
-    api('/payments/preview', { method: 'POST', body: { amountFcfa } }),
-  /** @returns {{ id: string, amountFcfa: number, ticketsReceived: number, recap?: object }} */
-  createIntent: async ({ amountFcfa, operator }) => {
-    const res = await api('/payments/intent', {
+  /** Preview : ticketsDesired (recommandé) ou amountFcfa. */
+  preview: ({ ticketsDesired, amountFcfa } = {}) =>
+    api('/payments/preview', {
       method: 'POST',
-      body: { amountFcfa, operator },
-    });
+      body:
+        ticketsDesired != null
+          ? { ticketsDesired: Math.floor(Number(ticketsDesired)) }
+          : { amountFcfa: Math.floor(Number(amountFcfa)) },
+    }),
+  /**
+   * @param {{ ticketsReceived?: number, amountFcfa?: number, operator: string }} args
+   * @returns {{ id: string, amountFcfa: number, ticketsReceived: number, feeFcfa: number, recap?: object }}
+   */
+  createIntent: async ({ ticketsReceived, amountFcfa, operator }) => {
+    const body =
+      ticketsReceived != null
+        ? { ticketsReceived: Math.floor(Number(ticketsReceived)), operator }
+        : { amountFcfa: Math.floor(Number(amountFcfa)), operator };
+    const res = await api('/payments/intent', { method: 'POST', body });
     const payment = res.payment || res;
     return {
       id: payment.id,
@@ -407,6 +418,7 @@ export const paymentsApi = {
       ticketsReceived: Number(
         payment.ticketsReceived ?? res.recap?.ticketsReceived ?? 0,
       ),
+      feeFcfa: Number(res.recap?.feeFcfa ?? 0),
       status: payment.status,
       recap: res.recap,
       raw: res,

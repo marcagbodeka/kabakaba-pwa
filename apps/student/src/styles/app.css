@@ -2102,6 +2102,14 @@ button.item-card {
   color: var(--accent) !important;
 }
 
+.recharge-hint {
+  margin: -4px 0 14px;
+  font-size: 13px;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
 .recharge-recap {
   display: flex;
   flex-direction: column;
@@ -2128,6 +2136,39 @@ button.item-card {
   font-size: 12.5px;
   font-weight: 600;
   color: var(--text-secondary);
+}
+
+.recharge-recap--breakdown {
+  gap: 8px;
+  background: linear-gradient(180deg, #eef1ff 0%, #fff 100%);
+}
+
+.recharge-recap-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.recharge-recap-row strong {
+  font-size: 13.5px;
+  color: var(--text-primary);
+}
+
+.recharge-recap-row--total {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(27, 42, 107, 0.16);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.recharge-recap-row--total strong {
+  font-size: 16px;
+  color: var(--accent);
 }
 
 .recharge-status {

@@ -12,9 +12,10 @@ import {
   formatTime,
 } from '../lib/format';
 
-const QUICK_AMOUNTS = [500, 1000, 2000, 5000, 10000];
-const MIN_RECHARGE = 500;
-const MAX_RECHARGE = 10000;
+/** Tickets souhaités (pas le montant payé). Frais ajoutés serveur. */
+const QUICK_TICKETS = [500, 1000, 2000, 5000, 9000];
+const MIN_TICKETS = 400;
+const MAX_TICKETS = 9500;
 
 export default function WalletPage({ showSnack }) {
   const { user, refreshMe } = useAuth();
@@ -27,7 +28,8 @@ export default function WalletPage({ showSnack }) {
   const [detail, setDetail] = useState(null);
   const [loadingTx, setLoadingTx] = useState(true);
 
-  const [amount, setAmount] = useState('');
+  /** Tickets souhaités (ex. 500 → paie 600 avec frais 100). */
+  const [ticketsWanted, setTicketsWanted] = useState('');
   const [operator, setOperator] = useState('FLOOZ');
   const [phone, setPhone] = useState(() =>
     user?.phone ? PhoneFormatter.formatDisplay(user.phone.replace(/^\+?228/, '')) : '',
@@ -160,8 +162,8 @@ export default function WalletPage({ showSnack }) {
   }, [txs, payments]);
 
   useEffect(() => {
-    const n = Number(amount);
-    if (!Number.isFinite(n) || n < MIN_RECHARGE || n > MAX_RECHARGE) {
+    const n = Number(ticketsWanted);
+    if (!Number.isFinite(n) || n < MIN_TICKETS || n > MAX_TICKETS) {
       setQuote(null);
       return undefined;
     }
@@ -169,7 +171,7 @@ export default function WalletPage({ showSnack }) {
     setQuoting(true);
     const t = setTimeout(() => {
       paymentsApi
-        .preview(Math.floor(n))
+        .preview({ ticketsDesired: Math.floor(n) })
         .then((q) => {
           if (!cancelled) setQuote(q);
         })
@@ -184,20 +186,24 @@ export default function WalletPage({ showSnack }) {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [amount]);
+  }, [ticketsWanted]);
 
   const onPhoneChange = (raw) => {
     setPhone(PhoneFormatter.formatDisplay(PhoneFormatter.digitsOf(raw).slice(0, 8)));
   };
 
   const recharge = async () => {
-    const amountFcfa = Math.floor(Number(amount));
-    if (!Number.isFinite(amountFcfa) || amountFcfa < MIN_RECHARGE) {
-      showSnack?.(`Montant minimum : ${MIN_RECHARGE} FCFA`);
+    const tickets = Math.floor(Number(ticketsWanted));
+    if (!Number.isFinite(tickets) || tickets < MIN_TICKETS) {
+      showSnack?.(`Minimum : ${MIN_TICKETS} tickets`);
       return;
     }
-    if (amountFcfa > MAX_RECHARGE) {
-      showSnack?.(`Montant maximum : ${MAX_RECHARGE} FCFA`);
+    if (tickets > MAX_TICKETS) {
+      showSnack?.(`Maximum : ${MAX_TICKETS} tickets`);
+      return;
+    }
+    if (!quote) {
+      showSnack?.('Attends le calcul des frais');
       return;
     }
     if (!PhoneFormatter.isValidLocal(phone)) {
@@ -206,14 +212,17 @@ export default function WalletPage({ showSnack }) {
     }
     setPaying(true);
     try {
-      const intent = await paymentsApi.createIntent({ amountFcfa, operator });
+      const intent = await paymentsApi.createIntent({
+        ticketsReceived: tickets,
+        operator,
+      });
       await paymentsApi.initiate(intent.id, PhoneFormatter.toE164(phone));
-      setAmount('');
+      setTicketsWanted('');
       setQuote(null);
       showSnack?.('Paiement initié — valide sur ton téléphone');
       startPoll(intent.id, {
-        amountFcfa: intent.amountFcfa || amountFcfa,
-        ticketsReceived: intent.ticketsReceived || 0,
+        amountFcfa: intent.amountFcfa || quote.amountFcfa,
+        ticketsReceived: intent.ticketsReceived || tickets,
         operator,
       });
       await loadTx();
@@ -340,28 +349,33 @@ export default function WalletPage({ showSnack }) {
           </div>
         ) : null}
 
+        <p className="recharge-hint">
+          Choisis les tickets que tu veux recevoir. Les frais Mobile Money sont
+          ajoutés au montant à payer.
+        </p>
+
         <div className="mode-row" style={{ marginBottom: 14 }}>
-          {QUICK_AMOUNTS.map((a) => (
+          {QUICK_TICKETS.map((t) => (
             <button
-              key={a}
+              key={t}
               type="button"
-              className={`mode-chip${Number(amount) === a ? ' active' : ''}`}
-              onClick={() => setAmount(String(a))}
+              className={`mode-chip${Number(ticketsWanted) === t ? ' active' : ''}`}
+              onClick={() => setTicketsWanted(String(t))}
             >
-              {a}
+              {t}
             </button>
           ))}
         </div>
 
         <div className="field">
-          <label>Montant (FCFA)</label>
+          <label>Tickets souhaités</label>
           <div className="input-shell">
             <input
-              value={amount}
+              value={ticketsWanted}
               onChange={(e) =>
-                setAmount(e.target.value.replace(/\D/g, '').slice(0, 5))
+                setTicketsWanted(e.target.value.replace(/\D/g, '').slice(0, 5))
               }
-              placeholder={`Ex. 1000 (${MIN_RECHARGE}–${MAX_RECHARGE})`}
+              placeholder={`Ex. 500 (${MIN_TICKETS}–${MAX_TICKETS})`}
               inputMode="numeric"
             />
           </div>
@@ -397,28 +411,41 @@ export default function WalletPage({ showSnack }) {
         </div>
 
         {quoting ? (
-          <div className="recharge-recap recharge-recap--muted">Calcul…</div>
+          <div className="recharge-recap recharge-recap--muted">Calcul des frais…</div>
         ) : quote ? (
-          <div className="recharge-recap">
-            <strong>
-              {formatTickets(quote.amountFcfa)} FCFA →{' '}
-              {formatTicketCount(quote.ticketsReceived)} tickets
-            </strong>
-            <span>Frais de service inclus</span>
+          <div className="recharge-recap recharge-recap--breakdown">
+            <div className="recharge-recap-row">
+              <span>Tickets crédités</span>
+              <strong>{formatTicketCount(quote.ticketsReceived)}</strong>
+            </div>
+            <div className="recharge-recap-row">
+              <span>Frais de service</span>
+              <strong>{formatTickets(quote.feeFcfa)} FCFA</strong>
+            </div>
+            <div className="recharge-recap-row recharge-recap-row--total">
+              <span>Tu paies</span>
+              <strong>{formatTickets(quote.amountFcfa)} FCFA</strong>
+            </div>
           </div>
-        ) : amount && Number(amount) > 0 ? (
+        ) : ticketsWanted && Number(ticketsWanted) > 0 ? (
           <div className="recharge-recap recharge-recap--muted">
-            Entre {MIN_RECHARGE} et {MAX_RECHARGE} FCFA
+            Entre {MIN_TICKETS} et {MAX_TICKETS} tickets
           </div>
         ) : null}
 
         <button
           type="button"
           className="btn-fill"
-          disabled={paying || !amount || !PhoneFormatter.isValidLocal(phone)}
+          disabled={
+            paying || !quote || !PhoneFormatter.isValidLocal(phone)
+          }
           onClick={recharge}
         >
-          {paying ? 'Envoi…' : 'Recharger'}
+          {paying
+            ? 'Envoi…'
+            : quote
+              ? `Payer ${formatTickets(quote.amountFcfa)} FCFA`
+              : 'Recharger'}
         </button>
 
         <div ref={historyRef} className="section-row" style={{ marginTop: 28 }}>
