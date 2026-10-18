@@ -1977,6 +1977,12 @@ button.item-card {
   place-items: center;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .topbar-badge {
   min-width: 28px;
   height: 28px;

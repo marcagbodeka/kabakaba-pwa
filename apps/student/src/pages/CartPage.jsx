@@ -63,6 +63,16 @@ export default function CartPage({
     return body;
   };
 
+  const confirmClearCart = () => {
+    if (!cart.lines.length) return;
+    const ok = window.confirm(
+      'Vider tout le panier ? Tous les articles seront retirés.',
+    );
+    if (!ok) return;
+    cart.clear();
+    showSnack?.('Panier vidé', 'success');
+  };
+
   const checkout = async () => {
     if (!cart.lines.length) {
       showSnack?.('Ajoute des articles au panier');
@@ -137,7 +147,22 @@ export default function CartPage({
         </button>
         <h1>Mon panier</h1>
         {cart.lines.length ? (
-          <span className="topbar-badge">{cart.itemCount}</span>
+          <div className="topbar-actions">
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={confirmClearCart}
+              aria-label="Vider le panier"
+              title="Vider le panier"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+              </svg>
+            </button>
+            <span className="topbar-badge">{cart.itemCount}</span>
+          </div>
         ) : (
           <div style={{ width: 40 }} />
         )}
