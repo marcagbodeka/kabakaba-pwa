@@ -99,8 +99,14 @@ export default function WalletPage({ showSnack }) {
             if (status === 'SUCCESS') {
               showSnack?.('Recharge réussie — tickets crédités', 'success');
             } else {
+              const reason =
+                payment.failureReason ||
+                (payment.fedapayErrorCode === 'ACCOUNT_NOT_FOUND'
+                  ? 'Compte Mobile Money introuvable pour ce numéro / opérateur.'
+                  : null);
               showSnack?.(
-                'Paiement refusé. Vérifie Flooz/Mixx, le numéro, et que tu valides le prompt sur le téléphone.',
+                reason ||
+                  'Paiement refusé. Vérifie Flooz/Mixx, le numéro, et que tu valides le prompt sur le téléphone.',
               );
             }
             return;
@@ -219,12 +225,23 @@ export default function WalletPage({ showSnack }) {
         ticketsReceived: tickets,
         operator,
       });
-      // Flooz → +228… ; Mixx → national sans 228 (doc FedaPay togocel)
+      // Flooz → +228… ; Mixx → national (doc FedaPay)
       const mmPhone = PhoneFormatter.toMobileMoney(phone, operator);
-      await paymentsApi.initiate(intent.id, mmPhone);
+      const initiated = await paymentsApi.initiate(intent.id, mmPhone);
       setTicketsWanted('');
       setQuote(null);
-      showSnack?.('Paiement initié — valide sur ton téléphone');
+
+      // Fallback Mixx : push togocel non autorisé → page Checkout FedaPay
+      if (initiated?.channel === 'redirect' && initiated?.paymentUrl) {
+        showSnack?.(
+          initiated.message ||
+            'Ouvre la page FedaPay et choisis Mixx pour payer.',
+        );
+        window.open(initiated.paymentUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        showSnack?.('Paiement initié — valide sur ton téléphone');
+      }
+
       startPoll(intent.id, {
         amountFcfa: intent.amountFcfa || quote.amountFcfa,
         ticketsReceived: intent.ticketsReceived || tickets,
