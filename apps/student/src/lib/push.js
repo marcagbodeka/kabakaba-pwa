@@ -12,6 +12,7 @@
 import { devicesApi } from './api';
 
 let registeredToken = null;
+let foregroundBound = false;
 
 function firebaseConfig() {
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
@@ -23,6 +24,58 @@ function firebaseConfig() {
     return null;
   }
   return { apiKey, authDomain, projectId, messagingSenderId, appId };
+}
+
+function playOrderCue(kind) {
+  try {
+    const urgent = kind === 'ORDER_READY' || kind === 'NEW_ORDER';
+    const audio = new Audio('/sounds/order-ready.wav');
+    audio.volume = urgent ? 1 : 0.7;
+    void audio.play().catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
+function showLocalNotification(title, body, kind) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+    return;
+  }
+  try {
+    const n = new Notification(title, {
+      body,
+      icon: '/pwa-192.png',
+      badge: '/pwa-192.png',
+      tag: kind || 'kabakaba',
+      renotify: true,
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  } catch {
+    /* ignore */
+  }
+}
+
+async function bindForeground(messaging) {
+  if (foregroundBound) return;
+  foregroundBound = true;
+  const { onMessage } = await import('firebase/messaging');
+  onMessage(messaging, (payload) => {
+    const data = payload?.data || {};
+    const title = payload?.notification?.title || data.title;
+    const body = payload?.notification?.body || data.body;
+    const kind = data.kind || '';
+    if (!title && !body) return;
+    if (kind.startsWith('ORDER_') || kind === 'NEW_ORDER') {
+      playOrderCue(kind);
+    }
+    showLocalNotification(title || 'kabakaba', body || '', kind);
+    window.dispatchEvent(
+      new CustomEvent('kabakaba:push', { detail: { kind, title, body, data } }),
+    );
+  });
 }
 
 export async function registerWebPush() {
@@ -45,6 +98,7 @@ export async function registerWebPush() {
 
     const app = getApps().length ? getApps()[0] : initializeApp(config);
     const messaging = getMessaging(app);
+    await bindForeground(messaging);
     const registration = await navigator.serviceWorker.ready;
     const token = await getToken(messaging, {
       vapidKey,
