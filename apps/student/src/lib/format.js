@@ -39,6 +39,24 @@ export const PhoneFormatter = {
     if (digits.startsWith('228')) return `+${digits}`;
     return `+228${digits}`;
   },
+  /** 8 chiffres nationaux (sans 228). */
+  toNational(value) {
+    let digits = this.digitsOf(value);
+    if (digits.startsWith('00')) digits = digits.slice(2);
+    if (digits.startsWith('228')) digits = digits.slice(3);
+    return digits.slice(0, this.localDigits);
+  },
+  /**
+   * Format d’envoi initiate selon l’opérateur :
+   * - FLOOZ (Moov) → +228XXXXXXXX
+   * - MIXX (Yas)   → XXXXXXXX (sans 228) — exigence FedaPay togocel
+   */
+  toMobileMoney(value, operator) {
+    if (String(operator).toUpperCase() === 'MIXX') {
+      return this.toNational(value);
+    }
+    return this.toE164(value);
+  },
 };
 
 export function initialsFrom(name) {

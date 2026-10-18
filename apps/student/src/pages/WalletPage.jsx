@@ -219,7 +219,9 @@ export default function WalletPage({ showSnack }) {
         ticketsReceived: tickets,
         operator,
       });
-      await paymentsApi.initiate(intent.id, PhoneFormatter.toE164(phone));
+      // Flooz → +228… ; Mixx → national sans 228 (doc FedaPay togocel)
+      const mmPhone = PhoneFormatter.toMobileMoney(phone, operator);
+      await paymentsApi.initiate(intent.id, mmPhone);
       setTicketsWanted('');
       setQuote(null);
       showSnack?.('Paiement initié — valide sur ton téléphone');
