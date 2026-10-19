@@ -11,6 +11,11 @@ import {
 import { PhoneFormatter, formatTicketCount, formatTime, initialsFrom } from '../lib/format';
 import { readView, writeView } from '../lib/instantView';
 import { IconBack } from '../components/icons';
+import {
+  getNotificationPermission,
+  isWebPushConfigured,
+  registerWebPush,
+} from '../lib/push';
 
 function MiniIcon({ children }) {
   return <span className="nav-row-icon">{children}</span>;
@@ -35,6 +40,8 @@ export default function ProfilePage({ showSnack, initialPanel }) {
   const [lastName, setLastName] = useState(user?.lastName || '');
   const [notifyOrders, setNotifyOrders] = useState(user?.notifyOrders !== false);
   const [notifyPromotions, setNotifyPromotions] = useState(!!user?.notifyPromotions);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushPerm, setPushPerm] = useState(() => getNotificationPermission());
   const [notes, setNotes] = useState([]);
   const [note, setNote] = useState(null);
   const [reports, setReports] = useState([]);
@@ -653,6 +660,49 @@ export default function ProfilePage({ showSnack, initialPanel }) {
 
         <div className="section-label">Notifications</div>
         <div className="settings-card">
+          <button
+            type="button"
+            className="nav-row"
+            disabled={pushBusy || pushPerm === 'granted'}
+            onClick={async () => {
+              if (!isWebPushConfigured()) {
+                showSnack?.(
+                  'Push non configuré (VITE_FIREBASE_* / VAPID manquants au build)',
+                );
+                return;
+              }
+              setPushBusy(true);
+              try {
+                const token = await registerWebPush({ forcePrompt: true });
+                setPushPerm(getNotificationPermission());
+                if (token) showSnack?.('Notifications navigateur activées', 'success');
+                else if (getNotificationPermission() === 'denied') {
+                  showSnack?.('Notifications bloquées — autorise-les dans le navigateur');
+                } else {
+                  showSnack?.('Activation incomplete — réessaie');
+                }
+              } finally {
+                setPushBusy(false);
+              }
+            }}
+          >
+            <MiniIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            </MiniIcon>
+            <span className="nav-row-body">
+              <strong>Alertes navigateur (push)</strong>
+              <span>
+                {pushPerm === 'granted'
+                  ? 'Activées sur cet appareil'
+                  : pushPerm === 'denied'
+                    ? 'Bloquées — ouvre les réglages du site'
+                    : pushBusy
+                      ? 'Activation…'
+                      : 'Appuie pour autoriser les notifications'}
+              </span>
+            </span>
+            <span className="nav-row-chevron">{pushPerm === 'granted' ? '✓' : '›'}</span>
+          </button>
           <label className="toggle-row">
             <MiniIcon>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2h9l3 3v17H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
