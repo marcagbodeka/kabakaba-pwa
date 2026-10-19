@@ -15,6 +15,7 @@ import {
   getNotificationPermission,
   isWebPushConfigured,
   registerWebPush,
+  unregisterWebPush,
 } from '../lib/push';
 
 function MiniIcon({ children }) {
@@ -42,6 +43,17 @@ export default function ProfilePage({ showSnack, initialPanel }) {
   const [notifyPromotions, setNotifyPromotions] = useState(!!user?.notifyPromotions);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushPerm, setPushPerm] = useState(() => getNotificationPermission());
+  const [pushOn, setPushOn] = useState(() => getNotificationPermission() === 'granted');
+
+  useEffect(() => {
+    const perm = getNotificationPermission();
+    setPushPerm(perm);
+    if (perm === 'granted' && isWebPushConfigured()) {
+      registerWebPush()
+        .then((token) => setPushOn(Boolean(token) || perm === 'granted'))
+        .catch(() => setPushOn(perm === 'granted'));
+    }
+  }, []);
   const [notes, setNotes] = useState([]);
   const [note, setNote] = useState(null);
   const [reports, setReports] = useState([]);
@@ -660,49 +672,69 @@ export default function ProfilePage({ showSnack, initialPanel }) {
 
         <div className="section-label">Notifications</div>
         <div className="settings-card">
-          <button
-            type="button"
-            className="nav-row"
-            disabled={pushBusy || pushPerm === 'granted'}
-            onClick={async () => {
-              if (!isWebPushConfigured()) {
-                showSnack?.(
-                  'Push non configuré (VITE_FIREBASE_* / VAPID manquants au build)',
-                );
-                return;
-              }
-              setPushBusy(true);
-              try {
-                const token = await registerWebPush({ forcePrompt: true });
-                setPushPerm(getNotificationPermission());
-                if (token) showSnack?.('Notifications navigateur activées', 'success');
-                else if (getNotificationPermission() === 'denied') {
-                  showSnack?.('Notifications bloquées — autorise-les dans le navigateur');
-                } else {
-                  showSnack?.('Activation incomplete — réessaie');
-                }
-              } finally {
-                setPushBusy(false);
-              }
-            }}
-          >
+          <label className="toggle-row">
             <MiniIcon>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
             </MiniIcon>
             <span className="nav-row-body">
-              <strong>Alertes navigateur (push)</strong>
+              <strong>Recevoir les push</strong>
               <span>
-                {pushPerm === 'granted'
-                  ? 'Activées sur cet appareil'
+                {pushBusy
+                  ? 'Activation…'
                   : pushPerm === 'denied'
-                    ? 'Bloquées — ouvre les réglages du site'
-                    : pushBusy
-                      ? 'Activation…'
-                      : 'Appuie pour autoriser les notifications'}
+                    ? 'Bloqué dans le navigateur (réglages du site)'
+                    : !isWebPushConfigured()
+                      ? 'Config Firebase manquante sur ce déploiement'
+                      : pushOn
+                        ? 'Activé — alertes commande sur cet appareil'
+                        : 'Active pour recevoir les alertes (commande prête…)'}
               </span>
             </span>
-            <span className="nav-row-chevron">{pushPerm === 'granted' ? '✓' : '›'}</span>
-          </button>
+            <input
+              type="checkbox"
+              checked={pushOn}
+              disabled={pushBusy || pushPerm === 'denied' || !isWebPushConfigured()}
+              onChange={async (e) => {
+                const wantOn = e.target.checked;
+                if (!wantOn) {
+                  setPushBusy(true);
+                  try {
+                    await unregisterWebPush();
+                    setPushOn(false);
+                    setPushPerm(getNotificationPermission());
+                    showSnack?.('Push désactivé sur cet appareil', 'success');
+                  } finally {
+                    setPushBusy(false);
+                  }
+                  return;
+                }
+                setPushBusy(true);
+                try {
+                  try {
+                    sessionStorage.removeItem('kabakaba_student_push_later');
+                  } catch {
+                    /* ignore */
+                  }
+                  const token = await registerWebPush({ forcePrompt: true });
+                  const perm = getNotificationPermission();
+                  setPushPerm(perm);
+                  if (token) {
+                    setPushOn(true);
+                    showSnack?.('Notifications activées', 'success');
+                  } else {
+                    setPushOn(false);
+                    if (perm === 'denied') {
+                      showSnack?.('Notifications bloquées — autorise kabakaba dans le navigateur');
+                    } else {
+                      showSnack?.('Accepte la popup du navigateur pour activer');
+                    }
+                  }
+                } finally {
+                  setPushBusy(false);
+                }
+              }}
+            />
+          </label>
           <label className="toggle-row">
             <MiniIcon>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2h9l3 3v17H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>

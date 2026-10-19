@@ -39,17 +39,9 @@ export default function NotificationPrompt({ showSnack }) {
       return;
     }
 
-    try {
-      if (sessionStorage.getItem(DISMISS_KEY) === '1' && perm !== 'denied') {
-        setVisible(false);
-        return;
-      }
-    } catch {
-      /* ignore */
-    }
-
+    // Ne plus cacher via sessionStorage : le toggle Profil reste la voie principale,
+    // mais on réaffiche la bannière tant que ce n’est pas granted.
     setBlocked(perm === 'denied');
-    // Toujours afficher si pas encore granted — même sans config (message d’erreur).
     setVisible(true);
   }, [auth.ready, auth.authenticated]);
 
