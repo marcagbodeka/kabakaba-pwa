@@ -6,6 +6,7 @@ import PinLoginPage from './auth/PinLoginPage';
 import Dashboard from './pages/Dashboard';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPrompt from './components/NotificationPrompt';
+import PushHeadsUp from './components/PushHeadsUp';
 
 function Bootstrap() {
   return (
@@ -55,7 +56,10 @@ function Root() {
     <div className={`app-shell${auth.status !== 'authenticated' ? ' app-shell--dark' : ''}`}>
       {screen}
       {auth.ready && auth.status === 'authenticated' ? (
-        <NotificationPrompt showSnack={showSnack} />
+        <>
+          <PushHeadsUp />
+          <NotificationPrompt showSnack={showSnack} />
+        </>
       ) : null}
       {auth.ready ? <InstallPrompt /> : null}
       {snack ? <div className="snack">{snack}</div> : null}

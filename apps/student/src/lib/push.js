@@ -72,14 +72,21 @@ function showLocalNotification(title, body, kind) {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
     return;
   }
+  // Si l’onglet est focus, Chrome masque souvent la bannière OS —
+  // PushHeadsUp affiche alors le slide-in. On tente quand même le SW.
+  const opts = {
+    body,
+    icon: '/pwa-192.png',
+    badge: '/pwa-192.png',
+    tag: kind || 'kabakaba',
+    renotify: true,
+  };
   try {
-    const n = new Notification(title, {
-      body,
-      icon: '/pwa-192.png',
-      badge: '/pwa-192.png',
-      tag: kind || 'kabakaba',
-      renotify: true,
-    });
+    if (navigator.serviceWorker?.ready) {
+      void navigator.serviceWorker.ready.then((reg) => reg.showNotification(title, opts));
+      return;
+    }
+    const n = new Notification(title, opts);
     n.onclick = () => {
       window.focus();
       n.close();

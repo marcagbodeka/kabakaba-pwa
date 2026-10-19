@@ -14,6 +14,7 @@ import WalletPage from './pages/WalletPage';
 import ProfilePage from './pages/ProfilePage';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPrompt from './components/NotificationPrompt';
+import PushHeadsUp from './components/PushHeadsUp';
 
 function Bootstrap() {
   return (
@@ -132,6 +133,7 @@ function Shell() {
         onClose={() => setToast(null)}
       />
       {screen}
+      <PushHeadsUp />
       <NotificationPrompt showSnack={showSnack} />
       {!hideNav ? (
         <BottomNav
