@@ -11,23 +11,37 @@
  */
 import { devicesApi } from './api';
 
+const FALLBACK_FIREBASE = {
+  apiKey: 'AIzaSyAMqcb5tHNtKJ-Jt8nzUnHzrErUk6dSRDA',
+  authDomain: 'kabakaba-43a55.firebaseapp.com',
+  projectId: 'kabakaba-43a55',
+  messagingSenderId: '234320774252',
+  appId: '1:234320774252:web:1899240bd3faf4b1f60449',
+};
+const FALLBACK_VAPID = 'BP6s6SvJb1t4G1tWD_eWXdakb6aArlfvEDPdBEw1PamAjD6-QXmJst8mtM6-g4VKiOi4tYHQFfGoX2-6RyG2R1s';
+
 let registeredToken = null;
 let foregroundBound = false;
 
 function firebaseConfig() {
-  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-  const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN;
-  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID;
-  const messagingSenderId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID;
-  const appId = import.meta.env.VITE_FIREBASE_APP_ID;
+  const apiKey = import.meta.env.VITE_FIREBASE_API_KEY || FALLBACK_FIREBASE.apiKey;
+  const authDomain = import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || FALLBACK_FIREBASE.authDomain;
+  const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID || FALLBACK_FIREBASE.projectId;
+  const messagingSenderId =
+    import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || FALLBACK_FIREBASE.messagingSenderId;
+  const appId = import.meta.env.VITE_FIREBASE_APP_ID || FALLBACK_FIREBASE.appId;
   if (!apiKey || !authDomain || !projectId || !messagingSenderId || !appId) {
     return null;
   }
   return { apiKey, authDomain, projectId, messagingSenderId, appId };
 }
 
+function getVapidKey() {
+  return import.meta.env.VITE_FIREBASE_VAPID_KEY || FALLBACK_VAPID || null;
+}
+
 export function isWebPushConfigured() {
-  return Boolean(firebaseConfig() && import.meta.env.VITE_FIREBASE_VAPID_KEY);
+  return Boolean(firebaseConfig() && getVapidKey());
 }
 
 export function getNotificationPermission() {
@@ -99,7 +113,7 @@ async function bindForeground(messaging) {
 export async function registerWebPush(options = {}) {
   if (typeof window === 'undefined' || !('Notification' in window)) return null;
   const config = firebaseConfig();
-  const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+  const vapidKey = getVapidKey();
   if (!config || !vapidKey) {
     console.warn('KABA_PUSH: config Firebase / VAPID manquante au build');
     return null;

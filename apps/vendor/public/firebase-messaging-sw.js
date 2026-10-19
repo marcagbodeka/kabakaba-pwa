@@ -8,7 +8,7 @@ firebase.initializeApp({
   authDomain: "kabakaba-43a55.firebaseapp.com",
   projectId: "kabakaba-43a55",
   messagingSenderId: "234320774252",
-  appId: "1:234320774252:web:1899240bd3faf4b1f60449",
+  appId: "1:234320774252:web:968f07cafb2a0d7ff60449",
 });
 
 const messaging = firebase.messaging();
