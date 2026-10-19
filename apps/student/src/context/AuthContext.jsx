@@ -83,7 +83,7 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     if ((status === 'authenticated' || status === 'needsIdentity') && ready) {
-      registerWebPush().catch(() => {});
+      registerWebPush({ welcome: true }).catch(() => {});
     }
   }, [status, ready]);
 
@@ -197,7 +197,12 @@ export function AuthProvider({ children }) {
   );
 
   const logout = useCallback(async () => {
-    await unregisterWebPush();
+    // Garde le deviceToken pour la bienvenue / commandes au prochain login.
+    try {
+      sessionStorage.removeItem('kabakaba_student_welcome_sent');
+    } catch {
+      /* ignore */
+    }
     try {
       await authApi.logout();
     } catch {
@@ -213,6 +218,11 @@ export function AuthProvider({ children }) {
 
   const forget = useCallback(async () => {
     await unregisterWebPush();
+    try {
+      sessionStorage.removeItem('kabakaba_student_welcome_sent');
+    } catch {
+      /* ignore */
+    }
     try {
       await authApi.logout();
     } catch {

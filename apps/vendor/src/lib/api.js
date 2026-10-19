@@ -444,6 +444,7 @@ export const notificationsApi = {
   get: (id) => api(`/notifications/${id}`),
   markRead: (id) =>
     api(`/notifications/${id}`, { method: 'PATCH', body: { isRead: true } }),
+  welcome: () => api('/notifications/welcome', { method: 'POST', body: {} }),
 };
 
 export const ORDER_BUCKETS = {

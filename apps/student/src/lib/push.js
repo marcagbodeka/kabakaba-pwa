@@ -9,7 +9,9 @@
  * - VITE_FIREBASE_APP_ID
  * - VITE_FIREBASE_VAPID_KEY
  */
-import { devicesApi } from './api';
+import { devicesApi, notificationsApi } from './api';
+
+const WELCOME_SENT_KEY = 'kabakaba_student_welcome_sent';
 
 const FALLBACK_FIREBASE = {
   apiKey: 'AIzaSyAMqcb5tHNtKJ-Jt8nzUnHzrErUk6dSRDA',
@@ -108,8 +110,9 @@ async function bindForeground(messaging) {
 }
 
 /**
- * @param {{ forcePrompt?: boolean }} [options]
+ * @param {{ forcePrompt?: boolean, welcome?: boolean }} [options]
  * forcePrompt=true uniquement depuis un clic utilisateur (sinon Chrome ignore la popup).
+ * welcome=true envoie POST /notifications/welcome après enregistrement du device (1× / session).
  */
 export async function registerWebPush(options = {}) {
   if (typeof window === 'undefined' || !('Notification' in window)) return null;
@@ -149,11 +152,34 @@ export async function registerWebPush(options = {}) {
       vapidKey,
       serviceWorkerRegistration: registration,
     });
-    if (!token || token === registeredToken) return token;
+    if (!token) return null;
 
-    registeredToken = token;
-    await devicesApi.register(token);
-    console.info('KABA_PUSH: token enregistré', `${token.slice(0, 12)}…`);
+    if (token !== registeredToken) {
+      registeredToken = token;
+      await devicesApi.register(token);
+      console.info('KABA_PUSH: token enregistré', `${token.slice(0, 12)}…`);
+    } else if (options.welcome) {
+      // Ré-attache le token au user après un login (logout ne le delete plus).
+      await devicesApi.register(token);
+    }
+
+    if (options.welcome) {
+      try {
+        if (sessionStorage.getItem(WELCOME_SENT_KEY) !== '1') {
+          sessionStorage.setItem(WELCOME_SENT_KEY, '1');
+          await notificationsApi.welcome();
+          console.info('KABA_PUSH: bienvenue envoyée');
+        }
+      } catch (err) {
+        try {
+          sessionStorage.removeItem(WELCOME_SENT_KEY);
+        } catch {
+          /* ignore */
+        }
+        console.warn('KABA_PUSH: bienvenue ignorée', err);
+      }
+    }
+
     return token;
   } catch (err) {
     console.warn('KABA_PUSH: enregistrement ignoré', err);

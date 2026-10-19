@@ -452,6 +452,7 @@ export const notificationsApi = {
   list: async () => unwrapList(await api('/notifications?page=1&limit=30')),
   get: (id) => api(`/notifications/${id}`),
   markRead: (id) => api(`/notifications/${id}`, { method: 'PATCH', body: { isRead: true } }),
+  welcome: () => api('/notifications/welcome', { method: 'POST', body: {} }),
 };
 
 export const partnerApplicationsApi = {
