@@ -3,6 +3,7 @@ import VendorHeader from '../components/VendorHeader';
 import SectionTabs from '../components/SectionTabs';
 import { IconCheck, IconClose, IconReceipt } from '../components/icons';
 import { ORDER_BUCKETS, ordersApi } from '../lib/api';
+import { readView, writeView } from '../lib/instantView';
 import {
   ORDER_STATUS_LABEL,
   consumptionLabel,
@@ -307,15 +308,19 @@ export default function OrdersPage({
   hasUnread,
 }) {
   const [tab, setTab] = useState('incoming');
+  const cachedLive = readView('orders-live');
+  const cachedHistory = readView('orders-history');
   const [ordersByBucket, setOrdersByBucket] = useState({
-    incoming: [],
-    preparing: [],
-    ready: [],
-    history: [],
+    incoming: cachedLive?.incoming || [],
+    preparing: cachedLive?.preparing || [],
+    ready: cachedLive?.ready || [],
+    history: Array.isArray(cachedHistory) ? cachedHistory : [],
   });
-  const [counts, setCounts] = useState({});
-  const [loading, setLoading] = useState(true);
-  const knownConfirmedRef = useRef(null);
+  const [counts, setCounts] = useState(() => cachedLive?.counts || {});
+  const [loading, setLoading] = useState(!cachedLive);
+  const knownConfirmedRef = useRef(
+    cachedLive ? new Set((cachedLive.incoming || []).map((o) => o.id)) : null,
+  );
   const backoffUntilRef = useRef(0);
   const tabRef = useRef(tab);
   tabRef.current = tab;
@@ -329,12 +334,16 @@ export default function OrdersPage({
       if (key !== 'history') next[key].push(o);
     }
     setOrdersByBucket((prev) => ({ ...prev, ...next }));
-    setCounts((prev) => ({
-      ...prev,
+    const liveCounts = {
       incoming: next.incoming.length,
       preparing: next.preparing.length,
       ready: next.ready.length,
+    };
+    setCounts((prev) => ({
+      ...prev,
+      ...liveCounts,
     }));
+    writeView('orders-live', { ...next, counts: liveCounts });
 
     const confirmedIds = next.incoming.map((o) => o.id);
     if (knownConfirmedRef.current === null) {
@@ -352,7 +361,7 @@ export default function OrdersPage({
   const loadLive = useCallback(
     async ({ silent = false } = {}) => {
       if (Date.now() < backoffUntilRef.current) return;
-      if (!silent) setLoading(true);
+      if (!silent && !readView('orders-live')) setLoading(true);
       try {
         const res = await ordersApi.list({ statuses: LIVE_STATUSES, limit: 80 });
         applyLiveOrders(res.data || []);
@@ -380,6 +389,7 @@ export default function OrdersPage({
         limit: 40,
       });
       const data = res.data || [];
+      writeView('orders-history', data);
       setOrdersByBucket((prev) => ({ ...prev, history: data }));
       setCounts((prev) => ({
         ...prev,
@@ -406,7 +416,7 @@ export default function OrdersPage({
 
   // Mount once — jamais re-déclencher sur identité de callback.
   useEffect(() => {
-    loadLiveRef.current({ silent: false });
+    loadLiveRef.current({ silent: Boolean(readView('orders-live')) });
   }, []);
 
   useEffect(() => {

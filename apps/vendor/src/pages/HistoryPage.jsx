@@ -7,25 +7,29 @@ import {
   formatDateTime,
   formatTickets,
 } from '../lib/format';
+import { readView, writeView } from '../lib/instantView';
 
 export default function HistoryPage({ onBack, showSnack }) {
   const [tab, setTab] = useState('withdrawals');
-  const [withdrawals, setWithdrawals] = useState([]);
-  const [txs, setTxs] = useState([]);
+  const cachedHistory = readView('history');
+  const [withdrawals, setWithdrawals] = useState(() => cachedHistory?.withdrawals || []);
+  const [txs, setTxs] = useState(() => cachedHistory?.txs || []);
   const [txDetail, setTxDetail] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedHistory);
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!readView('history')) setLoading(true);
     try {
       const [w, t] = await Promise.all([
         withdrawalsApi.mine({ limit: 30 }),
         transactionsApi.list({ limit: 40 }),
       ]);
-      setWithdrawals(w.data || []);
-      setTxs(t.data || []);
+      const next = { withdrawals: w.data || [], txs: t.data || [] };
+      setWithdrawals(next.withdrawals);
+      setTxs(next.txs);
+      writeView('history', next);
     } catch (e) {
-      showSnack(e.message || 'Historique indisponible');
+      if (!readView('history')) showSnack(e.message || 'Historique indisponible');
     } finally {
       setLoading(false);
     }

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { paymentsApi, transactionsApi } from '../lib/api';
+import { readView, writeView } from '../lib/instantView';
 import {
   PAYMENT_STATUS_LABEL,
   PhoneFormatter,
@@ -23,10 +24,11 @@ export default function WalletPage({ showSnack }) {
   const rechargeRef = useRef(null);
   const historyRef = useRef(null);
 
-  const [txs, setTxs] = useState([]);
-  const [payments, setPayments] = useState([]);
+  const cachedWallet = readView('wallet');
+  const [txs, setTxs] = useState(() => cachedWallet?.txs || []);
+  const [payments, setPayments] = useState(() => cachedWallet?.payments || []);
   const [detail, setDetail] = useState(null);
-  const [loadingTx, setLoadingTx] = useState(true);
+  const [loadingTx, setLoadingTx] = useState(!cachedWallet);
 
   /** Tickets souhaités (ex. 500 → paie 600 avec frais 100). */
   const [ticketsWanted, setTicketsWanted] = useState('');
@@ -45,18 +47,23 @@ export default function WalletPage({ showSnack }) {
   const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
   const loadTx = useCallback(async () => {
-    setLoadingTx(true);
+    if (!readView('wallet')) setLoadingTx(true);
+    let nextTxs = readView('wallet')?.txs || [];
+    let nextPays = readView('wallet')?.payments || [];
     try {
       const res = await transactionsApi.list({ limit: 30 });
-      setTxs(res.data || []);
+      nextTxs = res.data || [];
+      setTxs(nextTxs);
       try {
         const pays = await paymentsApi.list({ limit: 20 });
-        setPayments(pays.data || []);
+        nextPays = pays.data || [];
+        setPayments(nextPays);
       } catch {
-        setPayments([]);
+        if (!readView('wallet')) setPayments([]);
       }
+      writeView('wallet', { txs: nextTxs, payments: nextPays });
     } catch (e) {
-      showSnack?.(e.message || 'Historique indisponible');
+      if (!readView('wallet')) showSnack?.(e.message || 'Historique indisponible');
     } finally {
       setLoadingTx(false);
     }

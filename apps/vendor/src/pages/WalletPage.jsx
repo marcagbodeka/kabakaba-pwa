@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import VendorHeader from '../components/VendorHeader';
 import { IconReceipt } from '../components/icons';
 import { transactionsApi } from '../lib/api';
+import { readView, writeView } from '../lib/instantView';
 import {
   TX_CREDIT_TYPES,
   TX_TYPE_LABEL,
@@ -48,18 +49,22 @@ export default function WalletPage({
   const pendingCount = Number(vendor?.pendingOrdersCount || 0);
   const canWithdraw = vendor?.canWithdraw !== false && balance > 0;
 
-  const [txs, setTxs] = useState([]);
-  const [loadingTx, setLoadingTx] = useState(true);
+  const [txs, setTxs] = useState(() => readView('wallet-tx') || []);
+  const [loadingTx, setLoadingTx] = useState(() => !readView('wallet-tx'));
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoadingTx(true);
+      if (!readView('wallet-tx')) setLoadingTx(true);
       try {
         const res = await transactionsApi.list({ limit: 8 });
-        if (!cancelled) setTxs(res.data || []);
-      } catch (e) {
+        const rows = res.data || [];
         if (!cancelled) {
+          setTxs(rows);
+          writeView('wallet-tx', rows);
+        }
+      } catch (e) {
+        if (!cancelled && !readView('wallet-tx')) {
           setTxs([]);
           showSnack?.(e.message || 'Historique indisponible');
         }

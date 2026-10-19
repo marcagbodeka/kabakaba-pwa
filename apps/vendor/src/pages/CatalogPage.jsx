@@ -7,129 +7,159 @@ import {
   menusApi,
   takeawayApi,
 } from '../lib/api';
-import { UNIT_LABEL, UNIT_OPTIONS, formatTickets } from '../lib/format';
+import { formatTickets } from '../lib/format';
+import { readView, writeView } from '../lib/instantView';
+import { PLATE, isIncludedRole, roleOfComponent } from '../lib/plate';
 
-const TABS = [
-  { key: 'components', label: 'Stock' },
-  { key: 'categories', label: 'Catégories' },
-  { key: 'menus', label: 'Menus' },
-  { key: 'takeaway', label: 'Emporté' },
-];
+const ROLE_COPY = {
+  base: {
+    label: 'Base',
+    title: 'Plat de base',
+    lead: 'Ce que l’étudiant annonce en premier. Exemple : riz 250. Sans ce plat, il ne peut pas commander.',
+    empty: 'Ajoute le riz, ou un autre plat sans lequel tu ne sers pas.',
+    name: 'Riz',
+    price: 'C’est le montant d’une part. Riz à 250 : l’étudiant dit « riz 250 ». Deux parts font 500.',
+  },
+  extra: {
+    label: 'En plus',
+    title: 'En plus',
+    lead: 'Ce que tu demandes ensuite : « du poisson pour combien ? du spaghetti ? du gari ? ». Il peut répondre zéro.',
+    empty: 'Ajoute le poisson, le spaghetti, le gari…',
+    name: 'Poisson',
+    price: 'Prix d’une part. L’étudiant choisit pour combien : 0, une part, deux parts.',
+  },
+  with: {
+    label: 'Avec',
+    title: 'Servi avec le plat',
+    lead: 'Ce que tu poses avec le plat de base. La sauce ou l’huile : il en choisit une. Le piment : tu le mets toujours.',
+    empty: 'Ajoute la sauce, l’huile, le piment.',
+    name: 'Sauce',
+    price: '',
+  },
+  menus: {
+    label: 'Menus',
+    title: 'Menus fixés',
+    lead: 'Un menu fixé se commande tel quel. L’étudiant ne retire rien et n’ajoute rien.',
+    empty: 'Crée un plat déjà composé, avec son prix fermé.',
+  },
+  takeaway: {
+    label: 'Emporté',
+    title: 'À emporter',
+    lead: 'Un supplément seulement quand l’étudiant ne mange pas sur place. Exemple : la barquette.',
+    empty: 'Sans option ici, les étudiants commandent uniquement sur place.',
+  },
+  sort: {
+    label: 'À ranger',
+    title: 'À ranger',
+    lead: 'Ces articles ne sont pas encore dans la carte. Range-les pour que les étudiants les voient au bon endroit.',
+    empty: '',
+  },
+};
 
-function componentSections(components, categories) {
-  const byKey = new Map();
-  for (const c of components) {
-    const key = c.categoryId || '__none__';
-    if (!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key).push(c);
-  }
-  const sections = [];
-  for (const cat of categories) {
-    const items = byKey.get(cat.id);
-    if (items?.length) sections.push({ title: cat.name, items });
-  }
-  const loose = byKey.get('__none__');
-  if (loose?.length) sections.push({ title: 'Sans catégorie', items: loose });
-  if (!sections.length && components.length) {
-    sections.push({ title: 'Stock', items: components });
-  }
-  return sections;
-}
-
-function Field({ label, children }) {
+function Field({ label, hint, children }) {
   return (
     <div className="vfield">
       <label>{label}</label>
       {children}
+      {hint ? <p className="field-hint">{hint}</p> : null}
     </div>
   );
 }
 
-function ComponentSheet({ initial, categories = [], onClose, onSave, onDelete, busy }) {
+function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
+  const [kind, setKind] = useState(role === 'extra' ? 'extra' : role === 'with' ? 'choice' : role === 'always' ? 'always' : role === 'choice' ? 'choice' : 'base');
   const [name, setName] = useState(initial?.name || '');
-  const [unit, setUnit] = useState(initial?.unit || 'PORTION');
-  const [categoryId, setCategoryId] = useState(initial?.categoryId || '');
-  const [priceTickets, setPrice] = useState(String(initial?.priceTickets ?? ''));
-  const [quantity, setQty] = useState(String(initial?.quantity ?? '0'));
-  const [lowStockThreshold, setLowStock] = useState(
-    String(initial?.lowStockThreshold ?? '5'),
+  const [priceTickets, setPrice] = useState(
+    String(initial?.priceTickets ?? (kind === 'choice' || kind === 'always' ? '0' : '')),
   );
+  const [quantity, setQty] = useState(String(initial?.quantity ?? '20'));
   const [isAvailable, setAvail] = useState(initial?.isAvailable !== false);
+  const included = kind === 'choice' || kind === 'always';
+  const copy = included ? ROLE_COPY.with : ROLE_COPY[kind] || ROLE_COPY.base;
+
+  const selectKind = (next) => {
+    setKind(next);
+    if (next === 'choice' || next === 'always') setPrice('0');
+  };
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet sheet--tall" onClick={(e) => e.stopPropagation()}>
-        <h2>{initial ? 'Modifier le composant' : 'Nouveau composant'}</h2>
-        <p className="sub">Visible des étudiants seulement si disponible et en stock.</p>
+        <h2>{initial ? 'Modifier' : copy.title}</h2>
+        <p className="sub">{copy.lead}</p>
+        <Field label="C’est quoi ?">
+          <div className="kind-picks">
+            {[
+              ['base', 'Plat de base'],
+              ['extra', 'En plus'],
+              ['choice', 'Sauce ou huile'],
+              ['always', 'Toujours mis'],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`kind-pick${kind === id ? ' on' : ''}`}
+                onClick={() => selectKind(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </Field>
         <Field label="Nom">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Riz" />
-        </Field>
-        <Field label="Catégorie">
-          <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-            <option value="">Sans catégorie</option>
-            {(categories || []).map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Unité">
-          <select value={unit} onChange={(e) => setUnit(e.target.value)}>
-            {UNIT_OPTIONS.map((u) => (
-              <option key={u.value} value={u.value}>
-                {u.label}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Prix (tickets)">
           <input
-            inputMode="numeric"
-            value={priceTickets}
-            onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
-            placeholder="0"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={copy.name}
           />
         </Field>
+        {included ? (
+          <p className="field-hint">
+            {kind === 'choice'
+              ? 'L’étudiant en choisit une seule, offerte avec le plat. Exemple : sauce ou huile.'
+              : 'Ajouté tout seul avec le plat. Exemple : le piment. Pas de prix à part.'}
+          </p>
+        ) : (
+          <Field label="Prix d’une part (tickets)" hint={copy.price}>
+            <input
+              inputMode="numeric"
+              value={priceTickets}
+              onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
+              placeholder="250"
+            />
+          </Field>
+        )}
         {!initial ? (
-          <Field label="Stock initial">
+          <Field label="Combien de parts en stock ?" hint="Une commande d’une part retire 1.">
             <input
               inputMode="numeric"
               value={quantity}
               onChange={(e) => setQty(e.target.value.replace(/\D/g, ''))}
-              placeholder="0"
+              placeholder="20"
             />
           </Field>
         ) : null}
-        <Field label="Seuil stock faible">
-          <input
-            inputMode="numeric"
-            value={lowStockThreshold}
-            onChange={(e) => setLowStock(e.target.value.replace(/\D/g, ''))}
-            placeholder="5"
-          />
-        </Field>
         <label className="check-row">
           <input
             type="checkbox"
             checked={isAvailable}
             onChange={(e) => setAvail(e.target.checked)}
           />
-          <span>Proposé aux étudiants</span>
+          <span>Proposé aujourd’hui</span>
         </label>
         <div className="sheet-actions">
           <button
             type="button"
             className="btn-action fill primary full"
-            disabled={busy || !name.trim() || priceTickets === ''}
+            disabled={busy || !name.trim() || (!included && priceTickets === '')}
             onClick={() =>
               onSave({
+                kind,
                 name: name.trim(),
-                unit,
-                priceTickets: Number(priceTickets),
+                unit: 'PORTION',
+                priceTickets: included ? 0 : Number(priceTickets),
                 isAvailable,
-                categoryId: categoryId || null,
-                lowStockThreshold: Number(lowStockThreshold || 0),
+                lowStockThreshold: initial?.lowStockThreshold ?? 5,
                 ...(initial ? {} : { quantity: Number(quantity || 0) }),
               })
             }
@@ -155,7 +185,7 @@ function ComponentSheet({ initial, categories = [], onClose, onSave, onDelete, b
   );
 }
 
-function MenuSheet({ components, initial, onClose, onSave, onDelete, busy }) {
+function MenuSheet({ components, categories, initial, onClose, onSave, onDelete, busy }) {
   const [name, setName] = useState(initial?.name || '');
   const [description, setDesc] = useState(initial?.description || '');
   const [isActive, setActive] = useState(initial?.isActive !== false);
@@ -181,37 +211,49 @@ function MenuSheet({ components, initial, onClose, onSave, onDelete, busy }) {
     quantity: Math.max(1, Number(quantity) || 1),
   }));
 
+  const roleTag = {
+    base: 'Base',
+    extra: 'En plus',
+    choice: 'Avec',
+    always: 'Avec',
+    other: 'À ranger',
+  };
+
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet sheet--tall" onClick={(e) => e.stopPropagation()}>
-        <h2>{initial ? 'Modifier le menu' : 'Nouveau menu'}</h2>
-        <p className="sub">Compose un plat à partir de tes composants en stock.</p>
+        <h2>{initial ? 'Modifier le menu' : 'Menu fixé'}</h2>
+        <p className="sub">
+          L’étudiant le prend comme tu l’as composé. Il ne choisit pas les quantités.
+        </p>
         <Field label="Nom">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Riz sauce" />
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Riz poisson" />
         </Field>
         <Field label="Description (optionnel)">
           <input
             value={description}
             onChange={(e) => setDesc(e.target.value)}
-            placeholder="Court descriptif"
+            placeholder="Ce que le menu contient, en une phrase"
           />
         </Field>
-        <div className="kicker-inline">Composants</div>
+        <div className="kicker-inline">Dedans</div>
         <div className="pick-list">
           {components.map((c) => {
             const on = selected[c.id] != null;
+            const role = roleOfComponent(c, categories);
             return (
               <div key={c.id} className={`pick-row${on ? ' on' : ''}`}>
                 <button type="button" className="pick-main" onClick={() => toggle(c.id)}>
                   <strong>{c.name}</strong>
                   <span>
-                    {formatTickets(c.priceTickets)} · {UNIT_LABEL[c.unit] || c.unit}
+                    {roleTag[role]} · {formatTickets(c.priceTickets)}
                   </span>
                 </button>
                 {on ? (
                   <input
                     className="qty-mini"
                     inputMode="numeric"
+                    aria-label={`Parts de ${c.name}`}
                     value={selected[c.id]}
                     onChange={(e) =>
                       setSelected((s) => ({
@@ -231,7 +273,7 @@ function MenuSheet({ components, initial, onClose, onSave, onDelete, busy }) {
             checked={isActive}
             onChange={(e) => setActive(e.target.checked)}
           />
-          <span>Menu actif</span>
+          <span>Proposé aux étudiants</span>
         </label>
         <div className="sheet-actions">
           <button
@@ -268,33 +310,6 @@ function MenuSheet({ components, initial, onClose, onSave, onDelete, busy }) {
   );
 }
 
-function CategorySheet({ initial, onClose, onSave, busy }) {
-  const [name, setName] = useState(initial?.name || '');
-  return (
-    <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <h2>{initial ? 'Renommer la catégorie' : 'Nouvelle catégorie'}</h2>
-        <Field label="Nom">
-          <input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} placeholder="Ex. Protéine" />
-        </Field>
-        <div className="sheet-actions">
-          <button
-            type="button"
-            className="btn-action fill primary full"
-            disabled={busy || !name.trim()}
-            onClick={() => onSave({ name: name.trim() })}
-          >
-            {busy ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
-          <button type="button" className="btn-action outline full" onClick={onClose}>
-            Annuler
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function TakeawaySheet({ initial, onClose, onSave, onDelete, busy }) {
   const [name, setName] = useState(initial?.name || '');
   const [priceTickets, setPrice] = useState(String(initial?.priceTickets ?? '0'));
@@ -303,8 +318,8 @@ function TakeawaySheet({ initial, onClose, onSave, onDelete, busy }) {
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <h2>{initial ? 'Modifier l’option' : 'Option d’emporté'}</h2>
-        <p className="sub">Frais ajoutés quand l’étudiant choisit « à emporter ».</p>
+        <h2>{initial ? 'Modifier l’emporté' : 'À emporter'}</h2>
+        <p className="sub">Ajouté une seule fois quand l’étudiant choisit « à emporter ».</p>
         <Field label="Nom">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Barquette" />
         </Field>
@@ -321,7 +336,7 @@ function TakeawaySheet({ initial, onClose, onSave, onDelete, busy }) {
             checked={isActive}
             onChange={(e) => setActive(e.target.checked)}
           />
-          <span>Option active</span>
+          <span>Proposé aux étudiants</span>
         </label>
         <div className="sheet-actions">
           <button
@@ -357,20 +372,37 @@ function TakeawaySheet({ initial, onClose, onSave, onDelete, busy }) {
   );
 }
 
+function StockButtons({ item, onAdjust, onEdit }) {
+  return (
+    <div className="catalog-actions">
+      <button type="button" className="qty-btn" onClick={() => onAdjust(item, -1)} aria-label="Retirer une part">
+        −
+      </button>
+      <button type="button" className="qty-btn" onClick={() => onAdjust(item, 1)} aria-label="Ajouter une part">
+        +
+      </button>
+      <button type="button" className="link-mini" onClick={() => onEdit(item)}>
+        Modifier
+      </button>
+    </div>
+  );
+}
+
 export default function CatalogPage({ vendor, onBack, showSnack }) {
   const vendorId = vendor?.id;
-  const [tab, setTab] = useState('components');
-  const [components, setComponents] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [menus, setMenus] = useState([]);
-  const [options, setOptions] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState('base');
+  const cachedCatalog = readView('catalog');
+  const [components, setComponents] = useState(() => cachedCatalog?.components || []);
+  const [categories, setCategories] = useState(() => cachedCatalog?.categories || []);
+  const [menus, setMenus] = useState(() => cachedCatalog?.menus || []);
+  const [options, setOptions] = useState(() => cachedCatalog?.options || []);
+  const [loading, setLoading] = useState(!cachedCatalog);
   const [busy, setBusy] = useState(false);
-  const [sheet, setSheet] = useState(null); // { type, item? }
+  const [sheet, setSheet] = useState(null);
 
   const reload = useCallback(async () => {
     if (!vendorId) return;
-    setLoading(true);
+    if (!readView('catalog')) setLoading(true);
     try {
       const [c, cats, m, t] = await Promise.all([
         componentsApi.manage(vendorId),
@@ -382,8 +414,9 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       setCategories(cats);
       setMenus(m);
       setOptions(t);
+      writeView('catalog', { components: c, categories: cats, menus: m, options: t });
     } catch (e) {
-      showSnack(e.message || 'Catalogue indisponible');
+      if (!readView('catalog')) showSnack(e.message || 'Carte indisponible');
     } finally {
       setLoading(false);
     }
@@ -393,44 +426,100 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     reload();
   }, [reload]);
 
-  const addLabel = useMemo(() => {
-    if (tab === 'categories') return 'Ajouter une catégorie';
-    if (tab === 'menus') return 'Ajouter un menu';
-    if (tab === 'takeaway') return 'Ajouter une option';
-    return 'Ajouter un composant';
-  }, [tab]);
+  useEffect(() => {
+    if (tab === 'sort' && !grouped.other.length) setTab('base');
+  }, [tab, grouped.other.length]);
 
-  const openCreate = async () => {
-    if (tab === 'categories') {
-      const name = window.prompt('Nom de la catégorie');
-      if (!name?.trim()) return;
-      setBusy(true);
-      try {
-        await categoriesApi.create({ name: name.trim() });
-        await reload();
-        showSnack('Catégorie créée');
-      } catch (e) {
-        showSnack(e.message || 'Échec');
-      } finally {
-        setBusy(false);
-      }
-      return;
+  const grouped = useMemo(() => {
+    const groups = { base: [], extra: [], choice: [], always: [], other: [] };
+    for (const component of components) {
+      groups[roleOfComponent(component, categories)].push(component);
     }
-    setSheet({ type: tab, item: null });
+    return groups;
+  }, [components, categories]);
+
+  const tabs = useMemo(() => {
+    const list = [
+      { key: 'base', label: 'Base' },
+      { key: 'extra', label: 'En plus' },
+      { key: 'with', label: 'Avec' },
+      { key: 'menus', label: 'Menus' },
+      { key: 'takeaway', label: 'Emporté' },
+    ];
+    if (grouped.other.length) list.push({ key: 'sort', label: 'À ranger' });
+    return list;
+  }, [grouped.other.length]);
+
+  const copy = ROLE_COPY[tab] || ROLE_COPY.base;
+
+  const categoryIdFor = async (name) => {
+    const found = categories.find((c) => c.name === name);
+    if (found) return found.id;
+    const created = await categoriesApi.create({ name });
+    setCategories((prev) => (prev.some((c) => c.id === created.id) ? prev : [...prev, created]));
+    return created.id;
   };
 
-  const saveComponent = async (body) => {
+  const saveFood = async (body) => {
+    const categoryName = {
+      base: PLATE.base,
+      extra: PLATE.extra,
+      choice: PLATE.choice,
+      always: PLATE.always,
+    }[body.kind];
     setBusy(true);
     try {
-      if (sheet?.item) await componentsApi.update(sheet.item.id, body);
-      else await componentsApi.create(body);
+      const categoryId = await categoryIdFor(categoryName);
+      const payload = {
+        name: body.name,
+        unit: 'PORTION',
+        priceTickets: body.priceTickets,
+        isAvailable: body.isAvailable,
+        categoryId,
+        lowStockThreshold: body.lowStockThreshold ?? 5,
+        ...(sheet?.item ? {} : { quantity: body.quantity }),
+      };
+      if (sheet?.item) await componentsApi.update(sheet.item.id, payload);
+      else await componentsApi.create(payload);
       setSheet(null);
       await reload();
-      showSnack('Composant enregistré');
+      showSnack('Enregistré');
     } catch (e) {
       showSnack(e.message || 'Échec');
     } finally {
       setBusy(false);
+    }
+  };
+
+  const classify = async (item, kind) => {
+    setBusy(true);
+    try {
+      const categoryName = {
+        base: PLATE.base,
+        extra: PLATE.extra,
+        choice: PLATE.choice,
+        always: PLATE.always,
+      }[kind];
+      const categoryId = await categoryIdFor(categoryName);
+      await componentsApi.update(item.id, {
+        categoryId,
+        priceTickets: isIncludedRole(kind) ? 0 : Number(item.priceTickets || 0),
+      });
+      await reload();
+      showSnack(`${item.name} rangé`);
+    } catch (e) {
+      showSnack(e.message || 'Échec');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const adjust = async (item, delta) => {
+    try {
+      await componentsApi.adjustStock(item.id, delta);
+      await reload();
+    } catch (e) {
+      showSnack(e.message);
     }
   };
 
@@ -444,84 +533,6 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       showSnack('Menu enregistré');
     } catch (e) {
       showSnack(e.message || 'Échec');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const saveCategory = async (body) => {
-    setBusy(true);
-    try {
-      if (sheet?.item) await categoriesApi.update(sheet.item.id, body);
-      else await categoriesApi.create(body);
-      setSheet(null);
-      await reload();
-      showSnack('Catégorie enregistrée');
-    } catch (e) {
-      showSnack(e.message || 'Échec');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removeCategory = async (id) => {
-    const ok = window.confirm(
-      'Supprimer cette catégorie ? Les composants encore rattachés bloquent la suppression.',
-    );
-    if (!ok) return;
-    try {
-      await categoriesApi.remove(id);
-      setSheet(null);
-      await reload();
-      showSnack('Catégorie supprimée');
-    } catch (e) {
-      showSnack(e.message || 'Suppression impossible');
-    }
-  };
-
-  const removeComponent = async (item) => {
-    const ok = window.confirm(`Supprimer « ${item.name} » ?`);
-    if (!ok) return;
-    setBusy(true);
-    try {
-      await componentsApi.remove(item.id);
-      setSheet(null);
-      await reload();
-      showSnack('Composant supprimé');
-    } catch (e) {
-      showSnack(e.message || 'Suppression impossible');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removeMenu = async (item) => {
-    const ok = window.confirm(`Supprimer le menu « ${item.name} » ?`);
-    if (!ok) return;
-    setBusy(true);
-    try {
-      await menusApi.remove(item.id);
-      setSheet(null);
-      await reload();
-      showSnack('Menu supprimé');
-    } catch (e) {
-      showSnack(e.message || 'Suppression impossible');
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const removeTakeaway = async (item) => {
-    const ok = window.confirm(`Supprimer l’option « ${item.name} » ?`);
-    if (!ok) return;
-    setBusy(true);
-    try {
-      await takeawayApi.remove(item.id);
-      setSheet(null);
-      await reload();
-      showSnack('Option supprimée');
-    } catch (e) {
-      showSnack(e.message || 'Suppression impossible');
     } finally {
       setBusy(false);
     }
@@ -542,20 +553,107 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     }
   };
 
+  const removeComponent = async (item) => {
+    const ok = window.confirm(`Retirer « ${item.name} » de la carte ?`);
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await componentsApi.remove(item.id);
+      setSheet(null);
+      await reload();
+      showSnack('Retiré');
+    } catch (e) {
+      showSnack(e.message || 'Suppression impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeMenu = async (item) => {
+    const ok = window.confirm(`Retirer le menu « ${item.name} » ?`);
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await menusApi.remove(item.id);
+      setSheet(null);
+      await reload();
+      showSnack('Menu retiré');
+    } catch (e) {
+      showSnack(e.message || 'Suppression impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeTakeaway = async (item) => {
+    const ok = window.confirm(`Retirer « ${item.name} » ?`);
+    if (!ok) return;
+    setBusy(true);
+    try {
+      await takeawayApi.remove(item.id);
+      setSheet(null);
+      await reload();
+      showSnack('Option retirée');
+    } catch (e) {
+      showSnack(e.message || 'Suppression impossible');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const openCreate = () => {
+    if (tab === 'menus') setSheet({ type: 'menus', item: null });
+    else if (tab === 'takeaway') setSheet({ type: 'takeaway', item: null });
+    else if (tab === 'sort') return;
+    else setSheet({ type: 'food', role: tab === 'with' ? 'choice' : tab, item: null });
+  };
+
+  const foodOf = (role) => grouped[role] || [];
+
+  const renderFood = (item) => {
+    const available = item.isAvailable !== false && Number(item.quantity) > 0;
+    const role = roleOfComponent(item, categories);
+    const included = isIncludedRole(role);
+    return (
+      <div key={item.id} className={`catalog-card${!available ? ' dim' : ''}`}>
+        <div className="catalog-main">
+          <strong>{item.name}</strong>
+          <span>
+            {included ? 'Offert avec le plat' : formatTickets(item.priceTickets)}
+            {' · '}
+            {item.quantity} part{Number(item.quantity) > 1 ? 's' : ''}
+            {!item.isAvailable ? ' · masqué' : ''}
+            {available ? '' : ' · épuisé'}
+          </span>
+        </div>
+        <StockButtons
+          item={item}
+          onAdjust={adjust}
+          onEdit={(food) => setSheet({ type: 'food', role, item: food })}
+        />
+      </div>
+    );
+  };
+
+  const addLabel =
+    tab === 'menus' ? 'Ajouter un menu fixé' : tab === 'takeaway' ? 'Ajouter une option' : tab === 'sort' ? '' : 'Ajouter';
+
   return (
     <div className="dashboard-body">
       <SubpageBar
-        title="Mon catalogue"
+        title="Ma carte"
         onBack={onBack}
         action={
-          <button type="button" className="circle-action" onClick={openCreate} aria-label={addLabel}>
-            <IconPlus />
-          </button>
+          addLabel ? (
+            <button type="button" className="circle-action" onClick={openCreate} aria-label={addLabel}>
+              <IconPlus />
+            </button>
+          ) : null
         }
       />
 
       <div className="section-tabs">
-        {TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.key}
             type="button"
@@ -573,106 +671,22 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
         </div>
       ) : (
         <div className="catalog-list">
-          {tab === 'components'
-            ? componentSections(components, categories).map((section) => (
-                <div key={section.title}>
-                  <div className="kicker-inline">{section.title}</div>
-                  {section.items.map((c) => {
-                    const available =
-                      c.isAvailable !== false && Number(c.quantity) > 0;
-                    const threshold = Number(c.lowStockThreshold ?? 0);
-                    const lowStock =
-                      threshold > 0 && Number(c.quantity) <= threshold;
-                    return (
-                      <div
-                        key={c.id}
-                        className={`catalog-card${!available ? ' dim' : ''}${lowStock ? ' low-stock' : ''}`}
-                      >
-                        <div className="catalog-main">
-                          <strong>{c.name}</strong>
-                          <span>
-                            {formatTickets(c.priceTickets)} · stock {c.quantity}{' '}
-                            {UNIT_LABEL[c.unit] || ''}
-                            {lowStock ? ' · stock faible' : ''}
-                            {!c.isAvailable ? ' · masqué' : ''}
-                          </span>
-                        </div>
-                        <div className="catalog-actions">
-                          <button
-                            type="button"
-                            className="qty-btn"
-                            onClick={async () => {
-                              try {
-                                await componentsApi.adjustStock(c.id, -1);
-                                await reload();
-                              } catch (e) {
-                                showSnack(e.message);
-                              }
-                            }}
-                          >
-                            −
-                          </button>
-                          <button
-                            type="button"
-                            className="qty-btn"
-                            onClick={async () => {
-                              try {
-                                await componentsApi.adjustStock(c.id, 1);
-                                await reload();
-                              } catch (e) {
-                                showSnack(e.message);
-                              }
-                            }}
-                          >
-                            +
-                          </button>
-                          <button
-                            type="button"
-                            className="link-mini"
-                            onClick={() => setSheet({ type: 'components', item: c })}
-                          >
-                            Éditer
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))
-            : null}
+          <p className="catalog-lead">{copy.lead}</p>
 
-          {tab === 'categories'
-            ? categories.map((cat) => {
-                const count = components.filter((c) => c.categoryId === cat.id).length;
-                return (
-                  <div key={cat.id} className="catalog-card">
-                    <div className="catalog-main">
-                      <strong>{cat.name}</strong>
-                      <span>
-                        {count} composant{count > 1 ? 's' : ''}
-                      </span>
-                    </div>
-                    <div className="catalog-actions">
-                      <button
-                        type="button"
-                        className="link-mini"
-                        onClick={() => setSheet({ type: 'categories', item: cat })}
-                      >
-                        Éditer
-                      </button>
-                      <button
-                        type="button"
-                        className="link-mini"
-                        style={{ color: 'var(--red)' }}
-                        onClick={() => removeCategory(cat.id)}
-                      >
-                        Supprimer
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            : null}
+          {tab === 'base' ? foodOf('base').map(renderFood) : null}
+          {tab === 'extra' ? foodOf('extra').map(renderFood) : null}
+          {tab === 'with' ? (
+            <>
+              <div className="kicker-inline">L’étudiant en choisit une</div>
+              {foodOf('choice').map(renderFood)}
+              {!foodOf('choice').length ? (
+                <p className="catalog-note">Exemple : sauce, huile.</p>
+              ) : null}
+              <div className="kicker-inline">Toujours mis</div>
+              {foodOf('always').map(renderFood)}
+              {!foodOf('always').length ? <p className="catalog-note">Exemple : piment.</p> : null}
+            </>
+          ) : null}
 
           {tab === 'menus'
             ? menus.map((m) => (
@@ -680,9 +694,9 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                   <div className="catalog-main">
                     <strong>{m.name}</strong>
                     <span>
-                      {(m.lines || []).map((l) => l.name || l.componentId).join(' · ') ||
-                        'Sans lignes'}
-                      {!m.isActive ? ' · inactif' : ''}
+                      {(m.lines || []).map((l) => l.name || l.component?.name).filter(Boolean).join(' · ') ||
+                        'Rien dedans'}
+                      {!m.isActive ? ' · masqué' : ''}
                     </span>
                   </div>
                   <div className="catalog-actions">
@@ -691,7 +705,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                       className="link-mini"
                       onClick={() => setSheet({ type: 'menus', item: m })}
                     >
-                      Éditer
+                      Modifier
                     </button>
                     <button
                       type="button"
@@ -699,7 +713,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                       style={{ color: 'var(--red)' }}
                       onClick={() => removeMenu(m)}
                     >
-                      Supprimer
+                      Retirer
                     </button>
                   </div>
                 </div>
@@ -713,7 +727,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                     <strong>{o.name}</strong>
                     <span>
                       {formatTickets(o.priceTickets)}
-                      {!o.isActive ? ' · inactive' : ''}
+                      {!o.isActive ? ' · masquée' : ''}
                     </span>
                   </div>
                   <div className="catalog-actions">
@@ -722,7 +736,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                       className="link-mini"
                       onClick={() => setSheet({ type: 'takeaway', item: o })}
                     >
-                      Éditer
+                      Modifier
                     </button>
                     <button
                       type="button"
@@ -730,67 +744,85 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                       style={{ color: 'var(--red)' }}
                       onClick={() => removeTakeaway(o)}
                     >
-                      Supprimer
+                      Retirer
                     </button>
                   </div>
                 </div>
               ))
             : null}
 
-          {tab === 'components' && !components.length ? (
+          {tab === 'sort'
+            ? grouped.other.map((item) => (
+                <div key={item.id} className="catalog-card">
+                  <div className="catalog-main">
+                    <strong>{item.name}</strong>
+                    <span>{formatTickets(item.priceTickets)} · pas encore à sa place</span>
+                  </div>
+                  <div className="classify-actions">
+                    <button type="button" onClick={() => classify(item, 'base')}>Base</button>
+                    <button type="button" onClick={() => classify(item, 'extra')}>En plus</button>
+                    <button type="button" onClick={() => classify(item, 'choice')}>Sauce ou huile</button>
+                    <button type="button" onClick={() => classify(item, 'always')}>Toujours mis</button>
+                  </div>
+                </div>
+              ))
+            : null}
+
+          {tab === 'base' && !foodOf('base').length ? (
             <div className="empty-block">
-              <h3>Aucun composant</h3>
-              <p>Ajoute ton stock pour composer des menus et recevoir des commandes.</p>
+              <h3>Pas encore de plat de base</h3>
+              <p>{copy.empty}</p>
             </div>
           ) : null}
-          {tab === 'categories' && !categories.length ? (
+          {tab === 'extra' && !foodOf('extra').length ? (
             <div className="empty-block">
-              <h3>Aucune catégorie</h3>
-              <p>Range tes composants pour que les étudiants les retrouvent plus vite.</p>
+              <h3>Rien en plus</h3>
+              <p>{copy.empty}</p>
+            </div>
+          ) : null}
+          {tab === 'with' && !foodOf('choice').length && !foodOf('always').length ? (
+            <div className="empty-block">
+              <h3>Rien n’accompagne le plat</h3>
+              <p>{copy.empty}</p>
             </div>
           ) : null}
           {tab === 'menus' && !menus.length ? (
             <div className="empty-block">
-              <h3>Aucun menu</h3>
-              <p>Crée des plats pré-composés à partir de tes composants.</p>
+              <h3>Aucun menu fixé</h3>
+              <p>{copy.empty}</p>
             </div>
           ) : null}
           {tab === 'takeaway' && !options.length ? (
             <div className="empty-block">
-              <h3>Pas d’option d’emporté</h3>
-              <p>Sans option active, les étudiants ne peuvent commander que sur place.</p>
+              <h3>Pas d’emporté</h3>
+              <p>{copy.empty}</p>
             </div>
           ) : null}
         </div>
       )}
 
-      <div className="sticky-cta">
-        <button type="button" className="btn-action fill primary full" onClick={openCreate}>
-          {addLabel}
-        </button>
-      </div>
-
-      {sheet?.type === 'components' ? (
-        <ComponentSheet
-          initial={sheet.item}
-          categories={categories}
-          busy={busy}
-          onClose={() => setSheet(null)}
-          onSave={saveComponent}
-          onDelete={removeComponent}
-        />
+      {addLabel ? (
+        <div className="sticky-cta">
+          <button type="button" className="btn-action fill primary full" onClick={openCreate}>
+            {addLabel}
+          </button>
+        </div>
       ) : null}
-      {sheet?.type === 'categories' ? (
-        <CategorySheet
+
+      {sheet?.type === 'food' ? (
+        <FoodSheet
           initial={sheet.item}
+          role={sheet.role}
           busy={busy}
           onClose={() => setSheet(null)}
-          onSave={saveCategory}
+          onSave={saveFood}
+          onDelete={removeComponent}
         />
       ) : null}
       {sheet?.type === 'menus' ? (
         <MenuSheet
           components={components}
+          categories={categories}
           initial={sheet.item}
           busy={busy}
           onClose={() => setSheet(null)}

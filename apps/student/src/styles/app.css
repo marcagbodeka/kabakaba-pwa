@@ -1902,6 +1902,50 @@ button.item-card {
   font-size: 13px;
 }
 
+.qty-stepper--amount strong {
+  min-width: 52px;
+  font-size: 12px;
+}
+
+.plate-block {
+  margin-bottom: 18px;
+}
+
+.plate-help,
+.plate-included {
+  margin: 0 0 10px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.plate-included {
+  margin-top: 8px;
+  font-weight: 700;
+}
+
+.plate-pick {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+}
+
+.menu-card.is-picked {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+button.plate-choice {
+  display: block;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+}
+
 .hint-box {
   padding: 12px 14px;
   border-radius: 14px;

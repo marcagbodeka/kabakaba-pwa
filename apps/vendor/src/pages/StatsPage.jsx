@@ -3,6 +3,7 @@ import VendorHeader from '../components/VendorHeader';
 import SectionTabs from '../components/SectionTabs';
 import { ORDER_BUCKETS, ordersApi, vendorApi } from '../lib/api';
 import { formatTickets } from '../lib/format';
+import { readView, writeView } from '../lib/instantView';
 
 const TABS = [
   { key: 'overview', label: "Vue d'ensemble" },
@@ -75,14 +76,15 @@ export default function StatsPage({
   showSnack,
 }) {
   const [tab, setTab] = useState('overview');
-  const [orders, setOrders] = useState([]);
-  const [sales, setSales] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cachedStats = readView('stats');
+  const [orders, setOrders] = useState(() => cachedStats?.orders || []);
+  const [sales, setSales] = useState(() => cachedStats?.sales || null);
+  const [loading, setLoading] = useState(!cachedStats);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      setLoading(true);
+      if (!readView('stats')) setLoading(true);
       try {
         const [allOrders, salesData] = await Promise.all([
           loadAllOrders(),
@@ -91,8 +93,9 @@ export default function StatsPage({
         if (!alive) return;
         setOrders(allOrders);
         setSales(salesData);
+        writeView('stats', { orders: allOrders, sales: salesData });
       } catch (e) {
-        if (alive) showSnack?.(e.message || 'Stats indisponibles');
+        if (alive && !readView('stats')) showSnack?.(e.message || 'Stats indisponibles');
       } finally {
         if (alive) setLoading(false);
       }

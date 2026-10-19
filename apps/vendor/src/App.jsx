@@ -19,13 +19,7 @@ function Bootstrap() {
 
 function Root() {
   const auth = useAuth();
-  const [booting, setBooting] = useState(true);
   const [snack, setSnack] = useState(null);
-
-  useEffect(() => {
-    const t = setTimeout(() => setBooting(false), 450);
-    return () => clearTimeout(t);
-  }, []);
 
   useEffect(() => {
     if (auth.errorMessage) {
@@ -44,7 +38,7 @@ function Root() {
   }, []);
 
   let screen = <Bootstrap />;
-  if (!booting && auth.ready) {
+  if (auth.ready) {
     if (auth.status === 'authenticated') {
       screen = <Dashboard showSnack={showSnack} />;
     } else if (auth.status === 'needsPin') {
@@ -59,7 +53,7 @@ function Root() {
   return (
     <div className={`app-shell${auth.status !== 'authenticated' ? ' app-shell--dark' : ''}`}>
       {screen}
-      {!booting && auth.ready ? <InstallPrompt /> : null}
+      {auth.ready ? <InstallPrompt /> : null}
       {snack ? <div className="snack">{snack}</div> : null}
     </div>
   );

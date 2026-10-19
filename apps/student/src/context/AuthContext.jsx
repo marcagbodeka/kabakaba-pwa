@@ -7,6 +7,7 @@ import {
   useState,
 } from 'react';
 import { authApi, markSessionAlive, normalizeUser, userApi } from '../lib/api';
+import { clearViews, readView, writeView } from '../lib/instantView';
 import {
   clearTokens,
   forgetDevice,
@@ -31,33 +32,49 @@ function statusAfterUser(user) {
   return isIdentityComplete(user) ? 'authenticated' : 'needsIdentity';
 }
 
+function cachedMe() {
+  const me = readView('me');
+  return me && typeof me === 'object' && me.id ? me : null;
+}
+
 export function AuthProvider({ children }) {
+  const bootUser = cachedMe();
   const [session, setSession] = useState(() => loadSession());
-  const [status, setStatus] = useState(() => statusFromSession(loadSession()));
-  const [ready, setReady] = useState(false);
-  const [user, setUser] = useState(null);
+  const [status, setStatus] = useState(() =>
+    bootUser ? statusAfterUser(bootUser) : statusFromSession(loadSession()),
+  );
+  const [ready, setReady] = useState(Boolean(bootUser));
+  const [user, setUser] = useState(bootUser);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [pinSetupToken, setPinSetupToken] = useState(null);
   const [pinLength, setPinLength] = useState(4);
   const [phoneMasked, setPhoneMasked] = useState(null);
 
-  const refreshMe = useCallback(async () => {
-    const me = await userApi.me();
+  const commitUser = useCallback((me) => {
     setUser(me);
+    if (me) writeView('me', me);
     return me;
   }, []);
+
+  const refreshMe = useCallback(async () => {
+    const me = await userApi.me();
+    return commitUser(me);
+  }, [commitUser]);
 
   useEffect(() => {
     (async () => {
       try {
         const me = await refreshMe();
         setStatus(statusAfterUser(me));
-      } catch {
-        const next = loadSession();
-        setSession(next);
-        setStatus(statusFromSession(next));
-        setUser(null);
+      } catch (err) {
+        const authFail = err?.statusCode === 401 || err?.statusCode === 403;
+        if (authFail || !readView('me')) {
+          const next = loadSession();
+          setSession(next);
+          setStatus(statusFromSession(next));
+          setUser(null);
+        }
       } finally {
         setReady(true);
       }
@@ -133,12 +150,12 @@ export function AuthProvider({ children }) {
         setSession(next);
         setPinSetupToken(null);
         const me = await userApi.me().catch(() => normalizeUser(res.user));
-        setUser(me);
+        commitUser(me);
         setStatus(statusAfterUser(me));
         registerWebPush().catch(() => {});
         return true;
       }),
-    [pinSetupToken, run],
+    [commitUser, pinSetupToken, run],
   );
 
   const loginWithPin = useCallback(
@@ -156,12 +173,12 @@ export function AuthProvider({ children }) {
         });
         setSession(next);
         const me = await userApi.me().catch(() => normalizeUser(res.user));
-        setUser(me);
+        commitUser(me);
         setStatus(statusAfterUser(me));
         registerWebPush().catch(() => {});
         return true;
       }),
-    [run],
+    [commitUser, run],
   );
 
   const completeIdentity = useCallback(
@@ -172,11 +189,11 @@ export function AuthProvider({ children }) {
           firstName: firstName.trim(),
           lastName: lastName.trim(),
         });
-        setUser(updated);
+        commitUser(updated);
         setStatus('authenticated');
         return updated;
       }),
-    [run, user?.id],
+    [commitUser, run, user?.id],
   );
 
   const logout = useCallback(async () => {
@@ -187,6 +204,7 @@ export function AuthProvider({ children }) {
       /* ignore */
     }
     const next = clearTokens();
+    clearViews();
     setSession(next);
     setUser(null);
     setPinSetupToken(null);
@@ -201,6 +219,7 @@ export function AuthProvider({ children }) {
       /* ignore */
     }
     forgetDevice();
+    clearViews();
     setSession(loadSession());
     setUser(null);
     setPinSetupToken(null);

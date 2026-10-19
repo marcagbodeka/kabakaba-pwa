@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import BottomNav from '../components/BottomNav';
 import { notificationsApi, vendorApi } from '../lib/api';
+import { readView, writeView } from '../lib/instantView';
 import OrdersPage from './OrdersPage';
 import WalletPage from './WalletPage';
 import StatsPage from './StatsPage';
@@ -63,8 +64,8 @@ function CapacityDialog({ current, onClose, onSave, busy }) {
 export default function Dashboard({ showSnack }) {
   const [tab, setTab] = useState('orders');
   const [stack, setStack] = useState(null);
-  const [vendor, setVendor] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [vendor, setVendor] = useState(() => readView('vendor'));
+  const [loading, setLoading] = useState(() => !readView('vendor'));
   const [capacityOpen, setCapacityOpen] = useState(false);
   const [savingCapacity, setSavingCapacity] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
@@ -76,6 +77,7 @@ export default function Dashboard({ showSnack }) {
     try {
       const me = await vendorApi.me();
       setVendor(me);
+      writeView('vendor', me);
     } catch (e) {
       if (e?.statusCode !== 429) {
         showSnackRef.current?.(e.message || 'Profil vendeur indisponible');

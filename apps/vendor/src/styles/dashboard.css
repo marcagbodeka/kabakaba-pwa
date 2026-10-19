@@ -1754,6 +1754,43 @@
   margin-bottom: 6px;
 }
 
+.field-hint,
+.catalog-lead,
+.catalog-note {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.field-hint {
+  margin-top: 6px;
+}
+
+.kind-picks,
+.classify-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.kind-pick,
+.classify-actions button {
+  border: 1px solid var(--border-light);
+  background: var(--bg);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.kind-pick.on {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+}
+
 .vfield input,
 .vfield select {
   width: 100%;

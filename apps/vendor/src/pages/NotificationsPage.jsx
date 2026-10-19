@@ -2,19 +2,22 @@ import { useCallback, useEffect, useState } from 'react';
 import SubpageBar from '../components/SubpageBar';
 import { notificationsApi } from '../lib/api';
 import { formatDateTime } from '../lib/format';
+import { readView, writeView } from '../lib/instantView';
 
 export default function NotificationsPage({ onBack, showSnack }) {
-  const [items, setItems] = useState([]);
+  const [items, setItems] = useState(() => readView('notifications') || []);
   const [opened, setOpened] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !readView('notifications'));
 
   const load = useCallback(async () => {
-    setLoading(true);
+    if (!readView('notifications')) setLoading(true);
     try {
       const res = await notificationsApi.list();
-      setItems(res.data || []);
+      const rows = res.data || [];
+      setItems(rows);
+      writeView('notifications', rows);
     } catch (e) {
-      showSnack(e.message || 'Notifications indisponibles');
+      if (!readView('notifications')) showSnack(e.message || 'Notifications indisponibles');
     } finally {
       setLoading(false);
     }
@@ -30,7 +33,11 @@ export default function NotificationsPage({ onBack, showSnack }) {
       setOpened(full);
       if (!full.isRead) {
         await notificationsApi.markRead(n.id);
-        setItems((list) => list.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
+        setItems((list) => {
+          const next = list.map((x) => (x.id === n.id ? { ...x, isRead: true } : x));
+          writeView('notifications', next);
+          return next;
+        });
       }
     } catch (e) {
       showSnack(e.message || 'Notification indisponible');

@@ -9,6 +9,7 @@ import {
   userApi,
 } from '../lib/api';
 import { PhoneFormatter, formatTicketCount, formatTime, initialsFrom } from '../lib/format';
+import { readView, writeView } from '../lib/instantView';
 import { IconBack } from '../components/icons';
 
 function MiniIcon({ children }) {
@@ -63,10 +64,18 @@ export default function ProfilePage({ showSnack, initialPanel }) {
       setCampusName('');
       return;
     }
+    const cachedName = readView(`campus:${user.campusId}`);
+    if (typeof cachedName === 'string') setCampusName(cachedName);
     campusApi
       .get(user.campusId)
-      .then((c) => setCampusName(c?.name || ''))
-      .catch(() => setCampusName(''));
+      .then((c) => {
+        const name = c?.name || '';
+        setCampusName(name);
+        if (name) writeView(`campus:${user.campusId}`, name);
+      })
+      .catch(() => {
+        if (!cachedName) setCampusName('');
+      });
   }, [user?.campusId]);
 
   useEffect(() => {

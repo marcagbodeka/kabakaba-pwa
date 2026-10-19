@@ -195,8 +195,8 @@ export default function ProfilePage({
         </button>
         <button type="button" className="nav-row" onClick={onOpenCatalog} disabled={suspended}>
           <div>
-            <strong>Mon catalogue</strong>
-            <span>Stock, menus et options d’emporté</span>
+            <strong>Ma carte</strong>
+            <span>Plat de base, en plus, menus fixés</span>
           </div>
         </button>
         <button type="button" className="nav-row" onClick={onCapacityTap} disabled={suspended}>

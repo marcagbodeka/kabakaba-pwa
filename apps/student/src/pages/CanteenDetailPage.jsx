@@ -1,27 +1,38 @@
 import { useEffect, useMemo, useState } from 'react';
 import { catalogApi, vendorsApi } from '../lib/api';
 import { useCart } from '../context/CartContext';
-import { CAPACITY_LABEL, UNIT_LABEL, formatTicketCount } from '../lib/format';
+import { readView, writeView } from '../lib/instantView';
+import { groupPlate } from '../lib/plate';
+import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
 import { IconBack, IconPlus } from '../components/icons';
 
-function componentSections(components, categories) {
-  const byKey = new Map();
-  for (const c of components) {
-    const key = c.categoryId || '__none__';
-    if (!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key).push(c);
-  }
-  const sections = [];
-  for (const cat of categories) {
-    const items = byKey.get(cat.id);
-    if (items?.length) sections.push({ title: cat.name, items });
-  }
-  const loose = byKey.get('__none__');
-  if (loose?.length) sections.push({ title: 'Autres', items: loose });
-  if (!sections.length && components.length) {
-    sections.push({ title: 'Composants', items: components });
-  }
-  return sections;
+const MAX_PARTS = 12;
+
+function AmountStepper({ parts, min, price, onChange, disabled }) {
+  const total = parts * Number(price || 0);
+  return (
+    <div className="qty-stepper qty-stepper--amount">
+      <button
+        type="button"
+        className="qty-btn"
+        disabled={disabled || parts <= min}
+        onClick={() => onChange(Math.max(min, parts - 1))}
+        aria-label="Moins"
+      >
+        −
+      </button>
+      <strong>{parts === 0 ? 'Non' : formatTicketCount(total)}</strong>
+      <button
+        type="button"
+        className="qty-btn"
+        disabled={disabled || parts >= MAX_PARTS}
+        onClick={() => onChange(Math.min(MAX_PARTS, parts + 1))}
+        aria-label="Plus"
+      >
+        +
+      </button>
+    </div>
+  );
 }
 
 function acceptsOrders(vendor) {
@@ -31,19 +42,32 @@ function acceptsOrders(vendor) {
 
 export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSnack }) {
   const cart = useCart();
+  const cached = readView(`canteen:${vendorId}`);
   const [tab, setTab] = useState(0);
-  const [vendor, setVendor] = useState(null);
-  const [menus, setMenus] = useState([]);
-  const [components, setComponents] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [compQty, setCompQty] = useState({});
+  const [vendor, setVendor] = useState(cached?.vendor || null);
+  const [menus, setMenus] = useState(cached?.menus || []);
+  const [components, setComponents] = useState(cached?.components || []);
+  const [categories, setCategories] = useState(cached?.categories || []);
+  const [loading, setLoading] = useState(!cached?.vendor);
+  const [baseId, setBaseId] = useState(null);
+  const [baseParts, setBaseParts] = useState(1);
+  const [extraParts, setExtraParts] = useState({});
+  const [choiceId, setChoiceId] = useState(null);
 
   useEffect(() => {
     if (!vendorId) return undefined;
     let cancelled = false;
-    (async () => {
+    const known = readView(`canteen:${vendorId}`);
+    if (known?.vendor) {
+      setVendor(known.vendor);
+      setMenus(known.menus || []);
+      setComponents(known.components || []);
+      setCategories(known.categories || []);
+      setLoading(false);
+    } else {
       setLoading(true);
+    }
+    (async () => {
       try {
         const [v, m, c, cats] = await Promise.all([
           vendorsApi.get(vendorId),
@@ -52,12 +76,21 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           catalogApi.categories(vendorId),
         ]);
         if (cancelled) return;
-        setVendor(v);
-        setMenus(Array.isArray(m) ? m : []);
-        setComponents(Array.isArray(c) ? c : []);
-        setCategories(Array.isArray(cats) ? cats : []);
+        const next = {
+          vendor: v,
+          menus: Array.isArray(m) ? m : [],
+          components: Array.isArray(c) ? c : [],
+          categories: Array.isArray(cats) ? cats : [],
+        };
+        setVendor(next.vendor);
+        setMenus(next.menus);
+        setComponents(next.components);
+        setCategories(next.categories);
+        writeView(`canteen:${vendorId}`, next);
       } catch (e) {
-        if (!cancelled) showSnack?.(e.message || 'Impossible de charger la cantine');
+        if (!cancelled && !readView(`canteen:${vendorId}`)?.vendor) {
+          showSnack?.(e.message || 'Impossible de charger la cantine');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -67,16 +100,25 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
     };
   }, [vendorId, showSnack]);
 
-  const sections = useMemo(
-    () => componentSections(components, categories),
+  const plate = useMemo(
+    () => groupPlate(components, categories),
     [components, categories],
   );
+  const bases = plate.base;
+  const extras = plate.extra;
+  const choices = plate.choice;
+  const always = plate.always;
+  const openChoices = choices.filter((c) => c.available);
+  const openAlways = always.filter((c) => c.available);
+  const selectedBase = bases.find((c) => c.id === baseId && c.available) || null;
+  const selectedChoice = openChoices.find((c) => c.id === choiceId) || null;
 
-  const composeCount = Object.values(compQty).reduce((s, n) => s + (n || 0), 0);
-  const composeTotal = components.reduce(
-    (s, c) => s + Number(c.priceTickets || 0) * (compQty[c.id] || 0),
-    0,
-  );
+  useEffect(() => {
+    const openBases = bases.filter((c) => c.available);
+    const open = choices.filter((c) => c.available);
+    setBaseId((prev) => (prev && openBases.some((b) => b.id === prev) ? prev : openBases[0]?.id || null));
+    setChoiceId((prev) => (prev && open.some((c) => c.id === prev) ? prev : open[0]?.id || null));
+  }, [bases, choices]);
 
   const guardVendor = () => {
     if (!acceptsOrders(vendor)) {
@@ -108,25 +150,43 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
     showSnack?.(`${menu.name} ajouté`, 'success');
   };
 
-  const addComponents = () => {
+  const plateTickets = useMemo(() => {
+    if (!selectedBase) return 0;
+    let total = Number(selectedBase.priceTickets || 0) * baseParts;
+    for (const extra of extras) {
+      const parts = extraParts[extra.id] || 0;
+      if (parts > 0 && extra.available) total += Number(extra.priceTickets || 0) * parts;
+    }
+    if (selectedChoice) total += Number(selectedChoice.priceTickets || 0);
+    for (const item of openAlways) total += Number(item.priceTickets || 0);
+    return total;
+  }, [selectedBase, baseParts, extras, extraParts, selectedChoice, openAlways]);
+
+  const addPlate = () => {
     if (!guardVendor()) return;
-    const selected = components.filter((c) => (compQty[c.id] || 0) > 0 && c.available);
-    if (!selected.length) {
-      showSnack?.('Choisis au moins un composant');
+    if (!selectedBase) {
+      showSnack?.('Choisis d’abord le plat de base, par exemple le riz');
       return;
     }
-    for (const c of selected) {
+    const push = (item, quantity) => {
+      if (!item || quantity < 1) return;
       cart.add({
         vendorId,
         vendorName: vendor?.canteenName,
-        componentId: c.id,
-        name: c.name,
-        unitPrice: Number(c.priceTickets ?? 0),
-        quantity: compQty[c.id],
+        componentId: item.id,
+        name: item.name,
+        unitPrice: Number(item.priceTickets ?? 0),
+        quantity,
       });
+    };
+    push(selectedBase, baseParts);
+    for (const extra of extras) {
+      if (extra.available) push(extra, extraParts[extra.id] || 0);
     }
-    setCompQty({});
-    showSnack?.('Composition ajoutée au panier', 'success');
+    push(selectedChoice, 1);
+    for (const item of openAlways) push(item, 1);
+    setExtraParts({});
+    showSnack?.('Plat ajouté', 'success');
   };
 
   const cartHere = cart.vendorId === vendorId && cart.itemCount > 0;
@@ -164,16 +224,18 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         <div className="kicker kicker--muted">Cantine du campus</div>
         <div className="meta-chips">
           <span className="meta-chip">{CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}</span>
-          <span className="meta-chip">
-            {menus.length} menu{menus.length > 1 ? 's' : ''}
-          </span>
-          <span className="meta-chip">
-            {components.length} composant{components.length > 1 ? 's' : ''}
-          </span>
+          {bases.length ? (
+            <span className="meta-chip">Plat à composer</span>
+          ) : null}
+          {menus.length ? (
+            <span className="meta-chip">
+              {menus.length} menu{menus.length > 1 ? 's' : ''} fixé{menus.length > 1 ? 's' : ''}
+            </span>
+          ) : null}
         </div>
 
         <div className="light-tabs">
-          {['Menus', 'Composer', 'Avis'].map((label, i) => (
+          {['Mon plat', 'Menus fixés', 'Avis'].map((label, i) => (
             <button
               key={label}
               type="button"
@@ -185,8 +247,151 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           ))}
         </div>
 
-        {tab === 0
-          ? menus.map((menu) => {
+        {tab === 0 ? (
+          bases.length ? (
+            <>
+              <div className="hint-box">
+                Comme au comptoir : d’abord le plat de base, par exemple le riz. Ensuite, poisson, spaghetti ou gari, pour combien tu veux. La sauce ou l’huile, et le piment, viennent avec.
+              </div>
+
+              <div className="plate-block">
+                <div className="section-title">Nourriture de base</div>
+                <p className="plate-help">Obligatoire. Sans elle, la commande ne part pas.</p>
+                {bases.map((item) => {
+                  const picked = item.id === selectedBase?.id;
+                  const price = Number(item.priceTickets || 0);
+                  return (
+                    <div
+                      key={item.id}
+                      className={`menu-card${picked ? ' is-picked' : ''}${!item.available ? ' unavailable' : ''}`}
+                    >
+                      <div className="menu-card-head">
+                        <button
+                          type="button"
+                          className="plate-pick"
+                          disabled={!item.available}
+                          onClick={() => {
+                            setBaseId(item.id);
+                            setBaseParts(1);
+                          }}
+                        >
+                          <h3>{item.name}</h3>
+                          <p>
+                            {item.available
+                              ? `${formatTicketCount(price)} tickets la part`
+                              : 'Indisponible'}
+                          </p>
+                        </button>
+                        {picked ? (
+                          <AmountStepper
+                            parts={baseParts}
+                            min={1}
+                            price={price}
+                            onChange={setBaseParts}
+                          />
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {extras.length ? (
+                <div className="plate-block">
+                  <div className="section-title">En plus, pour combien ?</div>
+                  <p className="plate-help">Tu peux rester à zéro.</p>
+                  {extras.map((item) => {
+                    const parts = extraParts[item.id] || 0;
+                    const price = Number(item.priceTickets || 0);
+                    return (
+                      <div key={item.id} className={`menu-card${!item.available ? ' unavailable' : ''}`}>
+                        <div className="menu-card-head">
+                          <div>
+                            <h3>{item.name}</h3>
+                            <p>
+                              {item.available
+                                ? `${formatTicketCount(price)} tickets la part`
+                                : 'Indisponible'}
+                            </p>
+                          </div>
+                          <AmountStepper
+                            parts={parts}
+                            min={0}
+                            price={price}
+                            disabled={!item.available}
+                            onChange={(next) =>
+                              setExtraParts((q) => ({ ...q, [item.id]: next }))
+                            }
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {openChoices.length || openAlways.length ? (
+                <div className="plate-block">
+                  <div className="section-title">Servi avec le plat</div>
+                  {openChoices.length ? (
+                    <>
+                      <p className="plate-help">Choisis-en une.</p>
+                      {choices.map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          className={`menu-card plate-choice${item.id === selectedChoice?.id ? ' is-picked' : ''}${!item.available ? ' unavailable' : ''}`}
+                          disabled={!item.available}
+                          onClick={() => setChoiceId(item.id)}
+                        >
+                          <h3>{item.name}</h3>
+                          <p>{item.available ? 'Avec le plat' : 'Indisponible'}</p>
+                        </button>
+                      ))}
+                    </>
+                  ) : null}
+                  {openAlways.length ? (
+                    <p className="plate-included">
+                      Toujours mis : {openAlways.map((item) => item.name).join(', ')}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="compose-summary">
+                <div>
+                  <strong>{selectedBase ? selectedBase.name : 'Plat de base'}</strong>
+                  <span>{formatTicketCount(plateTickets)} tickets</span>
+                </div>
+                <button
+                  type="button"
+                  className="btn-fill"
+                  style={{ width: 'auto', padding: '0 16px', height: 40 }}
+                  disabled={!selectedBase}
+                  onClick={addPlate}
+                >
+                  Ajouter le plat
+                </button>
+              </div>
+            </>
+          ) : (
+            <div className="empty-state">
+              <h3>Pas de plat à composer</h3>
+              <p>
+                {menus.length
+                  ? 'Cette cantine propose des menus fixés. Tu les prends comme ils sont.'
+                  : 'La carte n’est pas encore publiée.'}
+              </p>
+            </div>
+          )
+        ) : null}
+
+        {tab === 1 ? (
+          <>
+            <div className="hint-box">
+              Ces menus sont fixés. Tu les commandes tels quels, sans rien changer.
+            </div>
+            {menus.map((menu) => {
               const missing = (menu.missingComponents || []).map((m) => m.name).filter(Boolean);
               return (
                 <div key={menu.id} className={`menu-card${!menu.available ? ' unavailable' : ''}`}>
@@ -208,7 +413,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                     </button>
                   </div>
                   <p>
-                    {(menu.lines || []).map((l) => l.name).join(' · ') || 'Menu pré-composé'}
+                    {(menu.lines || []).map((l) => l.name).join(' · ') || 'Menu fixé'}
                   </p>
                   {!menu.available && missing.length ? (
                     <p className="menu-missing">Manque : {missing.join(', ')}</p>
@@ -216,100 +421,13 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                   <div className="menu-card-price">{formatTicketCount(menu.priceTickets)} tickets</div>
                 </div>
               );
-            })
-          : null}
-
-        {tab === 0 && !menus.length ? (
-          <div className="empty-state">
-            <h3>Menu encore vide</h3>
-            <p>Compose ton repas avec les composants disponibles.</p>
-          </div>
-        ) : null}
-
-        {tab === 1 ? (
-          <>
-            <div className="hint-box">
-              Compose ton repas en choisissant les composants à la carte, puis ajoute-les au panier.
-            </div>
-            {sections.map((section) => (
-              <div key={section.title} style={{ marginBottom: 16 }}>
-                <div className="section-row" style={{ marginBottom: 8 }}>
-                  <div className="section-title" style={{ marginBottom: 0, fontSize: 15 }}>
-                    {section.title}
-                  </div>
-                  <span className="muted" style={{ fontSize: 11.5 }}>
-                    {section.items.length} option{section.items.length > 1 ? 's' : ''}
-                  </span>
-                </div>
-                {section.items.map((c) => (
-                  <div key={c.id} className={`menu-card${!c.available ? ' unavailable' : ''}`}>
-                    <div className="menu-card-head">
-                      <div>
-                        <h3>{c.name}</h3>
-                        <p style={{ marginTop: 4 }}>
-                          {c.available
-                            ? `${formatTicketCount(c.priceTickets)} tickets · ${UNIT_LABEL[c.unit] || c.unit}`
-                            : 'Indisponible'}
-                        </p>
-                      </div>
-                      <div className="qty-stepper">
-                        <button
-                          type="button"
-                          className="qty-btn"
-                          disabled={!c.available || !(compQty[c.id] > 0)}
-                          onClick={() =>
-                            setCompQty((q) => ({
-                              ...q,
-                              [c.id]: Math.max(0, (q[c.id] || 0) - 1),
-                            }))
-                          }
-                        >
-                          −
-                        </button>
-                        <strong>{compQty[c.id] || 0}</strong>
-                        <button
-                          type="button"
-                          className="qty-btn"
-                          disabled={!c.available}
-                          onClick={() =>
-                            setCompQty((q) => ({
-                              ...q,
-                              [c.id]: Math.min(50, (q[c.id] || 0) + 1),
-                            }))
-                          }
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))}
-            {!components.length ? (
+            })}
+            {!menus.length ? (
               <div className="empty-state">
-                <h3>Rien à composer</h3>
-                <p>Cette cantine n’a pas encore publié son stock.</p>
+                <h3>Aucun menu fixé</h3>
+                <p>Compose ton plat dans l’onglet « Mon plat ».</p>
               </div>
-            ) : (
-              <div className="compose-summary">
-                <div>
-                  <strong>
-                    {composeCount} article{composeCount > 1 ? 's' : ''}
-                  </strong>
-                  <span>{formatTicketCount(composeTotal)} tickets</span>
-                </div>
-                <button
-                  type="button"
-                  className="btn-fill"
-                  style={{ width: 'auto', padding: '0 16px', height: 40 }}
-                  disabled={!composeCount}
-                  onClick={addComponents}
-                >
-                  Ajouter au panier
-                </button>
-              </div>
-            )}
+            ) : null}
           </>
         ) : null}
 
@@ -338,7 +456,11 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         <div className="meta">
           <strong>Total</strong>
           <span>
-            {cartHere ? `${formatTicketCount(cart.subtotal)} tickets` : 'Choisis ton repas'}
+            {cartHere
+              ? `${formatTicketCount(cart.subtotal)} tickets`
+              : selectedBase && tab === 0
+                ? `${formatTicketCount(plateTickets)} tickets`
+                : 'Choisis ton plat'}
           </span>
         </div>
         <button
@@ -347,10 +469,11 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           style={{ width: 'auto', padding: '0 16px', height: 42 }}
           onClick={() => {
             if (cartHere) onOpenCart();
-            else setTab(1);
+            else if (tab === 0 && selectedBase) addPlate();
+            else setTab(0);
           }}
         >
-          {cartHere ? 'Voir le panier' : 'Composer'}
+          {cartHere ? 'Voir le panier' : selectedBase && tab === 0 ? 'Ajouter' : 'Mon plat'}
         </button>
       </div>
     </div>

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { campusApi, vendorsApi } from '../lib/api';
 import { IconBack } from '../components/icons';
+import { readView, writeView } from '../lib/instantView';
+import { warmCanteen } from '../lib/warmCanteen';
 
 function isOpen(v) {
   return String(v?.capacityStatus || '').toUpperCase() === 'OPEN';
@@ -17,7 +19,7 @@ function Poster({ vendor, onSelect }) {
       onClick={() => onSelect(vendor.id)}
     >
       {image ? (
-        <img src={image} alt="" />
+        <img src={image} alt="" decoding="async" />
       ) : (
         <div className="canteen-cover-fallback">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -38,19 +40,22 @@ function Poster({ vendor, onSelect }) {
 
 export default function CanteenListPage({ onBack, onSelect, showSnack }) {
   const { user } = useAuth();
-  const [vendors, setVendors] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [vendors, setVendors] = useState(() => readView('vendors') || []);
+  const [loading, setLoading] = useState(() => !readView('vendors'));
   const [query, setQuery] = useState('');
   const [openOnly, setOpenOnly] = useState(false);
   const [campusName, setCampusName] = useState('');
 
   const load = async () => {
-    setLoading(true);
+    if (!readView('vendors')) setLoading(true);
     try {
       const list = await vendorsApi.list();
-      setVendors(Array.isArray(list) ? list : []);
+      const rows = Array.isArray(list) ? list : [];
+      setVendors(rows);
+      writeView('vendors', rows);
+      rows.slice(0, 6).forEach((v) => warmCanteen(v.id));
     } catch (e) {
-      showSnack?.(e.message || 'Cantines indisponibles');
+      if (!readView('vendors')) showSnack?.(e.message || 'Cantines indisponibles');
     } finally {
       setLoading(false);
     }
@@ -65,10 +70,18 @@ export default function CanteenListPage({ onBack, onSelect, showSnack }) {
       setCampusName('');
       return;
     }
+    const cachedName = readView(`campus:${user.campusId}`);
+    if (typeof cachedName === 'string') setCampusName(cachedName);
     campusApi
       .get(user.campusId)
-      .then((c) => setCampusName(c?.name || ''))
-      .catch(() => setCampusName(''));
+      .then((c) => {
+        const name = c?.name || '';
+        setCampusName(name);
+        if (name) writeView(`campus:${user.campusId}`, name);
+      })
+      .catch(() => {
+        if (!cachedName) setCampusName('');
+      });
   }, [user?.campusId]);
 
   const filtered = useMemo(() => {

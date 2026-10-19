@@ -7,6 +7,7 @@ import {
   formatTime,
 } from '../lib/format';
 import { IconBack } from '../components/icons';
+import { readView, writeView } from '../lib/instantView';
 
 const ORDER_TABS = [
   { key: 'scheduled', label: 'Programmées' },
@@ -79,18 +80,21 @@ export default function OrdersPage({
   showSnack,
   onDetailOpenChange,
 }) {
-  const [orders, setOrders] = useState([]);
-  const [scheduled, setScheduled] = useState([]);
+  const cachedOrders = readView('orders');
+  const [orders, setOrders] = useState(() => cachedOrders?.orders || []);
+  const [scheduled, setScheduled] = useState(() => cachedOrders?.scheduled || []);
   const [selected, setSelected] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedOrders);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState(0);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [reportType, setReportType] = useState('WRONG_MEAL');
   const [reportComment, setReportComment] = useState('');
-  const prevStatusRef = useRef({});
+  const prevStatusRef = useRef(
+    Object.fromEntries((cachedOrders?.orders || []).map((o) => [o.id, o.status])),
+  );
   const playedReadyRef = useRef(new Set());
 
   useEffect(() => {
@@ -99,10 +103,14 @@ export default function OrdersPage({
   }, [selected, selectedPlan, onDetailOpenChange]);
 
   const refresh = useCallback(async () => {
-    setLoading(true);
+    const known = readView('orders');
+    if (!known) setLoading(true);
+    let rows = known?.orders || [];
+    let ordersOk = false;
     try {
       const res = await ordersApi.list({ limit: 40 });
-      const rows = res.data || [];
+      rows = res.data || [];
+      ordersOk = true;
       for (const o of rows) {
         const prev = prevStatusRef.current[o.id];
         if (
@@ -124,14 +132,17 @@ export default function OrdersPage({
         }
       }
     } catch (e) {
-      showSnack(e.message || 'Historique indisponible');
+      if (!known) showSnack(e.message || 'Historique indisponible');
     }
+    let plans = known?.scheduled || [];
     try {
-      const plans = await scheduledOrdersApi.list({ limit: 20 });
-      setScheduled(plans.data || []);
+      const res = await scheduledOrdersApi.list({ limit: 20 });
+      plans = res.data || [];
+      setScheduled(plans);
     } catch {
-      setScheduled([]);
+      if (!known) setScheduled([]);
     } finally {
+      if (ordersOk) writeView('orders', { orders: rows, scheduled: plans });
       setLoading(false);
     }
   }, [focusOrderId, showSnack]);

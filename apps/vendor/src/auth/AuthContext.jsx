@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { registerWebPush, unregisterWebPush } from '../lib/push';
 import { markSessionAlive, vendorApi, vendorAuthApi } from '../lib/api';
+import { clearViews, readView, writeView } from '../lib/instantView';
 import {
   forgetDevice,
   loadSession,
@@ -23,10 +24,17 @@ function statusFromSession(session) {
   return 'needsLogin';
 }
 
+function canPaintShell() {
+  const session = loadSession();
+  return Boolean(readView('vendor') && session.phone && session.pinConfigured);
+}
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(() => loadSession());
-  const [status, setStatus] = useState('needsLogin');
-  const [ready, setReady] = useState(false);
+  const [status, setStatus] = useState(() =>
+    canPaintShell() ? 'authenticated' : 'needsLogin',
+  );
+  const [ready, setReady] = useState(canPaintShell);
   const [activationStep, setActivationStep] = useState('credentials');
   const [pinLength, setPinLength] = useState(4);
   const [phoneMasked, setPhoneMasked] = useState(null);
@@ -41,22 +49,19 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     (async () => {
       try {
-        await vendorApi.me();
+        const me = await vendorApi.me();
         markSessionAlive();
+        writeView('vendor', me);
         setStatus('authenticated');
       } catch (err) {
-        // Soft fail réseau / 429 : garder l’état local, ne pas forcer le login.
-        if (err?.statusCode === 429 || (err?.statusCode >= 500)) {
-          const next = loadSession();
-          setSession(next);
-          if (next.phone && next.pinConfigured) {
-            setStatus('authenticated');
-          } else {
-            setStatus(statusFromSession(next));
-          }
+        const next = loadSession();
+        setSession(next);
+        const authFail = err?.statusCode === 401 || err?.statusCode === 403;
+        const soft = err?.statusCode === 429 || err?.statusCode >= 500;
+        // Réseau lent ou coupé : garder la cantine déjà affichée.
+        if (!authFail && (soft || readView('vendor')) && next.phone && next.pinConfigured) {
+          setStatus('authenticated');
         } else {
-          const next = loadSession();
-          setSession(next);
           setStatus(statusFromSession(next));
         }
       } finally {
@@ -228,6 +233,7 @@ export function AuthProvider({ children }) {
       /* ignore */
     }
     forgetDevice();
+    clearViews();
     setSession(loadSession());
     setStatus('needsLogin');
     setActivationStep('credentials');
@@ -244,6 +250,7 @@ export function AuthProvider({ children }) {
       /* ignore */
     }
     const next = clearTokens();
+    clearViews();
     setSession(next);
     setStatus(statusFromSession(next));
     setPinLocked(false);

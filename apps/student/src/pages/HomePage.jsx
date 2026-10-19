@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { notificationsApi, vendorsApi } from '../lib/api';
 import { formatTicketCount, initialsFrom } from '../lib/format';
+import { readView, writeView } from '../lib/instantView';
+import { warmCanteen } from '../lib/warmCanteen';
 
 function IconSearch() {
   return (
@@ -98,19 +100,26 @@ function isVendorOpen(v) {
 
 export default function HomePage({ onNavigate, showSnack }) {
   const { user } = useAuth();
-  const [vendors, setVendors] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [unread, setUnread] = useState(0);
+  const [vendors, setVendors] = useState(() => readView('vendors') || []);
+  const [loading, setLoading] = useState(() => !readView('vendors'));
+  const [unread, setUnread] = useState(() => readView('unread') || 0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
+      if (!readView('vendors')) setLoading(true);
       try {
         const list = await vendorsApi.list();
-        if (!cancelled) setVendors(Array.isArray(list) ? list : []);
+        const rows = Array.isArray(list) ? list : [];
+        if (!cancelled) {
+          setVendors(rows);
+          writeView('vendors', rows);
+          rows.slice(0, 3).forEach((v) => warmCanteen(v.id));
+        }
       } catch (e) {
-        if (!cancelled) showSnack?.(e.message || 'Cantines indisponibles');
+        if (!cancelled && !readView('vendors')) {
+          showSnack?.(e.message || 'Cantines indisponibles');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -118,7 +127,10 @@ export default function HomePage({ onNavigate, showSnack }) {
     notificationsApi
       .list()
       .then((rows) => {
-        if (!cancelled) setUnread((rows || []).filter((n) => !n.isRead).length);
+        if (cancelled) return;
+        const count = (rows || []).filter((n) => !n.isRead).length;
+        setUnread(count);
+        writeView('unread', count);
       })
       .catch(() => {});
     return () => {
@@ -280,7 +292,7 @@ export default function HomePage({ onNavigate, showSnack }) {
                   onClick={() => onNavigate('canteen', { vendorId: v.id })}
                 >
                   {image ? (
-                    <img src={image} alt="" />
+                    <img src={image} alt="" decoding="async" />
                   ) : (
                     <div className="canteen-cover-fallback">
                       <IconRestaurant />
