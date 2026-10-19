@@ -170,8 +170,20 @@ export async function registerWebPush(options = {}) {
       try {
         if (sessionStorage.getItem(WELCOME_SENT_KEY) !== '1') {
           sessionStorage.setItem(WELCOME_SENT_KEY, '1');
-          await notificationsApi.welcome();
-          console.info('KABA_PUSH: bienvenue envoyée');
+          const res = await notificationsApi.welcome();
+          console.info('KABA_PUSH: bienvenue envoyée', res?.fcm);
+          // Secours local si FCM n’affiche rien (onglet focus / délai SW).
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification('Bienvenue sur kabakaba', {
+            body:
+              res?.hint?.includes('push') || res?.fcm?.successCount
+                ? 'Les alertes de commandes sont actives.'
+                : 'Notifications activées sur cet appareil.',
+            icon: '/pwa-192.png',
+            badge: '/pwa-192.png',
+            tag: 'WELCOME',
+            renotify: true,
+          });
         }
       } catch (err) {
         try {

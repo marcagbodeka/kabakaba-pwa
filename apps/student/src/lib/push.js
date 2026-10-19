@@ -167,8 +167,16 @@ export async function registerWebPush(options = {}) {
       try {
         if (sessionStorage.getItem(WELCOME_SENT_KEY) !== '1') {
           sessionStorage.setItem(WELCOME_SENT_KEY, '1');
-          await notificationsApi.welcome();
-          console.info('KABA_PUSH: bienvenue envoyée');
+          const res = await notificationsApi.welcome();
+          console.info('KABA_PUSH: bienvenue envoyée', res?.fcm);
+          const reg = await navigator.serviceWorker.ready;
+          await reg.showNotification('Bienvenue sur kabakaba', {
+            body: 'Content de te revoir. Bon appétit sur le campus !',
+            icon: '/pwa-192.png',
+            badge: '/pwa-192.png',
+            tag: 'WELCOME',
+            renotify: true,
+          });
         }
       } catch (err) {
         try {
