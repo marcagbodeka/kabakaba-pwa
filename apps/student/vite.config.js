@@ -1,12 +1,21 @@
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { versionedIconsPlugin } from '../../versionedIconsPlugin.js';
+
+const publicDir = resolve(dirname(fileURLToPath(import.meta.url)), 'public');
+const icons = versionedIconsPlugin(publicDir);
+const icon = icons.icon;
 
 export default defineConfig({
   plugins: [
     react(),
+    icons,
     VitePWA({
       registerType: 'autoUpdate',
+      includeManifestIcons: false,
       includeAssets: [
         'favicon-32.png',
         'apple-touch-icon.png',
@@ -26,10 +35,10 @@ export default defineConfig({
         scope: '/',
         lang: 'fr',
         icons: [
-          { src: 'pwa-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: icon('pwa-192.png'), sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: icon('pwa-512.png'), sizes: '512x512', type: 'image/png', purpose: 'any' },
           {
-            src: 'pwa-512-maskable.png',
+            src: icon('pwa-512-maskable.png'),
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable',
