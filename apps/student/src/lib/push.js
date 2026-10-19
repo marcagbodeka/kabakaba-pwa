@@ -35,6 +35,11 @@ export function getNotificationPermission() {
   return Notification.permission;
 }
 
+/** Texte d’aide quand le navigateur a déjà refusé (requestPermission ne repoppe plus). */
+export function getPushBlockedHelp() {
+  return 'Clique le cadenas à gauche de l’URL → Notifications → Autoriser, puis recharge la page.';
+}
+
 function playOrderCue(kind) {
   try {
     const urgent = kind === 'ORDER_READY' || kind === 'NEW_ORDER';

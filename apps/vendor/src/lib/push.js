@@ -35,6 +35,11 @@ export function getNotificationPermission() {
   return Notification.permission;
 }
 
+/** Texte d’aide quand le navigateur a déjà refusé (requestPermission ne repoppe plus). */
+export function getPushBlockedHelp() {
+  return 'Clique le cadenas à gauche de l’URL → Notifications → Autoriser, puis recharge la page.';
+}
+
 function playOrderCue(kind) {
   try {
     if (localStorage.getItem('kaba_vendor_order_sounds_muted') === '1') return;

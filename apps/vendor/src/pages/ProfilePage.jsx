@@ -5,6 +5,7 @@ import { mediaApi, vendorApi } from '../lib/api';
 import { CAPACITY_LABEL, initialsFrom } from '../lib/format';
 import {
   getNotificationPermission,
+  getPushBlockedHelp,
   isWebPushConfigured,
   registerWebPush,
   unregisterWebPush,
@@ -44,13 +45,40 @@ export default function ProfilePage({
   }, [vendor?.canteenName, vendor?.description]);
 
   useEffect(() => {
-    const perm = getNotificationPermission();
-    setPushPerm(perm);
-    if (perm === 'granted' && isWebPushConfigured()) {
-      registerWebPush()
-        .then((token) => setPushOn(Boolean(token) || perm === 'granted'))
-        .catch(() => setPushOn(perm === 'granted'));
+    const syncPerm = () => {
+      const perm = getNotificationPermission();
+      setPushPerm(perm);
+      if (perm === 'granted' && isWebPushConfigured()) {
+        registerWebPush()
+          .then((token) => setPushOn(Boolean(token) || perm === 'granted'))
+          .catch(() => setPushOn(true));
+      } else {
+        setPushOn(false);
+      }
+    };
+    syncPerm();
+    const onVis = () => {
+      if (document.visibilityState === 'visible') syncPerm();
+    };
+    window.addEventListener('focus', syncPerm);
+    document.addEventListener('visibilitychange', onVis);
+    let permStatus;
+    try {
+      navigator.permissions
+        ?.query({ name: 'notifications' })
+        .then((status) => {
+          permStatus = status;
+          status.onchange = syncPerm;
+        })
+        .catch(() => {});
+    } catch {
+      /* ignore */
     }
+    return () => {
+      window.removeEventListener('focus', syncPerm);
+      document.removeEventListener('visibilitychange', onVis);
+      if (permStatus) permStatus.onchange = null;
+    };
   }, []);
 
   const suspended = vendor?.isActive === false;
@@ -142,55 +170,63 @@ export default function ProfilePage({
             </p>
           </div>
         </div>
-        <label className="push-settings-toggle">
-          <span>{pushOn ? 'Activé' : 'Désactivé'}</span>
-          <input
-            type="checkbox"
-            checked={pushOn}
-            disabled={pushBusy || pushPerm === 'denied' || !isWebPushConfigured()}
-            onChange={async (e) => {
-              const wantOn = e.target.checked;
-              if (!wantOn) {
+        {pushPerm === 'denied' ? (
+          <button
+            type="button"
+            className="push-settings-unblock"
+            onClick={() => showSnack?.(getPushBlockedHelp())}
+          >
+            Comment débloquer
+          </button>
+        ) : (
+          <label className="push-settings-toggle">
+            <span>{pushOn ? 'Activé' : 'Désactivé'}</span>
+            <input
+              type="checkbox"
+              checked={pushOn}
+              disabled={pushBusy || !isWebPushConfigured()}
+              onChange={async (e) => {
+                const wantOn = e.target.checked;
+                if (!wantOn) {
+                  setPushBusy(true);
+                  try {
+                    await unregisterWebPush();
+                    setPushOn(false);
+                    setPushPerm(getNotificationPermission());
+                    showSnack?.('Push désactivé sur cet appareil');
+                  } finally {
+                    setPushBusy(false);
+                  }
+                  return;
+                }
                 setPushBusy(true);
                 try {
-                  await unregisterWebPush();
-                  setPushOn(false);
-                  setPushPerm(getNotificationPermission());
-                  showSnack?.('Push désactivé sur cet appareil');
+                  try {
+                    sessionStorage.removeItem('kabakaba_vendor_push_later');
+                  } catch {
+                    /* ignore */
+                  }
+                  const token = await registerWebPush({ forcePrompt: true });
+                  const perm = getNotificationPermission();
+                  setPushPerm(perm);
+                  if (token) {
+                    setPushOn(true);
+                    showSnack?.('Notifications activées');
+                  } else {
+                    setPushOn(false);
+                    if (perm === 'denied') {
+                      showSnack?.(getPushBlockedHelp());
+                    } else {
+                      showSnack?.('Accepte la popup du navigateur pour activer');
+                    }
+                  }
                 } finally {
                   setPushBusy(false);
                 }
-                return;
-              }
-              setPushBusy(true);
-              try {
-                try {
-                  sessionStorage.removeItem('kabakaba_vendor_push_later');
-                } catch {
-                  /* ignore */
-                }
-                const token = await registerWebPush({ forcePrompt: true });
-                const perm = getNotificationPermission();
-                setPushPerm(perm);
-                if (token) {
-                  setPushOn(true);
-                  showSnack?.('Notifications activées');
-                } else {
-                  setPushOn(false);
-                  if (perm === 'denied') {
-                    showSnack?.(
-                      'Notifications bloquées — autorise kabakaba dans le navigateur',
-                    );
-                  } else {
-                    showSnack?.('Accepte la popup du navigateur pour activer');
-                  }
-                }
-              } finally {
-                setPushBusy(false);
-              }
-            }}
-          />
-        </label>
+              }}
+            />
+          </label>
+        )}
       </div>
 
       <div className="profile-card">

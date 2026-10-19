@@ -467,3 +467,15 @@ a {
   flex-direction: column;
   gap: 8px;
 }
+
+.push-settings-unblock {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+}
