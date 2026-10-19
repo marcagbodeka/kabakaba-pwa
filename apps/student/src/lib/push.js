@@ -108,9 +108,11 @@ export async function registerWebPush() {
 
     registeredToken = token;
     await devicesApi.register(token);
+    console.info('KABA_PUSH: token enregistré', `${token.slice(0, 12)}…`);
     return token;
   } catch (err) {
     console.warn('KABA_PUSH: enregistrement ignoré', err);
+    registeredToken = null;
     return null;
   }
 }
