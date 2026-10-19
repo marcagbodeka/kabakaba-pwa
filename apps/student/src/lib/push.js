@@ -56,9 +56,10 @@ export function getPushBlockedHelp() {
 
 function playOrderCue(kind) {
   try {
-    const urgent = kind === 'ORDER_READY' || kind === 'NEW_ORDER';
+    const urgent =
+      kind === 'ORDER_READY' || kind === 'NEW_ORDER' || kind === 'ORDER_CANCELLED';
     const audio = new Audio('/sounds/order-ready.wav');
-    audio.volume = urgent ? 1 : 0.7;
+    audio.volume = urgent ? 1 : 0.65;
     void audio.play().catch(() => {});
   } catch {
     /* ignore */
