@@ -300,6 +300,17 @@ a {
   }
 }
 
+.push-prompt-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 12px;
+  border-radius: 18px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
 .install-logo {
   width: 88px;
   height: 88px;

@@ -13,6 +13,7 @@ import OrdersPage from './pages/OrdersPage';
 import WalletPage from './pages/WalletPage';
 import ProfilePage from './pages/ProfilePage';
 import InstallPrompt from './components/InstallPrompt';
+import NotificationPrompt from './components/NotificationPrompt';
 
 function Bootstrap() {
   return (
@@ -131,6 +132,7 @@ function Shell() {
         onClose={() => setToast(null)}
       />
       {screen}
+      <NotificationPrompt showSnack={showSnack} />
       {!hideNav ? (
         <BottomNav
           current={tab}

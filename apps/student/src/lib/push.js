@@ -26,6 +26,15 @@ function firebaseConfig() {
   return { apiKey, authDomain, projectId, messagingSenderId, appId };
 }
 
+export function isWebPushConfigured() {
+  return Boolean(firebaseConfig() && import.meta.env.VITE_FIREBASE_VAPID_KEY);
+}
+
+export function getNotificationPermission() {
+  if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
+  return Notification.permission;
+}
+
 function playOrderCue(kind) {
   try {
     const urgent = kind === 'ORDER_READY' || kind === 'NEW_ORDER';
@@ -78,21 +87,37 @@ async function bindForeground(messaging) {
   });
 }
 
-export async function registerWebPush() {
+/**
+ * @param {{ forcePrompt?: boolean }} [options]
+ * forcePrompt=true uniquement depuis un clic utilisateur (sinon Chrome ignore la popup).
+ */
+export async function registerWebPush(options = {}) {
   if (typeof window === 'undefined' || !('Notification' in window)) return null;
   const config = firebaseConfig();
   const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
-  if (!config || !vapidKey) return null;
+  if (!config || !vapidKey) {
+    console.warn('KABA_PUSH: config Firebase / VAPID manquante au build');
+    return null;
+  }
 
   try {
     const { initializeApp, getApps } = await import('firebase/app');
     const { getMessaging, getToken, isSupported } = await import('firebase/messaging');
-    if (!(await isSupported())) return null;
+    if (!(await isSupported())) {
+      console.warn('KABA_PUSH: messaging non supporté sur ce navigateur');
+      return null;
+    }
 
     if (Notification.permission === 'default') {
+      // Sans geste utilisateur, beaucoup de navigateurs n’affichent plus la popup.
+      if (!options.forcePrompt) {
+        console.info('KABA_PUSH: permission default — attendre un clic « Autoriser »');
+        return null;
+      }
       const perm = await Notification.requestPermission();
       if (perm !== 'granted') return null;
     } else if (Notification.permission !== 'granted') {
+      console.warn('KABA_PUSH: permission=', Notification.permission);
       return null;
     }
 
