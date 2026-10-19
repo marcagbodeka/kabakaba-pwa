@@ -154,6 +154,17 @@ export default function OrdersPage({
   }, [refresh]);
 
   useEffect(() => {
+    const onPush = (ev) => {
+      const kind = String(ev?.detail?.kind || '');
+      if (kind.startsWith('ORDER_') || kind === 'NEW_ORDER') {
+        refresh();
+      }
+    };
+    window.addEventListener('kabakaba:push', onPush);
+    return () => window.removeEventListener('kabakaba:push', onPush);
+  }, [refresh]);
+
+  useEffect(() => {
     if (!selected) return;
     const stored = readStoredReview(selected.id);
     setRating(stored?.rating || 5);

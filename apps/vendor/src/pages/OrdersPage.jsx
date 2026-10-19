@@ -424,6 +424,22 @@ export default function OrdersPage({
   }, [tab]);
 
   useEffect(() => {
+    const onPush = (ev) => {
+      const kind = String(ev?.detail?.kind || '');
+      if (
+        kind === 'NEW_ORDER' ||
+        kind === 'ORDER_RING' ||
+        kind === 'order_ring' ||
+        kind.startsWith('ORDER_')
+      ) {
+        loadLiveRef.current({ silent: true });
+      }
+    };
+    window.addEventListener('kabakaba:push', onPush);
+    return () => window.removeEventListener('kabakaba:push', onPush);
+  }, []);
+
+  useEffect(() => {
     const tick = () => {
       if (document.visibilityState !== 'visible') return;
       loadLiveRef.current({ silent: true });

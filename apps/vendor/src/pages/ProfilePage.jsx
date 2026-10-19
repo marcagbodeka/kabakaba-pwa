@@ -164,6 +164,11 @@ export default function ProfilePage({
               }
               setPushBusy(true);
               try {
+                try {
+                  sessionStorage.removeItem('kabakaba_vendor_push_later');
+                } catch {
+                  /* ignore */
+                }
                 const token = await registerWebPush({ forcePrompt: true });
                 const perm = getNotificationPermission();
                 setPushPerm(perm);

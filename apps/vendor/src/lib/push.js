@@ -12,6 +12,7 @@
 import { devicesApi } from './api';
 
 let registeredToken = null;
+let foregroundBound = false;
 
 function firebaseConfig() {
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
@@ -32,6 +33,64 @@ export function isWebPushConfigured() {
 export function getNotificationPermission() {
   if (typeof window === 'undefined' || !('Notification' in window)) return 'unsupported';
   return Notification.permission;
+}
+
+function playOrderCue(kind) {
+  try {
+    if (localStorage.getItem('kaba_vendor_order_sounds_muted') === '1') return;
+    const urgent = kind === 'NEW_ORDER' || kind === 'ORDER_RING' || kind === 'order_ring';
+    const audio = new Audio('/sounds/new-order.wav');
+    audio.volume = urgent ? 1 : 0.75;
+    void audio.play().catch(() => {});
+  } catch {
+    /* ignore */
+  }
+}
+
+function showLocalNotification(title, body, kind) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+    return;
+  }
+  try {
+    const n = new Notification(title, {
+      body,
+      icon: '/pwa-192.png',
+      badge: '/pwa-192.png',
+      tag: kind || 'kabakaba-vendor',
+      renotify: true,
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  } catch {
+    /* ignore */
+  }
+}
+
+async function bindForeground(messaging) {
+  if (foregroundBound) return;
+  foregroundBound = true;
+  const { onMessage } = await import('firebase/messaging');
+  onMessage(messaging, (payload) => {
+    const data = payload?.data || {};
+    const title = payload?.notification?.title || data.title;
+    const body = payload?.notification?.body || data.body;
+    const kind = data.kind || data.channel || '';
+    if (!title && !body) return;
+    if (
+      kind === 'NEW_ORDER' ||
+      kind === 'ORDER_RING' ||
+      kind === 'order_ring' ||
+      String(kind).startsWith('ORDER_')
+    ) {
+      playOrderCue(kind);
+    }
+    showLocalNotification(title || 'Nouvelle commande', body || '', kind);
+    window.dispatchEvent(
+      new CustomEvent('kabakaba:push', { detail: { kind, title, body, data } }),
+    );
+  });
 }
 
 /**
@@ -69,6 +128,7 @@ export async function registerWebPush(options = {}) {
 
     const app = getApps().length ? getApps()[0] : initializeApp(config);
     const messaging = getMessaging(app);
+    await bindForeground(messaging);
     const registration = await navigator.serviceWorker.ready;
     const token = await getToken(messaging, {
       vapidKey,

@@ -46,6 +46,8 @@ export default defineConfig({
         ],
       },
       workbox: {
+        // Branche FCM sur le SW VitePWA (notifications en arrière-plan).
+        importScripts: ['firebase-messaging-sw.js'],
         navigateFallback: '/index.html',
         runtimeCaching: [
           {
