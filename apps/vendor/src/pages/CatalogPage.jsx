@@ -392,34 +392,52 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   const vendorId = vendor?.id;
   const [tab, setTab] = useState('base');
   const cachedCatalog = readView('catalog');
-  const [components, setComponents] = useState(() => cachedCatalog?.components || []);
-  const [categories, setCategories] = useState(() => cachedCatalog?.categories || []);
-  const [menus, setMenus] = useState(() => cachedCatalog?.menus || []);
-  const [options, setOptions] = useState(() => cachedCatalog?.options || []);
+  const asList = (value) => (Array.isArray(value) ? value : []);
+  const [components, setComponents] = useState(() => asList(cachedCatalog?.components));
+  const [categories, setCategories] = useState(() => asList(cachedCatalog?.categories));
+  const [menus, setMenus] = useState(() => asList(cachedCatalog?.menus));
+  const [options, setOptions] = useState(() => asList(cachedCatalog?.options));
   const [loading, setLoading] = useState(!cachedCatalog);
   const [busy, setBusy] = useState(false);
   const [sheet, setSheet] = useState(null);
+  const [loadError, setLoadError] = useState('');
 
   const reload = useCallback(async () => {
-    if (!vendorId) return;
-    if (!readView('catalog')) setLoading(true);
-    try {
-      const [c, cats, m, t] = await Promise.all([
-        componentsApi.manage(vendorId),
-        categoriesApi.list(vendorId),
-        menusApi.manage(vendorId),
-        takeawayApi.manage(vendorId),
-      ]);
-      setComponents(c);
-      setCategories(cats);
-      setMenus(m);
-      setOptions(t);
-      writeView('catalog', { components: c, categories: cats, menus: m, options: t });
-    } catch (e) {
-      if (!readView('catalog')) showSnack(e.message || 'Carte indisponible');
-    } finally {
+    if (!vendorId) {
       setLoading(false);
+      setLoadError('Profil cantine introuvable. Reviens en arrière puis rouvre Ma carte.');
+      return;
     }
+    if (!readView('catalog')) setLoading(true);
+    const settled = await Promise.allSettled([
+      componentsApi.manage(vendorId),
+      categoriesApi.list(vendorId),
+      menusApi.manage(vendorId),
+      takeawayApi.manage(vendorId),
+    ]);
+    const [c, cats, m, t] = settled;
+    const failed = settled.filter((result) => result.status === 'rejected');
+    if (c.status === 'fulfilled') setComponents(Array.isArray(c.value) ? c.value : []);
+    if (cats.status === 'fulfilled') setCategories(Array.isArray(cats.value) ? cats.value : []);
+    if (m.status === 'fulfilled') setMenus(Array.isArray(m.value) ? m.value : []);
+    if (t.status === 'fulfilled') setOptions(Array.isArray(t.value) ? t.value : []);
+    if (!failed.length) {
+      setLoadError('');
+      writeView('catalog', {
+        components: c.status === 'fulfilled' && Array.isArray(c.value) ? c.value : [],
+        categories: cats.status === 'fulfilled' && Array.isArray(cats.value) ? cats.value : [],
+        menus: m.status === 'fulfilled' && Array.isArray(m.value) ? m.value : [],
+        options: t.status === 'fulfilled' && Array.isArray(t.value) ? t.value : [],
+      });
+    } else if (c.status === 'rejected' && cats.status === 'rejected') {
+      const reason = c.reason?.message || cats.reason?.message || 'Carte indisponible';
+      setLoadError(reason);
+      if (!readView('catalog')) showSnack(reason);
+    } else {
+      const reason = failed[0].reason?.message || 'Une partie de la carte n’a pas pu être chargée';
+      setLoadError(reason);
+    }
+    setLoading(false);
   }, [vendorId, showSnack]);
 
   useEffect(() => {
@@ -432,8 +450,12 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
 
   const grouped = useMemo(() => {
     const groups = { base: [], extra: [], choice: [], always: [], other: [] };
-    for (const component of components) {
-      groups[roleOfComponent(component, categories)].push(component);
+    const rows = Array.isArray(components) ? components : [];
+    const cats = Array.isArray(categories) ? categories : [];
+    for (const component of rows) {
+      if (!component) continue;
+      const role = roleOfComponent(component, cats);
+      (groups[role] || groups.other).push(component);
     }
     return groups;
   }, [components, categories]);
@@ -652,6 +674,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
         }
       />
 
+      <div className="catalog-scroll">
       <div className="section-tabs">
         {tabs.map((t) => (
           <button
@@ -664,6 +687,16 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           </button>
         ))}
       </div>
+
+      {loadError ? (
+        <div className="catalog-error">
+          <strong>La carte n’a pas pu être chargée</strong>
+          <p>{loadError}</p>
+          <button type="button" className="btn-action outline" onClick={reload}>
+            Réessayer
+          </button>
+        </div>
+      ) : null}
 
       {loading ? (
         <div style={{ display: 'grid', placeItems: 'center', padding: 48 }}>
@@ -800,6 +833,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           ) : null}
         </div>
       )}
+      </div>
 
       {addLabel ? (
         <div className="sticky-cta">

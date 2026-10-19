@@ -1627,11 +1627,40 @@
   flex-shrink: 0;
 }
 
+.catalog-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 0 16px var(--nav-clearance);
+}
+
 .catalog-list {
-  padding: 4px 16px 100px;
+  padding: 4px 0 24px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.catalog-error {
+  margin: 8px 0 12px;
+  padding: 14px;
+  border-radius: 16px;
+  background: var(--red-light);
+  color: var(--text-primary);
+}
+
+.catalog-error strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.catalog-error p {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-secondary);
 }
 
 .catalog-card {
