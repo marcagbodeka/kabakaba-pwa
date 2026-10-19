@@ -640,56 +640,31 @@ export default function ProfilePage({ showSnack, initialPanel }) {
       </div>
 
       <div className="sheet-body sheet-body--profile">
-        <div className="section-label">Informations personnelles</div>
-        <div className="settings-card">
-          <div className="field-row">
-            <span>Prénom(s)</span>
-            <strong>{user?.firstName?.trim() || '—'}</strong>
-          </div>
-          <div className="field-row">
-            <span>Nom</span>
-            <strong>{user?.lastName?.trim() || '—'}</strong>
-          </div>
-          <div className="field-row">
-            <span>Téléphone</span>
-            <strong className="locked">{phone}</strong>
-          </div>
-        </div>
-
-        <div className="section-label">Campus</div>
-        <div className="settings-card">
-          <button type="button" className="nav-row" onClick={() => showSnack?.('Campus géré sur dossier')}>
-            <MiniIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m12 3 9 5v2H3V8l9-5Z"/><path d="M5 10v7h14v-7"/><path d="M9 21v-4h6v4"/></svg>
-            </MiniIcon>
-            <span className="nav-row-body">
-              <strong>{campusName || 'Campus non défini'}</strong>
-              <span>Changer de campus sur dossier</span>
-            </span>
-            <span className="nav-row-chevron">›</span>
-          </button>
-        </div>
-
-        <div className="section-label">Notifications</div>
-        <div className="settings-card">
-          <label className="toggle-row">
-            <MiniIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-            </MiniIcon>
-            <span className="nav-row-body">
-              <strong>Recevoir les push</strong>
-              <span>
+        <div className="push-settings-card" id="push-settings">
+          <div className="push-settings-head">
+            <div className="push-settings-icon" aria-hidden>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </div>
+            <div>
+              <strong>Notifications push</strong>
+              <p>
                 {pushBusy
-                  ? 'Activation…'
+                  ? 'Activation en cours…'
                   : pushPerm === 'denied'
-                    ? 'Bloqué dans le navigateur (réglages du site)'
+                    ? 'Bloquées dans le navigateur — autorise kabakaba dans les réglages du site.'
                     : !isWebPushConfigured()
-                      ? 'Config Firebase manquante sur ce déploiement'
+                      ? 'Config Firebase manquante sur ce déploiement.'
                       : pushOn
-                        ? 'Activé — alertes commande sur cet appareil'
-                        : 'Active pour recevoir les alertes (commande prête…)'}
-              </span>
-            </span>
+                        ? 'Activées sur cet appareil.'
+                        : 'Active pour être alerté quand ta commande est prête.'}
+              </p>
+            </div>
+          </div>
+          <label className="push-settings-toggle">
+            <span>{pushOn ? 'Activé' : 'Désactivé'}</span>
             <input
               type="checkbox"
               checked={pushOn}
@@ -724,7 +699,9 @@ export default function ProfilePage({ showSnack, initialPanel }) {
                   } else {
                     setPushOn(false);
                     if (perm === 'denied') {
-                      showSnack?.('Notifications bloquées — autorise kabakaba dans le navigateur');
+                      showSnack?.(
+                        'Notifications bloquées — autorise kabakaba dans le navigateur',
+                      );
                     } else {
                       showSnack?.('Accepte la popup du navigateur pour activer');
                     }
@@ -735,6 +712,40 @@ export default function ProfilePage({ showSnack, initialPanel }) {
               }}
             />
           </label>
+        </div>
+
+        <div className="section-label">Informations personnelles</div>
+        <div className="settings-card">
+          <div className="field-row">
+            <span>Prénom(s)</span>
+            <strong>{user?.firstName?.trim() || '—'}</strong>
+          </div>
+          <div className="field-row">
+            <span>Nom</span>
+            <strong>{user?.lastName?.trim() || '—'}</strong>
+          </div>
+          <div className="field-row">
+            <span>Téléphone</span>
+            <strong className="locked">{phone}</strong>
+          </div>
+        </div>
+
+        <div className="section-label">Campus</div>
+        <div className="settings-card">
+          <button type="button" className="nav-row" onClick={() => showSnack?.('Campus géré sur dossier')}>
+            <MiniIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m12 3 9 5v2H3V8l9-5Z"/><path d="M5 10v7h14v-7"/><path d="M9 21v-4h6v4"/></svg>
+            </MiniIcon>
+            <span className="nav-row-body">
+              <strong>{campusName || 'Campus non défini'}</strong>
+              <span>Changer de campus sur dossier</span>
+            </span>
+            <span className="nav-row-chevron">›</span>
+          </button>
+        </div>
+
+        <div className="section-label">Préférences</div>
+        <div className="settings-card">
           <label className="toggle-row">
             <MiniIcon>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2h9l3 3v17H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
