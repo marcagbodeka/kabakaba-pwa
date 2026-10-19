@@ -1932,3 +1932,64 @@
 .notif-card {
   cursor: pointer;
 }
+
+/* Push settings (Profil) */
+.push-settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 0 18px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #1f2b5b 0%, #2a3d7a 100%);
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(31, 43, 91, 0.28);
+}
+
+.push-settings-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.push-settings-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.12);
+  flex-shrink: 0;
+}
+
+.push-settings-head strong {
+  display: block;
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 4px;
+}
+
+.push-settings-head p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.push-settings-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.push-settings-toggle input {
+  width: 46px;
+  height: 28px;
+  accent-color: #6ee7a8;
+}

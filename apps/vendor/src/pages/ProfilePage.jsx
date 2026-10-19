@@ -3,6 +3,12 @@ import VendorHeader from '../components/VendorHeader';
 import { useAuth } from '../auth/AuthContext';
 import { mediaApi, vendorApi } from '../lib/api';
 import { CAPACITY_LABEL, initialsFrom } from '../lib/format';
+import {
+  getNotificationPermission,
+  isWebPushConfigured,
+  registerWebPush,
+  unregisterWebPush,
+} from '../lib/push';
 
 const ORDER_SOUND_MUTE_KEY = 'kaba_vendor_order_sounds_muted';
 
@@ -28,11 +34,24 @@ export default function ProfilePage({
   const [soundMuted, setSoundMuted] = useState(
     () => localStorage.getItem(ORDER_SOUND_MUTE_KEY) === '1',
   );
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushPerm, setPushPerm] = useState(() => getNotificationPermission());
+  const [pushOn, setPushOn] = useState(() => getNotificationPermission() === 'granted');
 
   useEffect(() => {
     setCanteenName(vendor?.canteenName || '');
     setDescription(vendor?.description || '');
   }, [vendor?.canteenName, vendor?.description]);
+
+  useEffect(() => {
+    const perm = getNotificationPermission();
+    setPushPerm(perm);
+    if (perm === 'granted' && isWebPushConfigured()) {
+      registerWebPush()
+        .then((token) => setPushOn(Boolean(token) || perm === 'granted'))
+        .catch(() => setPushOn(perm === 'granted'));
+    }
+  }, []);
 
   const suspended = vendor?.isActive === false;
   const capacity = vendor?.capacityStatus || 'CLOSED';
@@ -99,6 +118,75 @@ export default function ProfilePage({
           </p>
         </div>
       ) : null}
+
+      <div className="push-settings-card" id="push-settings">
+        <div className="push-settings-head">
+          <div className="push-settings-icon" aria-hidden>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          </div>
+          <div>
+            <strong>Notifications push</strong>
+            <p>
+              {pushBusy
+                ? 'Activation en cours…'
+                : pushPerm === 'denied'
+                  ? 'Bloquées dans le navigateur — autorise kabakaba dans les réglages du site.'
+                  : !isWebPushConfigured()
+                    ? 'Config Firebase manquante sur ce déploiement.'
+                    : pushOn
+                      ? 'Activées sur cet appareil — alertes nouvelles commandes.'
+                      : 'Active pour recevoir les alertes de nouvelles commandes.'}
+            </p>
+          </div>
+        </div>
+        <label className="push-settings-toggle">
+          <span>{pushOn ? 'Activé' : 'Désactivé'}</span>
+          <input
+            type="checkbox"
+            checked={pushOn}
+            disabled={pushBusy || pushPerm === 'denied' || !isWebPushConfigured()}
+            onChange={async (e) => {
+              const wantOn = e.target.checked;
+              if (!wantOn) {
+                setPushBusy(true);
+                try {
+                  await unregisterWebPush();
+                  setPushOn(false);
+                  setPushPerm(getNotificationPermission());
+                  showSnack?.('Push désactivé sur cet appareil');
+                } finally {
+                  setPushBusy(false);
+                }
+                return;
+              }
+              setPushBusy(true);
+              try {
+                const token = await registerWebPush({ forcePrompt: true });
+                const perm = getNotificationPermission();
+                setPushPerm(perm);
+                if (token) {
+                  setPushOn(true);
+                  showSnack?.('Notifications activées');
+                } else {
+                  setPushOn(false);
+                  if (perm === 'denied') {
+                    showSnack?.(
+                      'Notifications bloquées — autorise kabakaba dans le navigateur',
+                    );
+                  } else {
+                    showSnack?.('Accepte la popup du navigateur pour activer');
+                  }
+                }
+              } finally {
+                setPushBusy(false);
+              }
+            }}
+          />
+        </label>
+      </div>
 
       <div className="profile-card">
         <div className="profile-banner">
