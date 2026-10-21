@@ -99,7 +99,7 @@ export default function CanteenListPage({ onBack, onSelect, showSnack }) {
   return (
     <div className="page page--flush">
       <div className="topbar">
-        <button type="button" className="icon-btn" onClick={onBack} aria-label="Retour">
+        <button type="button" className="soft-back" onClick={onBack} aria-label="Retour">
           <IconBack />
         </button>
         <h1>Cantines</h1>

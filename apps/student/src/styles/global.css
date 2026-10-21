@@ -234,6 +234,32 @@ a {
   font-weight: 700;
 }
 
+.soft-back {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #eef1f8;
+  color: #1b2a6b;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(27, 42, 107, 0.08);
+}
+
+.soft-back--on-dark {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow: none;
+}
+
+.soft-back--float {
+  background: rgba(255, 255, 255, 0.94);
+  color: #1b2a6b;
+  box-shadow: 0 8px 18px rgba(13, 20, 56, 0.14);
+}
+
 .icon-btn {
   width: 40px;
   height: 40px;

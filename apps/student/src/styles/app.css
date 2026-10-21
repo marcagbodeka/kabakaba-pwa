@@ -570,16 +570,8 @@
 .canteen-detail-back {
   position: absolute;
   top: calc(12px + env(safe-area-inset-top, 0px));
-  left: 14px;
+  left: 16px;
   z-index: 2;
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  display: grid;
-  place-items: center;
 }
 
 .canteen-detail-hero-meta {
@@ -1289,6 +1281,34 @@
 .tab.active {
   background: var(--primary);
   color: #fff;
+}
+
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note-card {
+  width: 100%;
+  text-align: left;
+  background: #fff;
+  border: none;
+  border-radius: 22px;
+  padding: 16px;
+  box-shadow: 0 10px 24px rgba(27, 42, 107, 0.07);
+}
+
+.note-card h3 {
+  font-size: 14.5px;
+  font-weight: 800;
+}
+
+.note-card p {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-secondary);
 }
 
 .list-pad {

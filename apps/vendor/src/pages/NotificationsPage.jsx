@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import SubpageBar from '../components/SubpageBar';
 import { notificationsApi } from '../lib/api';
-import { formatDateTime } from '../lib/format';
+import { dayOffset, formatDateTime } from '../lib/format';
 import { readView, writeView } from '../lib/instantView';
 
 export default function NotificationsPage({ onBack, showSnack }) {
   const [items, setItems] = useState(() => readView('notifications') || []);
   const [opened, setOpened] = useState(null);
+  const [day, setDay] = useState(0);
   const [loading, setLoading] = useState(() => !readView('notifications'));
+  const visible = useMemo(
+    () => items.filter((n) => dayOffset(n.createdAt) === day).slice(0, 20),
+    [items, day],
+  );
 
   const load = useCallback(async () => {
     if (!readView('notifications')) setLoading(true);
@@ -47,32 +52,45 @@ export default function NotificationsPage({ onBack, showSnack }) {
   return (
     <div className="dashboard-body">
       <SubpageBar title="Notifications" onBack={onBack} />
+      <div className="section-tabs">
+        {['Aujourd’hui', 'Hier'].map((label, i) => (
+          <button
+            key={label}
+            type="button"
+            className={`section-tab${day === i ? ' active' : ''}`}
+            onClick={() => setDay(i)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       {loading ? (
         <div style={{ display: 'grid', placeItems: 'center', padding: 48 }}>
           <div className="spinner" />
         </div>
       ) : (
-        <div className="catalog-list">
-          {!items.length ? (
+        <div className="catalog-list catalog-list--inset">
+          {!visible.length ? (
             <div className="empty-block">
-              <h3>Aucune notification</h3>
-              <p>Les alertes commandes et retraits apparaîtront ici.</p>
+              <h3>{day === 0 ? 'Rien aujourd’hui' : 'Rien hier'}</h3>
+              <p>Les alertes plus anciennes ne s’affichent plus.</p>
             </div>
           ) : (
-            items.map((n) => (
+            visible.map((n) => (
               <button
                 key={n.id}
                 type="button"
-                className={`catalog-card notif-card${!n.isRead ? ' unread' : ''}`}
+                className={`notif-card${!n.isRead ? ' unread' : ''}`}
                 onClick={() => open(n)}
               >
-                <div className="catalog-main">
-                  <strong>{n.title || 'Notification'}</strong>
-                  <span>
-                    {n.message || ''}
-                    {n.createdAt ? ` · ${formatDateTime(n.createdAt)}` : ''}
-                  </span>
-                </div>
+                <strong>{n.title || 'Notification'}</strong>
+                <span>
+                  {String(n.message || '').replace(
+                    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+                    '',
+                  )}
+                  {n.createdAt ? ` · ${formatDateTime(n.createdAt)}` : ''}
+                </span>
               </button>
             ))
           )}

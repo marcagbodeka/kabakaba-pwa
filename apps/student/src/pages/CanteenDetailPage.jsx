@@ -208,7 +208,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           <div className="canteen-detail-hero-fallback" />
         )}
         <div className="canteen-detail-hero-fade" />
-        <button type="button" className="canteen-detail-back" onClick={onBack} aria-label="Retour">
+        <button type="button" className="soft-back soft-back--float canteen-detail-back" onClick={onBack} aria-label="Retour">
           <IconBack />
         </button>
         <div className="canteen-detail-hero-meta">

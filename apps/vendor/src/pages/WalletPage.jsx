@@ -5,17 +5,17 @@ import { transactionsApi } from '../lib/api';
 import { readView, writeView } from '../lib/instantView';
 import {
   TX_CREDIT_TYPES,
-  TX_TYPE_LABEL,
+  dayOffset,
   formatDateTime,
   formatTickets,
+  txDisplayTitle,
+  txPublicCode,
 } from '../lib/format';
 
 function TxRow({ tx }) {
   const credit = TX_CREDIT_TYPES.has(tx.type);
-  const title =
-    (tx.description && String(tx.description).trim()) ||
-    TX_TYPE_LABEL[tx.type] ||
-    tx.type;
+  const title = txDisplayTitle(tx);
+  const code = txPublicCode(tx);
   const amount = Number(tx.amount ?? 0);
   return (
     <div className="wallet-tx-row">
@@ -24,9 +24,7 @@ function TxRow({ tx }) {
       </span>
       <div className="wallet-tx-body">
         <strong>{title}</strong>
-        <span>
-          {tx.reference || formatDateTime(tx.createdAt)}
-        </span>
+        <span>{code ? `Commande ${code}` : formatDateTime(tx.createdAt)}</span>
       </div>
       <div className={`wallet-tx-amount${credit ? ' in' : ''}`}>
         {credit ? '+' : '−'} {formatTickets(amount)}
@@ -119,7 +117,7 @@ export default function WalletPage({
 
           <div className="wallet-section">
             <div className="section-label-row">
-              <span>Mouvements récents</span>
+              <span>Aujourd’hui</span>
               <span className="section-label-line" />
             </div>
 
@@ -128,21 +126,24 @@ export default function WalletPage({
                 <div className="skeleton-card" style={{ height: 72 }} />
                 <div className="skeleton-card" style={{ height: 72 }} />
               </div>
-            ) : txs.length === 0 ? (
+            ) : txs.filter((tx) => dayOffset(tx.createdAt) === 0).length === 0 ? (
               <div className="wallet-tx-card wallet-tx-card--empty">
                 <div className="empty-nest">
                   <div className="empty-nest-inner">
                     <IconReceipt size={24} />
                   </div>
                 </div>
-                <h3>Aucune opération pour l&apos;instant</h3>
-                <p>L&apos;historique de tes mouvements apparaîtra ici.</p>
+                <h3>Rien aujourd’hui</h3>
+                <p>Les mouvements d’aujourd’hui apparaissent ici. Hier est dans l’historique.</p>
               </div>
             ) : (
               <div className="wallet-tx-card">
-                {txs.map((tx) => (
-                  <TxRow key={tx.id} tx={tx} />
-                ))}
+                {txs
+                  .filter((tx) => dayOffset(tx.createdAt) === 0)
+                  .slice(0, 6)
+                  .map((tx) => (
+                    <TxRow key={tx.id} tx={tx} />
+                  ))}
               </div>
             )}
           </div>

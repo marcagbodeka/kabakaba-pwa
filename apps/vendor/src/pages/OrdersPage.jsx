@@ -7,6 +7,7 @@ import { readView, writeView } from '../lib/instantView';
 import {
   ORDER_STATUS_LABEL,
   consumptionLabel,
+  dayOffset,
   formatTickets,
   formatTime,
   orderDisplayCode,
@@ -308,6 +309,7 @@ export default function OrdersPage({
   hasUnread,
 }) {
   const [tab, setTab] = useState('incoming');
+  const [historyDay, setHistoryDay] = useState(0);
   const cachedLive = readView('orders-live');
   const cachedHistory = readView('orders-history');
   const [ordersByBucket, setOrdersByBucket] = useState({
@@ -388,7 +390,10 @@ export default function OrdersPage({
         statuses: ORDER_BUCKETS.history.statuses,
         limit: 40,
       });
-      const data = res.data || [];
+      const data = (res.data || []).filter((order) => {
+        const offset = dayOffset(order.createdAt);
+        return offset === 0 || offset === 1;
+      });
       writeView('orders-history', data);
       setOrdersByBucket((prev) => ({ ...prev, history: data }));
       setCounts((prev) => ({
@@ -460,17 +465,21 @@ export default function OrdersPage({
     incoming: 'Dès qu’un étudiant commande, elle apparaît ici en direct.',
     preparing: 'Passe une commande confirmée en préparation pour la suivre ici.',
     ready: 'Les commandes prêtes à remettre s’affichent ici.',
-    history: 'Les commandes récupérées ou annulées se retrouvent ici.',
+    history: 'Seules les commandes du jour choisi restent visibles, 20 maximum.',
   };
 
   const emptyTitle = {
     incoming: 'En attente de commandes',
     preparing: 'Rien en préparation',
     ready: 'Rien à remettre',
-    history: 'Historique vide',
+    history: historyDay === 0 ? 'Rien aujourd’hui' : 'Rien hier',
   };
 
-  const orders = ordersByBucket[tab] || [];
+  const orders = (ordersByBucket[tab] || [])
+    .filter((order) =>
+      tab === 'history' ? dayOffset(order.createdAt) === historyDay : true,
+    )
+    .slice(0, tab === 'history' ? 20 : undefined);
   const liveTotal =
     (counts.incoming || 0) + (counts.preparing || 0) + (counts.ready || 0);
 
@@ -493,6 +502,21 @@ export default function OrdersPage({
 
       <div className="sheet-body sheet-body--orders">
         <SectionTabs tabs={tabs} selectedKey={tab} onSelect={setTab} />
+
+        {tab === 'history' ? (
+          <div className="section-tabs">
+            {['Aujourd’hui', 'Hier'].map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                className={`section-tab${historyDay === i ? ' active' : ''}`}
+                onClick={() => setHistoryDay(i)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         <div className="orders-list">
           {loading ? (

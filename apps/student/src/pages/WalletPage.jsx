@@ -17,6 +17,19 @@ import {
 const QUICK_TICKETS = [500, 1000, 2000, 5000, 9000];
 const MIN_TICKETS = 400;
 const MAX_TICKETS = 9500;
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const CODE_RE = /^[A-Z]-\d{2}$/i;
+
+function txCaption(item) {
+  const code = String(item.orderNumber || '').trim();
+  if (CODE_RE.test(code)) return `Commande ${code.toUpperCase()}`;
+  const desc = String(item.description || '')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  if (desc && !UUID_RE.test(desc) && desc.length <= 42) return desc;
+  return '';
+}
 
 export default function WalletPage({ showSnack }) {
   const { user, refreshMe } = useAuth();
@@ -28,6 +41,7 @@ export default function WalletPage({ showSnack }) {
   const [txs, setTxs] = useState(() => cachedWallet?.txs || []);
   const [payments, setPayments] = useState(() => cachedWallet?.payments || []);
   const [detail, setDetail] = useState(null);
+  const [day, setDay] = useState(0);
   const [loadingTx, setLoadingTx] = useState(!cachedWallet);
 
   /** Tickets souhaités (ex. 500 → paie 600 avec frais 100). */
@@ -155,6 +169,10 @@ export default function WalletPage({ showSnack }) {
         status: String(tx.status || 'COMPLETED').toUpperCase(),
         amount: Number(tx.amount ?? 0),
         description: tx.description,
+        orderNumber:
+          tx.orderNumber ||
+          tx.relatedOrder?.orderNumber ||
+          (/^[A-Z]-\d{2}$/i.test(String(tx.reference || '')) ? tx.reference : ''),
         credit: TX_CREDIT_TYPES.has(tx.type),
       });
     }
@@ -176,6 +194,21 @@ export default function WalletPage({ showSnack }) {
     items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     return items;
   }, [txs, payments]);
+
+  const dayItems = useMemo(() => {
+    const target = new Date();
+    if (day === 1) target.setDate(target.getDate() - 1);
+    return history
+      .filter((item) => {
+        const d = new Date(item.createdAt);
+        return (
+          d.getFullYear() === target.getFullYear() &&
+          d.getMonth() === target.getMonth() &&
+          d.getDate() === target.getDate()
+        );
+      })
+      .slice(0, 20);
+  }, [history, day]);
 
   useEffect(() => {
     const n = Number(ticketsWanted);
@@ -316,11 +349,12 @@ export default function WalletPage({ showSnack }) {
 
       <div className="sheet-body">
         {(() => {
-          const incoming = txs
-            .filter((tx) => TX_CREDIT_TYPES.has(tx.type) && String(tx.status).toUpperCase() === 'COMPLETED')
+          const dayTx = dayItems.filter((item) => item.kind === 'tx');
+          const incoming = dayTx
+            .filter((tx) => tx.credit && tx.status === 'COMPLETED')
             .reduce((s, tx) => s + Number(tx.amount || 0), 0);
-          const outgoing = txs
-            .filter((tx) => !TX_CREDIT_TYPES.has(tx.type) && String(tx.status).toUpperCase() === 'COMPLETED')
+          const outgoing = dayTx
+            .filter((tx) => !tx.credit && tx.status === 'COMPLETED')
             .reduce((s, tx) => s + Number(tx.amount || 0), 0);
           return (
             <div className="wallet-stats">
@@ -480,22 +514,35 @@ export default function WalletPage({ showSnack }) {
           <div>
             <div className="kicker kicker--muted">Mouvements</div>
             <div className="section-title" style={{ marginBottom: 0 }}>
-              Dernières transactions
+              {day === 0 ? 'Aujourd’hui' : 'Hier'}
             </div>
           </div>
+        </div>
+
+        <div className="light-tabs" style={{ marginBottom: 12 }}>
+          {['Aujourd’hui', 'Hier'].map((label, i) => (
+            <button
+              key={label}
+              type="button"
+              className={`light-tab${day === i ? ' active' : ''}`}
+              onClick={() => setDay(i)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {loadingTx ? (
           <div style={{ display: 'grid', placeItems: 'center', padding: 32 }}>
             <div className="spinner" />
           </div>
-        ) : history.length === 0 ? (
+        ) : dayItems.length === 0 ? (
           <div className="empty-state">
-            <h3>Aucun mouvement</h3>
-            <p>Tes recharges et paiements de commandes apparaîtront ici.</p>
+            <h3>{day === 0 ? 'Rien aujourd’hui' : 'Rien hier'}</h3>
+            <p>Les mouvements plus anciens ne s’affichent plus. 20 maximum par jour.</p>
           </div>
         ) : (
-          history.map((item) => {
+          dayItems.map((item) => {
             if (item.kind === 'payment') {
               const statusLabel =
                 PAYMENT_STATUS_LABEL[item.status] || item.status;
@@ -562,12 +609,7 @@ export default function WalletPage({ showSnack }) {
                   <h3>{TX_TYPE_LABEL[item.type] || item.type}</h3>
                   <p>
                     {formatTime(item.createdAt)}
-                    {item.description
-                      ? ` · ${String(item.description).replace(
-                          /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
-                          '',
-                        )}`
-                      : ''}
+                    {txCaption(item) ? ` · ${txCaption(item)}` : ''}
                     <span className={`tx-status tx-status--${statusMod}`}>
                       {statusLabel}
                     </span>
@@ -609,12 +651,7 @@ export default function WalletPage({ showSnack }) {
                     {detail.status
                       ? ` · ${TX_STATUS_LABEL[String(detail.status).toUpperCase()] || detail.status}`
                       : ''}
-                    {detail.description
-                      ? ` · ${String(detail.description).replace(
-                          /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
-                          '',
-                        )}`
-                      : ''}
+                    {txCaption(detail) ? ` · ${txCaption(detail)}` : ''}
                   </p>
                 </>
               )}

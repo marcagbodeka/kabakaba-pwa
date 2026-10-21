@@ -2,15 +2,18 @@ import { useCallback, useEffect, useState } from 'react';
 import SubpageBar from '../components/SubpageBar';
 import { transactionsApi, withdrawalsApi } from '../lib/api';
 import {
-  TX_TYPE_LABEL,
   WITHDRAWAL_STATUS_LABEL,
+  dayOffset,
   formatDateTime,
   formatTickets,
+  txDisplayTitle,
+  txPublicCode,
 } from '../lib/format';
 import { readView, writeView } from '../lib/instantView';
 
 export default function HistoryPage({ onBack, showSnack }) {
   const [tab, setTab] = useState('withdrawals');
+  const [day, setDay] = useState(0);
   const cachedHistory = readView('history');
   const [withdrawals, setWithdrawals] = useState(() => cachedHistory?.withdrawals || []);
   const [txs, setTxs] = useState(() => cachedHistory?.txs || []);
@@ -59,14 +62,27 @@ export default function HistoryPage({ onBack, showSnack }) {
         </button>
       </div>
 
+      <div className="section-tabs">
+        {['Aujourd’hui', 'Hier'].map((label, i) => (
+          <button
+            key={label}
+            type="button"
+            className={`section-tab${day === i ? ' active' : ''}`}
+            onClick={() => setDay(i)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {loading ? (
         <div style={{ display: 'grid', placeItems: 'center', padding: 48 }}>
           <div className="spinner" />
         </div>
       ) : (
-        <div className="catalog-list">
+        <div className="catalog-list catalog-list--inset">
           {tab === 'withdrawals'
-            ? withdrawals.map((w) => (
+            ? withdrawals.filter((w) => dayOffset(w.createdAt) === day).slice(0, 20).map((w) => (
                 <div key={w.id} className="catalog-card">
                   <div className="catalog-main">
                     <strong>{formatTickets(w.amount)}</strong>
@@ -80,7 +96,7 @@ export default function HistoryPage({ onBack, showSnack }) {
             : null}
 
           {tab === 'txs'
-            ? txs.map((tx) => (
+            ? txs.filter((tx) => dayOffset(tx.createdAt) === day).slice(0, 20).map((tx) => (
                 <button
                   key={tx.id}
                   type="button"
@@ -94,10 +110,10 @@ export default function HistoryPage({ onBack, showSnack }) {
                   }}
                 >
                   <div className="catalog-main">
-                    <strong>{TX_TYPE_LABEL[tx.type] || tx.type}</strong>
+                    <strong>{txDisplayTitle(tx)}</strong>
                     <span>
                       {formatDateTime(tx.createdAt)}
-                      {tx.description ? ` · ${tx.description}` : ''}
+                      {txPublicCode(tx) ? ` · Commande ${txPublicCode(tx)}` : ''}
                     </span>
                   </div>
                   <div className="price-tag">{formatTickets(tx.amount)}</div>
@@ -107,10 +123,10 @@ export default function HistoryPage({ onBack, showSnack }) {
           {txDetail && tab === 'txs' ? (
             <div className="catalog-card">
               <div className="catalog-main">
-                <strong>{TX_TYPE_LABEL[txDetail.type] || txDetail.type}</strong>
+                <strong>{txDisplayTitle(txDetail)}</strong>
                 <span>
                   {formatTickets(txDetail.amount)}
-                  {txDetail.description ? ` · ${txDetail.description}` : ''}
+                  {txPublicCode(txDetail) ? ` · Commande ${txPublicCode(txDetail)}` : ''}
                   {txDetail.createdAt ? ` · ${formatDateTime(txDetail.createdAt)}` : ''}
                 </span>
               </div>
@@ -120,13 +136,13 @@ export default function HistoryPage({ onBack, showSnack }) {
             </div>
           ) : null}
 
-          {tab === 'withdrawals' && !withdrawals.length ? (
+          {tab === 'withdrawals' && !withdrawals.filter((w) => dayOffset(w.createdAt) === day).length ? (
             <div className="empty-block">
               <h3>Aucun retrait</h3>
               <p>Tes demandes de retrait apparaîtront ici.</p>
             </div>
           ) : null}
-          {tab === 'txs' && !txs.length ? (
+          {tab === 'txs' && !txs.filter((tx) => dayOffset(tx.createdAt) === day).length ? (
             <div className="empty-block">
               <h3>Aucun mouvement</h3>
               <p>Les ventes et retraits s’affichent ici.</p>

@@ -82,6 +82,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
     };
   }, []);
   const [notes, setNotes] = useState([]);
+  const [noteDay, setNoteDay] = useState(0);
   const [note, setNote] = useState(null);
   const [reports, setReports] = useState([]);
   const [report, setReport] = useState(null);
@@ -324,7 +325,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
         <div className="topbar">
           <button
             type="button"
-            className="icon-btn"
+            className="soft-back"
             aria-label="Retour"
             onClick={() => {
               if (note) setNote(null);
@@ -406,27 +407,66 @@ export default function ProfilePage({ showSnack, initialPanel }) {
             </>
           ) : null}
 
-          {panel === 'notes' && !note
-            ? notes.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className="order-card"
-                  onClick={() => openNote(item)}
-                >
-                  <h3>{item.title || 'Notification'}</h3>
-                  <p>
-                    {item.message || ''}
-                    {item.createdAt ? ` · ${formatTime(item.createdAt)}` : ''}
-                  </p>
-                  {!item.isRead ? <span className="status">Non lue</span> : null}
-                </button>
-              ))
-            : null}
-          {panel === 'notes' && !note && !notes.length ? (
+          {panel === 'notes' && !note ? (
+            <>
+              <div className="light-tabs" style={{ marginBottom: 14 }}>
+                {['Aujourd’hui', 'Hier'].map((label, i) => (
+                  <button
+                    key={label}
+                    type="button"
+                    className={`light-tab${noteDay === i ? ' active' : ''}`}
+                    onClick={() => setNoteDay(i)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="note-list">
+                {notes
+                  .filter((item) => {
+                    const offset = (() => {
+                      const d = new Date(item.createdAt);
+                      if (Number.isNaN(d.getTime())) return null;
+                      const n = new Date();
+                      const start = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+                      const other = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+                      return Math.round((start - other) / 86400000);
+                    })();
+                    return offset === noteDay;
+                  })
+                  .slice(0, 20)
+                  .map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className="note-card"
+                      onClick={() => openNote(item)}
+                    >
+                      <h3>{item.title || 'Notification'}</h3>
+                      <p>
+                        {String(item.message || '').replace(
+                          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi,
+                          '',
+                        )}
+                        {item.createdAt ? ` · ${formatTime(item.createdAt)}` : ''}
+                      </p>
+                      {!item.isRead ? <span className="status">Non lue</span> : null}
+                    </button>
+                  ))}
+              </div>
+            </>
+          ) : null}
+          {panel === 'notes' && !note && !notes.filter((item) => {
+            const d = new Date(item.createdAt);
+            if (Number.isNaN(d.getTime())) return false;
+            const n = new Date();
+            const start = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+            const other = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+            return Math.round((start - other) / 86400000) === noteDay;
+          }).length ? (
             <div className="empty">
-              <h3>Aucune notification</h3>
-              <p>Les alertes de commande apparaîtront ici.</p>
+              <h3>{noteDay === 0 ? 'Rien aujourd’hui' : 'Rien hier'}</h3>
+              <p>Les alertes plus anciennes ne s’affichent plus.</p>
             </div>
           ) : null}
           {note ? (

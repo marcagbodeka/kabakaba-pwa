@@ -113,6 +113,35 @@ export const TX_CREDIT_TYPES = new Set([
   'REFERRAL_BONUS',
 ]);
 
+export function dayOffset(value) {
+  if (!value) return null;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const n = new Date();
+  const start = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const other = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((start - other) / 86400000);
+}
+
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const CODE_RE = /^[A-Z]-\d{2}$/i;
+
+export function txPublicCode(tx) {
+  const code = String(
+    tx?.orderNumber || tx?.relatedOrder?.orderNumber || tx?.reference || '',
+  ).trim();
+  return CODE_RE.test(code) ? code.toUpperCase() : '';
+}
+
+export function txDisplayTitle(tx) {
+  const cleaned = String(tx?.description || '')
+    .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  if (cleaned && !UUID_RE.test(cleaned)) return cleaned;
+  return TX_TYPE_LABEL[tx?.type] || 'Mouvement';
+}
+
 export function orderDisplayCode(order) {
   const code = String(order?.orderNumber || order?.activeOrderNumber || '').trim();
   if (/^[A-Z]-\d{2}$/i.test(code)) return code.toUpperCase();

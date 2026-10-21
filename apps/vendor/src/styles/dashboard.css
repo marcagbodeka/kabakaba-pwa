@@ -17,6 +17,10 @@
   overflow: hidden;
 }
 
+.dashboard-body > .section-tabs {
+  margin: 0 20px 12px;
+}
+
 /* —— Hero indigo (ADN étudiant, ops premium) —— */
 .vhero {
   position: relative;
@@ -237,6 +241,26 @@
 }
 
 /* Compat cercles actions (sous-pages) */
+.soft-back {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: #eef1f8;
+  color: #1b2a6b;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 2px rgba(27, 42, 107, 0.08);
+}
+
+.soft-back--on-dark {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  box-shadow: none;
+}
+
 .circle-action {
   width: 42px;
   height: 42px;
@@ -1643,6 +1667,11 @@
   gap: 10px;
 }
 
+.catalog-list--inset {
+  padding: 8px 20px 28px;
+  gap: 12px;
+}
+
 .catalog-error {
   margin: 8px 0 12px;
   padding: 14px;
@@ -1931,6 +1960,31 @@
 
 .notif-card {
   cursor: pointer;
+  width: 100%;
+  text-align: left;
+  border: none;
+  border-radius: 22px;
+  padding: 16px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(27, 42, 107, 0.07);
+}
+
+.notif-card.unread {
+  background: #f4f6ff;
+}
+
+.notif-card strong {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 800;
+}
+
+.notif-card span {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 
 /* Push settings (Profil) */

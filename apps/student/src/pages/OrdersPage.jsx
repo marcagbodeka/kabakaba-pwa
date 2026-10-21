@@ -62,16 +62,19 @@ function orderCode(order) {
   return '';
 }
 
-function isToday(value) {
-  if (!value) return false;
+function dayOffset(value) {
+  if (!value) return null;
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return false;
+  if (Number.isNaN(d.getTime())) return null;
   const n = new Date();
-  return (
-    d.getFullYear() === n.getFullYear() &&
-    d.getMonth() === n.getMonth() &&
-    d.getDate() === n.getDate()
-  );
+  const start = new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  const other = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  return Math.round((start - other) / 86400000);
+}
+
+function isRecent(value) {
+  const offset = dayOffset(value);
+  return offset === 0 || offset === 1;
 }
 
 const DONE_STATUSES = new Set(['RECEIVED', 'CANCELLED']);
@@ -107,6 +110,7 @@ export default function OrdersPage({
   const [loading, setLoading] = useState(!cachedOrders);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState(0);
+  const [historyDay, setHistoryDay] = useState(0);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
   const [reportType, setReportType] = useState('WRONG_MEAL');
@@ -130,7 +134,7 @@ export default function OrdersPage({
       const res = await ordersApi.list({ limit: 40 });
       const raw = res.data || [];
       const history = raw
-        .filter((o) => DONE_STATUSES.has(o.status) && isToday(o.createdAt))
+        .filter((o) => DONE_STATUSES.has(o.status) && isRecent(o.createdAt))
         .slice(0, 20);
       const live = raw.filter((o) => !DONE_STATUSES.has(o.status));
       rows = [...live, ...history];
@@ -166,7 +170,7 @@ export default function OrdersPage({
       const rawPlans = res.data || [];
       const pending = rawPlans.filter((p) => p.status === 'PENDING');
       const past = rawPlans
-        .filter((p) => p.status !== 'PENDING' && isToday(p.updatedAt || p.createdAt))
+        .filter((p) => p.status !== 'PENDING' && isRecent(p.updatedAt || p.createdAt))
         .slice(0, 20);
       plans = [...pending, ...past];
       setScheduled(plans);
@@ -329,7 +333,7 @@ export default function OrdersPage({
         <div className="topbar">
           <button
             type="button"
-            className="icon-btn"
+            className="soft-back"
             onClick={() => setSelectedPlan(null)}
             aria-label="Retour"
           >
@@ -459,7 +463,7 @@ export default function OrdersPage({
         <div className="topbar">
           <button
             type="button"
-            className="icon-btn"
+            className="soft-back"
             onClick={() => setSelected(null)}
             aria-label="Retour"
           >
@@ -623,9 +627,19 @@ export default function OrdersPage({
   const isScheduleTab = activeTab.key === 'scheduled';
   const filtered = isScheduleTab
     ? []
-    : orders.filter((o) => (activeTab.statuses || []).includes(o.status));
+    : orders
+        .filter((o) => (activeTab.statuses || []).includes(o.status))
+        .filter(
+          (o) =>
+            activeTab.key !== 'history' || dayOffset(o.createdAt) === historyDay,
+        )
+        .slice(0, 20);
   const pendingPlans = scheduled.filter((p) => p.status === 'PENDING');
-  const historyPlans = scheduled.filter((p) => p.status !== 'PENDING');
+  const historyPlans = scheduled.filter(
+    (p) =>
+      p.status !== 'PENDING' &&
+      dayOffset(p.updatedAt || p.createdAt) === historyDay,
+  );
   const pendingCount = pendingPlans.length;
 
   const renderPlanCard = (plan) => (
@@ -662,7 +676,7 @@ export default function OrdersPage({
         <div className="hero-top">
           <div>
             {!embedded ? (
-              <button type="button" className="hero-icon-btn" onClick={onBack} aria-label="Retour" style={{ marginBottom: 10 }}>
+              <button type="button" className="soft-back soft-back--on-dark" onClick={onBack} aria-label="Retour" style={{ marginBottom: 10 }}>
                 <IconBack />
               </button>
             ) : null}
@@ -688,6 +702,21 @@ export default function OrdersPage({
             </button>
           ))}
         </div>
+
+        {activeTab.key === 'history' ? (
+          <div className="light-tabs" style={{ marginTop: 10 }}>
+            {['Aujourd’hui', 'Hier'].map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                className={`light-tab${historyDay === i ? ' active' : ''}`}
+                onClick={() => setHistoryDay(i)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        ) : null}
 
         {loading ? (
           <div style={{ display: 'grid', placeItems: 'center', padding: 40 }}>
@@ -730,14 +759,16 @@ export default function OrdersPage({
                 ? 'Aucune commande confirmée'
                 : activeTab.key === 'active'
                   ? 'Rien en préparation'
-                  : 'Aucune commande passée'}
+                  : historyDay === 0
+                    ? 'Rien aujourd’hui'
+                    : 'Rien hier'}
             </h3>
             <p>
               {activeTab.key === 'confirmed'
                 ? 'Tes commandes confirmées apparaîtront ici.'
                 : activeTab.key === 'active'
                   ? 'Les commandes en préparation ou prêtes s’affichent ici.'
-                  : 'Tes commandes terminées et annulées apparaîtront ici.'}
+                  : 'Seules les commandes du jour choisi restent visibles, 20 maximum.'}
             </p>
           </div>
         ) : (
