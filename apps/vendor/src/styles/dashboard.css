@@ -2141,3 +2141,12 @@
     transform: translateY(0);
   }
 }
+
+.push-headsup-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #fff;
+}

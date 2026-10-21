@@ -8,7 +8,6 @@ import {
   getPushBlockedHelp,
   isWebPushConfigured,
   registerWebPush,
-  unregisterWebPush,
 } from '../lib/push';
 
 const ORDER_SOUND_MUTE_KEY = 'kaba_vendor_order_sounds_muted';
@@ -183,23 +182,12 @@ export default function ProfilePage({
             <span>{pushOn ? 'Activé' : 'Désactivé'}</span>
             <input
               type="checkbox"
-              checked={pushOn}
-              disabled={pushBusy || !isWebPushConfigured()}
+            checked={pushOn}
+            disabled={pushBusy || pushOn || !isWebPushConfigured()}
               onChange={async (e) => {
-                const wantOn = e.target.checked;
-                if (!wantOn) {
-                  setPushBusy(true);
-                  try {
-                    await unregisterWebPush();
-                    setPushOn(false);
-                    setPushPerm(getNotificationPermission());
-                    showSnack?.('Push désactivé sur cet appareil');
-                  } finally {
-                    setPushBusy(false);
-                  }
-                  return;
-                }
-                setPushBusy(true);
+              const wantOn = e.target.checked;
+              if (!wantOn) return;
+              setPushBusy(true);
                 try {
                   try {
                     sessionStorage.removeItem('kabakaba_vendor_push_later');

@@ -56,6 +56,26 @@ function storeReview(orderId, review) {
   localStorage.setItem(REVIEW_KEY, JSON.stringify(all));
 }
 
+function orderCode(order) {
+  const code = String(order?.orderNumber || order?.activeOrderNumber || '').trim();
+  if (/^[A-Z]-\d{2}$/i.test(code)) return code.toUpperCase();
+  return '';
+}
+
+function isToday(value) {
+  if (!value) return false;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return false;
+  const n = new Date();
+  return (
+    d.getFullYear() === n.getFullYear() &&
+    d.getMonth() === n.getMonth() &&
+    d.getDate() === n.getDate()
+  );
+}
+
+const DONE_STATUSES = new Set(['RECEIVED', 'CANCELLED']);
+
 function itemCount(items) {
   if (!Array.isArray(items)) return 0;
   return items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
@@ -64,8 +84,7 @@ function itemCount(items) {
 function planItemLabel(item) {
   if (item?.name) return item.name;
   if (item?.menuId) return 'Menu';
-  if (item?.componentId) return 'Composant';
-  return 'Article';
+  return 'Plat';
 }
 
 function playOrderReadySound() {
@@ -109,7 +128,12 @@ export default function OrdersPage({
     let ordersOk = false;
     try {
       const res = await ordersApi.list({ limit: 40 });
-      rows = res.data || [];
+      const raw = res.data || [];
+      const history = raw
+        .filter((o) => DONE_STATUSES.has(o.status) && isToday(o.createdAt))
+        .slice(0, 20);
+      const live = raw.filter((o) => !DONE_STATUSES.has(o.status));
+      rows = [...live, ...history];
       ordersOk = true;
       for (const o of rows) {
         const prev = prevStatusRef.current[o.id];
@@ -125,19 +149,26 @@ export default function OrdersPage({
         prevStatusRef.current[o.id] = o.status;
       }
       setOrders(rows);
-      if (focusOrderId) {
-        const found = rows.find((o) => o.id === focusOrderId);
-        if (found) {
-          setSelected((prev) => (prev?.id === found.id ? prev : found));
+      setSelected((prev) => {
+        if (!prev) {
+          if (!focusOrderId) return prev;
+          return rows.find((o) => o.id === focusOrderId) || prev;
         }
-      }
+        const found = rows.find((o) => o.id === prev.id);
+        return found ? { ...prev, ...found } : prev;
+      });
     } catch (e) {
       if (!known) showSnack(e.message || 'Historique indisponible');
     }
     let plans = known?.scheduled || [];
     try {
       const res = await scheduledOrdersApi.list({ limit: 20 });
-      plans = res.data || [];
+      const rawPlans = res.data || [];
+      const pending = rawPlans.filter((p) => p.status === 'PENDING');
+      const past = rawPlans
+        .filter((p) => p.status !== 'PENDING' && isToday(p.updatedAt || p.createdAt))
+        .slice(0, 20);
+      plans = [...pending, ...past];
       setScheduled(plans);
     } catch {
       if (!known) setScheduled([]);
@@ -163,6 +194,25 @@ export default function OrdersPage({
     window.addEventListener('kabakaba:push', onPush);
     return () => window.removeEventListener('kabakaba:push', onPush);
   }, [refresh]);
+
+  useEffect(() => {
+    if (!selected?.id) return undefined;
+    let stop = false;
+    const tick = async () => {
+      try {
+        const full = await ordersApi.get(selected.id);
+        if (stop || !full) return;
+        setSelected((prev) => (prev?.id === full.id ? { ...prev, ...full } : prev));
+      } catch {
+        /* garde l’écran actuel */
+      }
+    };
+    const t = setInterval(tick, 8000);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+  }, [selected?.id]);
 
   useEffect(() => {
     if (!selected) return;
@@ -272,7 +322,7 @@ export default function OrdersPage({
     const orderRef =
       linkedOrder?.orderNumber ||
       linkedOrder?.displayCode ||
-      (selectedPlan.orderId ? selectedPlan.orderId.slice(0, 8) : null);
+      orderCode(linkedOrder) || null;
 
     return (
       <div className="page page--flush">
@@ -400,7 +450,7 @@ export default function OrdersPage({
               ? 4
               : 0;
     const failed = selected.status === 'CANCELLED';
-    const code = selected.displayCode || selected.orderNumber || '—';
+    const code = orderCode(selected) || '—';
     const statusLabel =
       selected.status === 'READY' ? 'Prête à retirer' : ORDER_STATUS_LABEL[selected.status];
 
@@ -443,19 +493,34 @@ export default function OrdersPage({
             </div>
           </div>
 
+          {failed ? (
+            <div className="cancel-banner">
+              <strong>Commande annulée</strong>
+              <p>
+                {selected.cancellationReason?.trim()
+                  ? selected.cancellationReason.trim()
+                  : 'Aucun motif précisé.'}
+              </p>
+            </div>
+          ) : null}
+
           <div className="pickup-code-card">
-            <div className="kicker kicker--muted">Numéro de commande</div>
+            <div className="kicker kicker--muted">Ta commande</div>
             <strong>{code}</strong>
-            <p>Présente ce numéro au vendeur pour récupérer ta commande.</p>
+            <p>Donne ce numéro au comptoir.</p>
           </div>
 
-          <div className="section-label">Articles</div>
+          <div className="section-label">Ton repas</div>
           {(selected.items || []).map((item) => (
-            <div key={item.id || `${item.name}-${item.quantity}`} className="light-card cart-item-card">
-              <div className="cart-item-icon">·</div>
+            <div key={item.id || `${item.name}-${item.quantity}`} className="light-card meal-line">
+              <div className="meal-line-mark" aria-hidden>
+                {item.menuId ? 'Menu' : 'Plat'}
+              </div>
               <div className="cart-item-body">
                 <strong>{item.name}</strong>
-                <span>{item.quantity}x</span>
+                <span>
+                  {item.quantity} part{Number(item.quantity) > 1 ? 's' : ''}
+                </span>
               </div>
               <div className="price accent">
                 {formatTicketCount(Number(item.unitPrice ?? 0) * Number(item.quantity ?? 0))}
@@ -701,7 +766,7 @@ export default function OrdersPage({
                   </div>
                   <div style={{ flex: 1, textAlign: 'left' }}>
                     <h3>{order.vendor?.canteenName || 'Cantine'}</h3>
-                    <p>N° {order.displayCode || order.orderNumber || '—'}</p>
+                    <p>{orderCode(order) || 'Commande'}</p>
                   </div>
                   <span className={`status ${order.status}`}>
                     {ORDER_STATUS_LABEL[order.status]}
@@ -719,7 +784,7 @@ export default function OrdersPage({
                   </div>
                 ) : null}
                 <p className="order-card-total">
-                  {formatTime(order.createdAt)} · {itemCount(order.items)} article
+                  {formatTime(order.createdAt)} · {itemCount(order.items)} plat
                   {itemCount(order.items) > 1 ? 's' : ''} · {formatTicketCount(order.totalTickets)}{' '}
                   tickets ·{' '}
                   {order.consumptionMode === 'TAKEAWAY' ? 'À emporter' : 'Sur place'}

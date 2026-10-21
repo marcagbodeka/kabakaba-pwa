@@ -66,8 +66,7 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
       <SubpageBar title="Retirer" onBack={onBack} />
       <div className="page-pad">
         <p className="muted" style={{ marginBottom: 14 }}>
-          Solde disponible : <strong>{formatTickets(balance)}</strong>. Le montant
-          demandé est ce que tu veux recevoir ; les frais sont débités selon le barème.
+          Solde : <strong>{formatTickets(balance)}</strong>
         </p>
 
         <div className="chips" style={{ marginBottom: 14 }}>

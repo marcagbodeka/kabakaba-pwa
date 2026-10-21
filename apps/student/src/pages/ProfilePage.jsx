@@ -16,7 +16,6 @@ import {
   getPushBlockedHelp,
   isWebPushConfigured,
   registerWebPush,
-  unregisterWebPush,
 } from '../lib/push';
 
 function MiniIcon({ children }) {
@@ -705,21 +704,10 @@ export default function ProfilePage({ showSnack, initialPanel }) {
               <input
                 type="checkbox"
                 checked={pushOn}
-                disabled={pushBusy || !isWebPushConfigured()}
+                disabled={pushBusy || pushOn || !isWebPushConfigured()}
                 onChange={async (e) => {
                   const wantOn = e.target.checked;
-                  if (!wantOn) {
-                    setPushBusy(true);
-                    try {
-                      await unregisterWebPush();
-                      setPushOn(false);
-                      setPushPerm(getNotificationPermission());
-                      showSnack?.('Push désactivé sur cet appareil', 'success');
-                    } finally {
-                      setPushBusy(false);
-                    }
-                    return;
-                  }
+                  if (!wantOn) return;
                   setPushBusy(true);
                   try {
                     try {

@@ -440,14 +440,6 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     setLoading(false);
   }, [vendorId, showSnack]);
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
-  useEffect(() => {
-    if (tab === 'sort' && !grouped.other.length) setTab('base');
-  }, [tab, grouped.other.length]);
-
   const grouped = useMemo(() => {
     const groups = { base: [], extra: [], choice: [], always: [], other: [] };
     const rows = Array.isArray(components) ? components : [];
@@ -459,6 +451,14 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     }
     return groups;
   }, [components, categories]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  useEffect(() => {
+    if (tab === 'sort' && !grouped.other.length) setTab('base');
+  }, [tab, grouped.other.length]);
 
   const tabs = useMemo(() => {
     const list = [

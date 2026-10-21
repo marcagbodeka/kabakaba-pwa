@@ -66,7 +66,7 @@ export default function CartPage({
   const confirmClearCart = () => {
     if (!cart.lines.length) return;
     const ok = window.confirm(
-      'Vider tout le panier ? Tous les articles seront retirés.',
+      'Vider le panier ? Tous les plats seront retirés.',
     );
     if (!ok) return;
     cart.clear();
@@ -75,12 +75,12 @@ export default function CartPage({
 
   const checkout = async () => {
     if (!cart.lines.length) {
-      showSnack?.('Ajoute des articles au panier');
+      showSnack?.('Ajoute un plat au panier');
       return;
     }
     if (!canPay) {
       showSnack?.(
-        balance < total ? 'Solde insuffisant — recharge ton portefeuille' : 'Ajoute des articles au panier',
+        balance < total ? 'Solde insuffisant — recharge ton portefeuille' : 'Ajoute un plat au panier',
       );
       return;
     }
@@ -104,7 +104,7 @@ export default function CartPage({
 
   const schedule = async () => {
     if (!cart.lines.length) {
-      showSnack?.('Ajoute des articles au panier');
+      showSnack?.('Ajoute un plat au panier');
       return;
     }
     if (cart.consumptionMode === 'TAKEAWAY' && !cart.takeawayOptionId) {
@@ -198,7 +198,7 @@ export default function CartPage({
               <div style={{ flex: 1, textAlign: 'left' }}>
                 <strong>{cart.vendorName || 'Cantine'}</strong>
                 <p>
-                  {cart.itemCount} article{cart.itemCount > 1 ? 's' : ''}
+                  {cart.itemCount} plat{cart.itemCount > 1 ? 's' : ''}
                 </p>
               </div>
               {vendor ? (
@@ -211,12 +211,13 @@ export default function CartPage({
             {cart.lines.map((line) => {
               const key = cart.lineKey(line);
               return (
-                <div key={key} className="light-card cart-item-card">
-                  <div className="cart-item-icon">{line.menuId ? 'M' : 'C'}</div>
+                <div key={key} className="light-card meal-line">
+                  <div className="meal-line-mark" aria-hidden>
+                    {line.menuId ? 'Menu' : 'Plat'}
+                  </div>
                   <div className="cart-item-body">
                     <strong>{line.name}</strong>
-                    <span>{line.menuId ? 'Menu' : 'Composant'}</span>
-                    <em>{formatTicketCount(line.unitPrice)} tickets</em>
+                    <span>{formatTicketCount(line.unitPrice)} tickets / part</span>
                   </div>
                   <div className="qty-stepper">
                     <button type="button" className="qty-btn" onClick={() => cart.setQty(key, line.quantity - 1)}>

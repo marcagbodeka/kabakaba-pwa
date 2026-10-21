@@ -115,7 +115,8 @@ export const TX_CREDIT_TYPES = new Set([
 
 export function orderDisplayCode(order) {
   const code = String(order?.orderNumber || order?.activeOrderNumber || '').trim();
-  return code || '—';
+  if (/^[A-Z]-\d{2}$/i.test(code)) return code.toUpperCase();
+  return '—';
 }
 
 export const WITHDRAWAL_STATUS_LABEL = {

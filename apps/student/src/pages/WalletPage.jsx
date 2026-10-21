@@ -378,10 +378,7 @@ export default function WalletPage({ showSnack }) {
           </div>
         ) : null}
 
-        <p className="recharge-hint">
-          Indique uniquement le nombre de tickets à créditer. Les frais sont
-          calculés automatiquement.
-        </p>
+        <p className="recharge-hint">Tickets à recevoir. Les frais s’ajoutent au paiement.</p>
 
         <div className="mode-row mode-row--tickets" style={{ marginBottom: 14 }}>
           {QUICK_TICKETS.map((t) => (
@@ -565,7 +562,12 @@ export default function WalletPage({ showSnack }) {
                   <h3>{TX_TYPE_LABEL[item.type] || item.type}</h3>
                   <p>
                     {formatTime(item.createdAt)}
-                    {item.description ? ` · ${item.description}` : ''}
+                    {item.description
+                      ? ` · ${String(item.description).replace(
+                          /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+                          '',
+                        )}`
+                      : ''}
                     <span className={`tx-status tx-status--${statusMod}`}>
                       {statusLabel}
                     </span>
@@ -607,7 +609,12 @@ export default function WalletPage({ showSnack }) {
                     {detail.status
                       ? ` · ${TX_STATUS_LABEL[String(detail.status).toUpperCase()] || detail.status}`
                       : ''}
-                    {detail.description ? ` · ${detail.description}` : ''}
+                    {detail.description
+                      ? ` · ${String(detail.description).replace(
+                          /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi,
+                          '',
+                        )}`
+                      : ''}
                   </p>
                 </>
               )}
