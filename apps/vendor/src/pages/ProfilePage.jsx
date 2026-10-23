@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import VendorHeader from '../components/VendorHeader';
 import { useAuth } from '../auth/AuthContext';
+import { useConfirm } from '../components/ConfirmDialog';
 import { mediaApi, vendorApi } from '../lib/api';
 import { CAPACITY_LABEL, initialsFrom } from '../lib/format';
 import {
@@ -23,6 +24,7 @@ export default function ProfilePage({
   showSnack,
 }) {
   const auth = useAuth();
+  const confirm = useConfirm();
   const initials = initialsFrom(vendor?.canteenName);
   const logoRef = useRef(null);
   const bannerRef = useRef(null);
@@ -374,9 +376,13 @@ export default function ProfilePage({
           type="button"
           className="nav-row"
           onClick={async () => {
-            const ok = window.confirm(
-              'Tu quittes ce compte sur cet appareil. Tu pourras te reconnecter avec ton numéro et ton code PIN.',
-            );
+            const ok = await confirm({
+              title: 'Utiliser un autre compte',
+              message:
+                'Tu quittes ce compte sur cet appareil. Tu pourras te reconnecter avec ton numéro et ton code PIN.',
+              confirmLabel: 'Quitter',
+              danger: true,
+            });
             if (ok) await auth.forget();
           }}
         >

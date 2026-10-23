@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import SubpageBar from '../components/SubpageBar';
+import { useConfirm } from '../components/ConfirmDialog';
 import { IconPlus } from '../components/icons';
 import {
   categoriesApi,
@@ -403,6 +404,7 @@ function StockButtons({ item, onAdjust, onEdit }) {
 }
 
 export default function CatalogPage({ vendor, onBack, showSnack }) {
+  const confirm = useConfirm();
   const vendorId = vendor?.id;
   const [tab, setTab] = useState('base');
   const cachedCatalog = readView('catalog');
@@ -594,7 +596,12 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   };
 
   const removeComponent = async (item) => {
-    const ok = window.confirm(`Retirer « ${item.name} » de la carte ?`);
+    const ok = await confirm({
+      title: 'Retirer de la carte',
+      message: `« ${item.name} » ne sera plus proposé aux étudiants.`,
+      confirmLabel: 'Retirer',
+      danger: true,
+    });
     if (!ok) return;
     setBusy(true);
     try {
@@ -610,7 +617,12 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   };
 
   const removeMenu = async (item) => {
-    const ok = window.confirm(`Retirer le menu « ${item.name} » ?`);
+    const ok = await confirm({
+      title: 'Retirer le menu',
+      message: `Le menu « ${item.name} » disparaîtra de la carte.`,
+      confirmLabel: 'Retirer',
+      danger: true,
+    });
     if (!ok) return;
     setBusy(true);
     try {
@@ -626,7 +638,12 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   };
 
   const removeTakeaway = async (item) => {
-    const ok = window.confirm(`Retirer « ${item.name} » ?`);
+    const ok = await confirm({
+      title: 'Retirer l’option',
+      message: `« ${item.name} » ne sera plus proposée à emporter.`,
+      confirmLabel: 'Retirer',
+      danger: true,
+    });
     if (!ok) return;
     setBusy(true);
     try {

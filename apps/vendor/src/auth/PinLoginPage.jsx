@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
+import { useConfirm } from '../components/ConfirmDialog';
 import { PhoneFormatter } from '../lib/format';
 
 export default function PinLoginPage() {
   const auth = useAuth();
+  const confirm = useConfirm();
   const [pin, setPin] = useState('');
   const inputRef = useRef(null);
 
@@ -57,9 +59,13 @@ export default function PinLoginPage() {
         type="button"
         className="pin-link"
         onClick={async () => {
-          const ok = window.confirm(
-            'Tu quittes ce compte sur cet appareil. Tu pourras te reconnecter avec ton numéro et ton code PIN.',
-          );
+          const ok = await confirm({
+            title: 'Utiliser un autre compte',
+            message:
+              'Tu quittes ce compte sur cet appareil. Tu pourras te reconnecter avec ton numéro et ton code PIN.',
+            confirmLabel: 'Quitter',
+            danger: true,
+          });
           if (ok) await auth.forget();
         }}
       >

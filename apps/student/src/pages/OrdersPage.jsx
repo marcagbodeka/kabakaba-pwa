@@ -7,6 +7,7 @@ import {
   formatTime,
 } from '../lib/format';
 import { IconBack } from '../components/icons';
+import { useConfirm } from '../components/ConfirmDialog';
 import { readView, writeView } from '../lib/instantView';
 
 const ORDER_TABS = [
@@ -102,6 +103,7 @@ export default function OrdersPage({
   showSnack,
   onDetailOpenChange,
 }) {
+  const confirm = useConfirm();
   const cachedOrders = readView('orders');
   const [orders, setOrders] = useState(() => cachedOrders?.orders || []);
   const [scheduled, setScheduled] = useState(() => cachedOrders?.scheduled || []);
@@ -248,7 +250,12 @@ export default function OrdersPage({
 
   const cancel = async (order) => {
     if (order.status !== 'CONFIRMED') return;
-    const ok = window.confirm('Annuler cette commande ? Tes tickets seront remboursés.');
+    const ok = await confirm({
+      title: 'Annuler la commande',
+      message: 'Tes tickets seront remboursés.',
+      confirmLabel: 'Annuler la commande',
+      danger: true,
+    });
     if (!ok) return;
     setBusy(true);
     try {
@@ -265,7 +272,12 @@ export default function OrdersPage({
 
   const cancelPlan = async (plan) => {
     if (plan.status !== 'PENDING') return;
-    const ok = window.confirm('Annuler cette commande programmée ?');
+    const ok = await confirm({
+      title: 'Annuler la programmation',
+      message: 'Cette commande programmée ne sera pas envoyée.',
+      confirmLabel: 'Annuler',
+      danger: true,
+    });
     if (!ok) return;
     setBusy(true);
     try {

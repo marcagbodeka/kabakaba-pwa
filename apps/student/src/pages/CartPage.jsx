@@ -5,6 +5,7 @@ import { catalogApi, ordersApi, scheduledOrdersApi, vendorsApi } from '../lib/ap
 import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
 import { signalSoldAloneError, soldAloneViolation } from '../lib/plate';
 import { IconBack } from '../components/icons';
+import { useConfirm } from '../components/ConfirmDialog';
 
 export default function CartPage({
   onBack,
@@ -16,6 +17,7 @@ export default function CartPage({
 }) {
   const { user, refreshMe } = useAuth();
   const cart = useCart();
+  const confirm = useConfirm();
   const [options, setOptions] = useState([]);
   const [vendor, setVendor] = useState(null);
   const [paying, setPaying] = useState(false);
@@ -64,11 +66,14 @@ export default function CartPage({
     return body;
   };
 
-  const confirmClearCart = () => {
+  const confirmClearCart = async () => {
     if (!cart.lines.length) return;
-    const ok = window.confirm(
-      'Vider le panier ? Tous les plats seront retirés.',
-    );
+    const ok = await confirm({
+      title: 'Vider le panier',
+      message: 'Tous les plats seront retirés.',
+      confirmLabel: 'Vider',
+      danger: true,
+    });
     if (!ok) return;
     cart.clear();
     showSnack?.('Panier vidé', 'success');

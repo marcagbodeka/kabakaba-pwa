@@ -11,6 +11,7 @@ import {
 import { PhoneFormatter, formatTicketCount, formatTime, initialsFrom } from '../lib/format';
 import { readView, writeView } from '../lib/instantView';
 import { IconBack } from '../components/icons';
+import { useConfirm } from '../components/ConfirmDialog';
 import {
   getNotificationPermission,
   getPushBlockedHelp,
@@ -31,6 +32,7 @@ const REPORT_LABEL = {
 
 export default function ProfilePage({ showSnack, initialPanel }) {
   const { user, logout, forget, refreshMe } = useAuth();
+  const confirm = useConfirm();
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [panel, setPanel] = useState(initialPanel || 'home');
@@ -307,7 +309,13 @@ export default function ProfilePage({ showSnack, initialPanel }) {
   };
 
   const confirmLogout = async () => {
-    if (window.confirm('Te déconnecter de kabakaba ?')) await logout();
+    const ok = await confirm({
+      title: 'Se déconnecter',
+      message: 'Tu reviendras à l’écran PIN sur cet appareil.',
+      confirmLabel: 'Déconnecter',
+      danger: true,
+    });
+    if (ok) await logout();
   };
 
   if (panel !== 'home') {
@@ -899,9 +907,13 @@ export default function ProfilePage({ showSnack, initialPanel }) {
             type="button"
             className="nav-row"
             onClick={async () => {
-              const ok = window.confirm(
-                'Oublier ce téléphone ? Tu pourras te reconnecter avec ton numéro et ton code PIN, ou via SMS si tu l’as oublié.',
-              );
+              const ok = await confirm({
+                title: 'Utiliser un autre compte',
+                message:
+                  'Oublier ce téléphone ? Tu pourras te reconnecter avec ton numéro et ton code PIN, ou via SMS si tu l’as oublié.',
+                confirmLabel: 'Oublier',
+                danger: true,
+              });
               if (ok) await forget();
             }}
           >

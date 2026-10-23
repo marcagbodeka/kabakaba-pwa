@@ -15,6 +15,7 @@ import ProfilePage from './pages/ProfilePage';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPrompt from './components/NotificationPrompt';
 import PushHeadsUp from './components/PushHeadsUp';
+import { ConfirmProvider } from './components/ConfirmDialog';
 
 function Bootstrap() {
   return (
@@ -196,8 +197,10 @@ function Root() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Root />
-    </AuthProvider>
+    <ConfirmProvider>
+      <AuthProvider>
+        <Root />
+      </AuthProvider>
+    </ConfirmProvider>
   );
 }
