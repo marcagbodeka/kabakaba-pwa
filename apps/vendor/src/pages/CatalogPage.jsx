@@ -74,12 +74,16 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
   );
   const [quantity, setQty] = useState(String(initial?.quantity ?? '20'));
   const [isAvailable, setAvail] = useState(initial?.isAvailable !== false);
+  const [soldAlone, setSoldAlone] = useState(
+    typeof initial?.soldAlone === 'boolean' ? initial.soldAlone : kind === 'base',
+  );
   const included = kind === 'choice' || kind === 'always';
   const copy = included ? ROLE_COPY.with : ROLE_COPY[kind] || ROLE_COPY.base;
 
   const selectKind = (next) => {
     setKind(next);
     if (next === 'choice' || next === 'always') setPrice('0');
+    if (!initial) setSoldAlone(next === 'base');
   };
 
   return (
@@ -147,6 +151,15 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
           />
           <span>Proposé aujourd’hui</span>
         </label>
+        <label className="check-row">
+          <input
+            type="checkbox"
+            checked={soldAlone}
+            onChange={(e) => setSoldAlone(e.target.checked)}
+          />
+          <span>Peut se vendre seul</span>
+        </label>
+        <p className="field-hint">Décoche pour le piment, la sauce, le poisson…</p>
         <div className="sheet-actions">
           <button
             type="button"
@@ -159,6 +172,7 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
                 unit: 'PORTION',
                 priceTickets: included ? 0 : Number(priceTickets),
                 isAvailable,
+                soldAlone,
                 lowStockThreshold: initial?.lowStockThreshold ?? 5,
                 ...(initial ? {} : { quantity: Number(quantity || 0) }),
               })
@@ -497,6 +511,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
         unit: 'PORTION',
         priceTickets: body.priceTickets,
         isAvailable: body.isAvailable,
+        soldAlone: Boolean(body.soldAlone),
         categoryId,
         lowStockThreshold: body.lowStockThreshold ?? 5,
         ...(sheet?.item ? {} : { quantity: body.quantity }),
@@ -526,6 +541,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       await componentsApi.update(item.id, {
         categoryId,
         priceTickets: isIncludedRole(kind) ? 0 : Number(item.priceTickets || 0),
+        soldAlone: kind === 'base',
       });
       await reload();
       showSnack(`${item.name} rangé`);

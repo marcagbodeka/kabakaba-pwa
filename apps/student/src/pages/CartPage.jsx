@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { catalogApi, ordersApi, scheduledOrdersApi, vendorsApi } from '../lib/api';
 import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
+import { signalSoldAloneError, soldAloneViolation } from '../lib/plate';
 import { IconBack } from '../components/icons';
 
 export default function CartPage({
@@ -78,6 +79,11 @@ export default function CartPage({
       showSnack?.('Ajoute un plat au panier');
       return;
     }
+    const plateError = soldAloneViolation(cart.lines);
+    if (plateError) {
+      signalSoldAloneError(plateError, showSnack);
+      return;
+    }
     if (!canPay) {
       showSnack?.(
         balance < total ? 'Solde insuffisant — recharge ton portefeuille' : 'Ajoute un plat au panier',
@@ -114,6 +120,11 @@ export default function CartPage({
   const schedule = async () => {
     if (!cart.lines.length) {
       showSnack?.('Ajoute un plat au panier');
+      return;
+    }
+    const plateError = soldAloneViolation(cart.lines);
+    if (plateError) {
+      signalSoldAloneError(plateError, showSnack);
       return;
     }
     if (cart.consumptionMode === 'TAKEAWAY' && !cart.takeawayOptionId) {
@@ -216,6 +227,12 @@ export default function CartPage({
                 </span>
               ) : null}
             </button>
+
+            {soldAloneViolation(cart.lines) ? (
+              <div className="light-card" style={{ borderColor: 'var(--orange)', color: 'var(--orange)' }}>
+                {soldAloneViolation(cart.lines)}
+              </div>
+            ) : null}
 
             {cart.lines.map((line) => {
               const key = cart.lineKey(line);

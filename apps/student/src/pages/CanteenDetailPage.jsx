@@ -177,6 +177,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         name: item.name,
         unitPrice: Number(item.priceTickets ?? 0),
         quantity,
+        soldAlone: Boolean(item.soldAlone),
       });
     };
     push(selectedBase, baseParts);
