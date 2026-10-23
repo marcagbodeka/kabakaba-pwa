@@ -98,9 +98,11 @@ async function ensureCsrf(force = false) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401) dropSession();
+    if (res.status === 401 || res.status === 403) {
+      /* CSRF illisible : le refresh tranchera, on ne tue pas la session ici. */
+    }
     throw new ApiError(
-      extractMessage(data, 'Session expirée — reconnecte-toi'),
+      extractMessage(data, 'Impossible de relire la session'),
       res.status,
     );
   }
@@ -125,6 +127,15 @@ async function refreshAccessToken() {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = extractMessage(data, 'Session expirée');
+    // Throttle / panne serveur : ne pas tuer la session (sinon « expire vite »).
+    if (res.status === 429 || res.status >= 500) {
+      throw new ApiError(
+        res.status === 429
+          ? 'Trop de requêtes — réessaie dans un instant'
+          : msg || 'Serveur indisponible',
+        res.status,
+      );
+    }
     // Race de refresh concurrent : un autre appel a déjà tourné le cookie.
     // On retente une fois après un court délai au lieu de déconnecter.
     if (
@@ -149,7 +160,9 @@ async function refreshAccessToken() {
         /* fall through */
       }
     }
-    dropSession();
+    if (res.status === 401 || res.status === 403) {
+      dropSession();
+    }
     throw new ApiError(msg || 'Session expirée', res.status);
   }
   sessionDead = false;
@@ -317,8 +330,10 @@ export const campusApi = {
 };
 
 export const vendorsApi = {
-  list: async () => {
-    const rows = unwrapList(await api('/vendors?page=1&limit=100', { auth: false }));
+  list: async (campusId) => {
+    const q = new URLSearchParams({ page: '1', limit: '100' });
+    if (campusId) q.set('campusId', campusId);
+    const rows = unwrapList(await api(`/vendors?${q}`, { auth: false }));
     return rows.filter((v) => v.isActive !== false);
   },
   get: (id) => api(`/vendors/${id}`, { auth: false }),

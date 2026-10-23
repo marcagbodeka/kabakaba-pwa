@@ -112,9 +112,8 @@ async function ensureCsrf(force = false) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    if (res.status === 401) dropSession();
     throw new ApiError(
-      extractMessage(data, 'Session expirée — reconnecte-toi'),
+      extractMessage(data, 'Impossible de relire la session'),
       res.status,
     );
   }

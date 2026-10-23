@@ -88,6 +88,15 @@ export default function CartPage({
       showSnack?.('Choisis une option d’emporté');
       return;
     }
+    const status = String(vendor?.capacityStatus || '').toUpperCase();
+    if (status && status !== 'OPEN') {
+      showSnack?.(
+        status === 'BUSY'
+          ? 'Cantine occupée — programme plutôt ton repas.'
+          : 'Cette cantine n’accepte plus de commandes.',
+      );
+      return;
+    }
     setPaying(true);
     try {
       const order = await ordersApi.create(orderBody());
@@ -289,6 +298,14 @@ export default function CartPage({
               <div className="summary-row summary-row--total">
                 <span>Total</span>
                 <strong>{formatTicketCount(total)} tickets</strong>
+              </div>
+              <div className="summary-row">
+                <span>Solde actuel</span>
+                <strong>{formatTicketCount(balance)} tickets</strong>
+              </div>
+              <div className="summary-row">
+                <span>Il te restera</span>
+                <strong>{formatTicketCount(Math.max(0, balance - total))} tickets</strong>
               </div>
             </div>
 

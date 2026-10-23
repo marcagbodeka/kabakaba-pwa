@@ -11,6 +11,7 @@ import { markSessionAlive, vendorApi, vendorAuthApi } from '../lib/api';
 import { clearViews, readView, writeView } from '../lib/instantView';
 import {
   forgetDevice,
+  isPinSessionFresh,
   loadSession,
   saveSession,
   clearTokens,
@@ -52,6 +53,10 @@ export function AuthProvider({ children }) {
         const me = await vendorApi.me();
         markSessionAlive();
         writeView('vendor', me);
+        const current = loadSession();
+        if (current.pinConfigured && !current.pinVerifiedAt) {
+          setSession(saveSession({ pinVerifiedAt: Date.now() }));
+        }
         setStatus('authenticated');
       } catch (err) {
         const next = loadSession();
@@ -59,7 +64,13 @@ export function AuthProvider({ children }) {
         const authFail = err?.statusCode === 401 || err?.statusCode === 403;
         const soft = err?.statusCode === 429 || err?.statusCode >= 500;
         // Réseau lent ou coupé : garder la cantine déjà affichée.
-        if (!authFail && (soft || readView('vendor')) && next.phone && next.pinConfigured) {
+        if (
+          !authFail &&
+          (soft || readView('vendor')) &&
+          next.phone &&
+          next.pinConfigured &&
+          (isPinSessionFresh(next) || !next.pinVerifiedAt)
+        ) {
           setStatus('authenticated');
         } else {
           setStatus(statusFromSession(next));
@@ -178,6 +189,7 @@ export function AuthProvider({ children }) {
         const next = saveSession({
           phone: session.phone,
           pinConfigured: true,
+          pinVerifiedAt: Date.now(),
         });
         setSession(next);
         setStatus('authenticated');
@@ -209,7 +221,11 @@ export function AuthProvider({ children }) {
         }
         await vendorAuthApi.loginPin(phone, pin);
         markSessionAlive();
-        const next = saveSession({ phone, pinConfigured: true });
+        const next = saveSession({
+          phone,
+          pinConfigured: true,
+          pinVerifiedAt: Date.now(),
+        });
         setSession(next);
         setStatus('authenticated');
         setPinLocked(false);

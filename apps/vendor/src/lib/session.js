@@ -1,17 +1,26 @@
 const KEY = 'kabakaba.vendor.session';
+export const PIN_SESSION_MS = 7 * 24 * 60 * 60 * 1000;
 
 const empty = {
   phone: null,
   pinConfigured: false,
+  pinVerifiedAt: null,
 };
 
 function persist(session) {
   const next = {
     phone: session.phone ?? null,
     pinConfigured: Boolean(session.pinConfigured),
+    pinVerifiedAt: session.pinVerifiedAt ? Number(session.pinVerifiedAt) : null,
   };
   localStorage.setItem(KEY, JSON.stringify(next));
   return next;
+}
+
+export function isPinSessionFresh(session = loadSession()) {
+  const stamped = Number(session?.pinVerifiedAt);
+  if (!stamped) return false;
+  return Date.now() - stamped < PIN_SESSION_MS;
 }
 
 export function loadSession() {

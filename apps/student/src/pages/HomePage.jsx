@@ -94,8 +94,19 @@ function IconCrown() {
   );
 }
 
+function vendorCapacity(v) {
+  return String(v?.capacityStatus || 'CLOSED').toUpperCase();
+}
+
 function isVendorOpen(v) {
-  return String(v?.capacityStatus || '').toUpperCase() === 'OPEN';
+  return vendorCapacity(v) === 'OPEN';
+}
+
+function vendorCapacityLabel(v) {
+  const status = vendorCapacity(v);
+  if (status === 'OPEN') return 'Ouverte';
+  if (status === 'BUSY') return 'Occupée';
+  return 'Fermée';
 }
 
 export default function HomePage({ onNavigate, showSnack }) {
@@ -109,7 +120,7 @@ export default function HomePage({ onNavigate, showSnack }) {
     (async () => {
       if (!readView('vendors')) setLoading(true);
       try {
-        const list = await vendorsApi.list();
+        const list = await vendorsApi.list(user?.campusId);
         const rows = Array.isArray(list) ? list : [];
         if (!cancelled) {
           setVendors(rows);
@@ -136,7 +147,7 @@ export default function HomePage({ onNavigate, showSnack }) {
     return () => {
       cancelled = true;
     };
-  }, [showSnack]);
+  }, [showSnack, user?.campusId]);
 
   const firstName = user?.firstName || 'Étudiant';
   const balance = formatTicketCount(user?.walletBalance ?? 0);
@@ -300,7 +311,7 @@ export default function HomePage({ onNavigate, showSnack }) {
                   )}
                   <span className="canteen-cover-shade" />
                   <span className={`canteen-poster-pill${open ? ' open' : ''}`}>
-                    {open ? 'Ouverte' : 'Fermée'}
+                    {vendorCapacityLabel(v)}
                   </span>
                   <span className="canteen-cover-meta">
                     <strong>{v.canteenName}</strong>

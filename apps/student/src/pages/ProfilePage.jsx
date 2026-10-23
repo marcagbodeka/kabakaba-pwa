@@ -614,7 +614,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
           {panel === 'referral' ? (
             <div className="amb-card">
               <div className="amb-card-top">
-                <span className="amb-chip">{referral?.referralCode || 'PARRAINAGE'}</span>
+                <span className="amb-chip">{referral?.referralCode || user?.referralCode || 'PARRAINAGE'}</span>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="2"><path d="M20 12v8H4v-8"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z"/></svg>
               </div>
               <h3>Parrainage kabakaba</h3>
@@ -842,7 +842,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
 
         <div className="amb-card">
           <div className="amb-card-top">
-            <span className="amb-chip">{referral?.referralCode || 'PARRAINAGE'}</span>
+            <span className="amb-chip">{referral?.referralCode || user?.referralCode || 'PARRAINAGE'}</span>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="2"><path d="M20 12v8H4v-8"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z"/></svg>
           </div>
           <h3>Parrainage kabakaba</h3>

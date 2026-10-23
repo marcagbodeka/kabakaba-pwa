@@ -11,6 +11,7 @@ import { clearViews, readView, writeView } from '../lib/instantView';
 import {
   clearTokens,
   forgetDevice,
+  isPinSessionFresh,
   loadSession,
   saveSession,
 } from '../lib/session';
@@ -66,14 +67,27 @@ export function AuthProvider({ children }) {
     (async () => {
       try {
         const me = await refreshMe();
+        const current = loadSession();
+        if (current.pinConfigured && !current.pinVerifiedAt) {
+          setSession(saveSession({ pinVerifiedAt: Date.now() }));
+        }
         setStatus(statusAfterUser(me));
       } catch (err) {
+        const next = loadSession();
+        setSession(next);
         const authFail = err?.statusCode === 401 || err?.statusCode === 403;
-        if (authFail || !readView('me')) {
-          const next = loadSession();
-          setSession(next);
+        const soft = err?.statusCode === 429 || err?.statusCode >= 500;
+        const cached = readView('me');
+        if (
+          !authFail &&
+          (soft || cached) &&
+          (isPinSessionFresh(next) || !next.pinVerifiedAt)
+        ) {
+          if (cached) commitUser(cached);
+          setStatus(cached ? statusAfterUser(cached) : statusFromSession(next));
+        } else {
           setStatus(statusFromSession(next));
-          setUser(null);
+          if (authFail) setUser(null);
         }
       } finally {
         setReady(true);
@@ -146,7 +160,10 @@ export function AuthProvider({ children }) {
           throw new Error('Ce compte n’est pas un compte étudiant.');
         }
         markSessionAlive();
-        const next = saveSession({ pinConfigured: true });
+        const next = saveSession({
+          pinConfigured: true,
+          pinVerifiedAt: Date.now(),
+        });
         setSession(next);
         setPinSetupToken(null);
         const me = await userApi.me().catch(() => normalizeUser(res.user));
@@ -170,6 +187,7 @@ export function AuthProvider({ children }) {
         const next = saveSession({
           phone: e164,
           pinConfigured: true,
+          pinVerifiedAt: Date.now(),
         });
         setSession(next);
         const me = await userApi.me().catch(() => normalizeUser(res.user));

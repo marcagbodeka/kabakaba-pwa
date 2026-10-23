@@ -5,8 +5,19 @@ import { IconBack } from '../components/icons';
 import { readView, writeView } from '../lib/instantView';
 import { warmCanteen } from '../lib/warmCanteen';
 
+function capacityOf(v) {
+  return String(v?.capacityStatus || 'CLOSED').toUpperCase();
+}
+
 function isOpen(v) {
-  return String(v?.capacityStatus || '').toUpperCase() === 'OPEN';
+  return capacityOf(v) === 'OPEN';
+}
+
+function capacityLabel(v) {
+  const status = capacityOf(v);
+  if (status === 'OPEN') return 'Ouverte';
+  if (status === 'BUSY') return 'Occupée';
+  return 'Fermée';
 }
 
 function Poster({ vendor, onSelect }) {
@@ -29,7 +40,7 @@ function Poster({ vendor, onSelect }) {
         </div>
       )}
       <span className="canteen-cover-shade" />
-      <span className={`canteen-poster-pill${open ? ' open' : ''}`}>{open ? 'Ouverte' : 'Fermée'}</span>
+      <span className={`canteen-poster-pill${open ? ' open' : ''}`}>{capacityLabel(vendor)}</span>
       <span className="canteen-cover-meta">
         <strong>{vendor.canteenName}</strong>
         {vendor.description ? <span>{vendor.description}</span> : null}
@@ -49,7 +60,7 @@ export default function CanteenListPage({ onBack, onSelect, showSnack }) {
   const load = async () => {
     if (!readView('vendors')) setLoading(true);
     try {
-      const list = await vendorsApi.list();
+      const list = await vendorsApi.list(user?.campusId);
       const rows = Array.isArray(list) ? list : [];
       setVendors(rows);
       writeView('vendors', rows);
@@ -63,7 +74,7 @@ export default function CanteenListPage({ onBack, onSelect, showSnack }) {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [user?.campusId]);
 
   useEffect(() => {
     if (!user?.campusId) {
