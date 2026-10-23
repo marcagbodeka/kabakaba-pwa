@@ -443,10 +443,12 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
         menus: m.status === 'fulfilled' && Array.isArray(m.value) ? m.value : [],
         options: t.status === 'fulfilled' && Array.isArray(t.value) ? t.value : [],
       });
+    } else if (readView('catalog')) {
+      setLoadError('');
     } else if (c.status === 'rejected' && cats.status === 'rejected') {
       const reason = c.reason?.message || cats.reason?.message || 'Carte indisponible';
       setLoadError(reason);
-      if (!readView('catalog')) showSnack(reason);
+      showSnack(reason);
     } else {
       const reason = failed[0].reason?.message || 'Une partie de la carte n’a pas pu être chargée';
       setLoadError(reason);
@@ -680,6 +682,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     <div className="dashboard-body">
       <SubpageBar
         title="Ma carte"
+        eyebrow="Cantine"
         onBack={onBack}
         action={
           addLabel ? (
@@ -690,8 +693,8 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
         }
       />
 
-      <div className="catalog-scroll">
-      <div className="section-tabs">
+      <div className="sheet-body sheet-body--sub">
+      <div className="section-tabs catalog-tabs">
         {tabs.map((t) => (
           <button
             key={t.key}
@@ -703,6 +706,8 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           </button>
         ))}
       </div>
+
+      <div className="catalog-scroll">
 
       {loadError ? (
         <div className="catalog-error">
@@ -802,7 +807,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
 
           {tab === 'sort'
             ? grouped.other.map((item) => (
-                <div key={item.id} className="catalog-card">
+                <div key={item.id} className="catalog-card catalog-card--classify">
                   <div className="catalog-main">
                     <strong>{item.name}</strong>
                     <span>{formatTickets(item.priceTickets)} · pas encore à sa place</span>
@@ -819,6 +824,11 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
 
           {tab === 'base' && !foodOf('base').length ? (
             <div className="empty-block">
+              <div className="empty-nest">
+                <div className="empty-nest-inner">
+                  <IconPlus />
+                </div>
+              </div>
               <h3>Pas encore de plat de base</h3>
               <p>{copy.empty}</p>
             </div>
@@ -849,6 +859,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           ) : null}
         </div>
       )}
+      </div>
       </div>
 
       {addLabel ? (

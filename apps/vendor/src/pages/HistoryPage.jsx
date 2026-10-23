@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import SubpageBar from '../components/SubpageBar';
+import { IconReceipt, IconWallet } from '../components/icons';
 import { transactionsApi, withdrawalsApi } from '../lib/api';
 import {
   WITHDRAWAL_STATUS_LABEL,
@@ -10,6 +11,12 @@ import {
   txPublicCode,
 } from '../lib/format';
 import { readView, writeView } from '../lib/instantView';
+
+function statusTone(status) {
+  if (status === 'COMPLETED') return 'ok';
+  if (status === 'FAILED' || status === 'CANCELLED') return 'bad';
+  return 'wait';
+}
 
 export default function HistoryPage({ onBack, showSnack }) {
   const [tab, setTab] = useState('withdrawals');
@@ -42,114 +49,134 @@ export default function HistoryPage({ onBack, showSnack }) {
     load();
   }, [load]);
 
+  const dayRows =
+    tab === 'withdrawals'
+      ? withdrawals.filter((w) => dayOffset(w.createdAt) === day).slice(0, 20)
+      : txs.filter((tx) => dayOffset(tx.createdAt) === day).slice(0, 20);
+
   return (
     <div className="dashboard-body">
-      <SubpageBar title="Historique" onBack={onBack} />
-      <div className="section-tabs">
-        <button
-          type="button"
-          className={`section-tab${tab === 'withdrawals' ? ' active' : ''}`}
-          onClick={() => setTab('withdrawals')}
-        >
-          Retraits
-        </button>
-        <button
-          type="button"
-          className={`section-tab${tab === 'txs' ? ' active' : ''}`}
-          onClick={() => setTab('txs')}
-        >
-          Mouvements
-        </button>
-      </div>
-
-      <div className="section-tabs">
-        {['Aujourd’hui', 'Hier'].map((label, i) => (
-          <button
-            key={label}
-            type="button"
-            className={`section-tab${day === i ? ' active' : ''}`}
-            onClick={() => setDay(i)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div style={{ display: 'grid', placeItems: 'center', padding: 48 }}>
-          <div className="spinner" />
+      <SubpageBar title="Historique" eyebrow="Portefeuille" onBack={onBack} />
+      <div className="sheet-body sheet-body--sub">
+        <div className="sub-toolbar">
+          <div className="section-tabs">
+            <button
+              type="button"
+              className={`section-tab${tab === 'withdrawals' ? ' active' : ''}`}
+              onClick={() => setTab('withdrawals')}
+            >
+              Retraits
+            </button>
+            <button
+              type="button"
+              className={`section-tab${tab === 'txs' ? ' active' : ''}`}
+              onClick={() => setTab('txs')}
+            >
+              Mouvements
+            </button>
+          </div>
+          <div className="day-pills">
+            {['Aujourd’hui', 'Hier'].map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                className={`day-pill${day === i ? ' on' : ''}`}
+                onClick={() => setDay(i)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
-      ) : (
-        <div className="catalog-list catalog-list--inset">
-          {tab === 'withdrawals'
-            ? withdrawals.filter((w) => dayOffset(w.createdAt) === day).slice(0, 20).map((w) => (
-                <div key={w.id} className="catalog-card">
-                  <div className="catalog-main">
-                    <strong>{formatTickets(w.amount)}</strong>
-                    <span>
-                      {formatDateTime(w.createdAt)} · {w.operator} ·{' '}
+
+        {loading ? (
+          <div style={{ display: 'grid', placeItems: 'center', padding: 48 }}>
+            <div className="spinner" />
+          </div>
+        ) : (
+          <div className="sub-scroll catalog-list">
+            {tab === 'withdrawals'
+              ? dayRows.map((w) => (
+                  <div key={w.id} className="ledger-row">
+                    <span className="ledger-mark out" aria-hidden>
+                      ↑
+                    </span>
+                    <div className="catalog-main">
+                      <strong>{formatTickets(w.amount)}</strong>
+                      <span>
+                        {formatDateTime(w.createdAt)} · {w.operator}
+                      </span>
+                    </div>
+                    <span className={`tone tone--${statusTone(w.status)}`}>
                       {WITHDRAWAL_STATUS_LABEL[w.status] || w.status}
                     </span>
                   </div>
-                </div>
-              ))
-            : null}
+                ))
+              : null}
 
-          {tab === 'txs'
-            ? txs.filter((tx) => dayOffset(tx.createdAt) === day).slice(0, 20).map((tx) => (
-                <button
-                  key={tx.id}
-                  type="button"
-                  className="catalog-card"
-                  onClick={async () => {
-                    try {
-                      setTxDetail(await transactionsApi.get(tx.id));
-                    } catch (e) {
-                      showSnack(e.message || 'Détail indisponible');
-                    }
-                  }}
-                >
-                  <div className="catalog-main">
-                    <strong>{txDisplayTitle(tx)}</strong>
-                    <span>
-                      {formatDateTime(tx.createdAt)}
-                      {txPublicCode(tx) ? ` · Commande ${txPublicCode(tx)}` : ''}
+            {tab === 'txs'
+              ? dayRows.map((tx) => (
+                  <button
+                    key={tx.id}
+                    type="button"
+                    className="ledger-row"
+                    onClick={async () => {
+                      try {
+                        setTxDetail(await transactionsApi.get(tx.id));
+                      } catch (e) {
+                        showSnack(e.message || 'Détail indisponible');
+                      }
+                    }}
+                  >
+                    <span className="ledger-mark in" aria-hidden>
+                      ↓
                     </span>
-                  </div>
-                  <div className="price-tag">{formatTickets(tx.amount)}</div>
-                </button>
-              ))
-            : null}
-          {txDetail && tab === 'txs' ? (
-            <div className="catalog-card">
-              <div className="catalog-main">
-                <strong>{txDisplayTitle(txDetail)}</strong>
-                <span>
-                  {formatTickets(txDetail.amount)}
-                  {txPublicCode(txDetail) ? ` · Commande ${txPublicCode(txDetail)}` : ''}
-                  {txDetail.createdAt ? ` · ${formatDateTime(txDetail.createdAt)}` : ''}
-                </span>
-              </div>
-              <button type="button" className="link-mini" onClick={() => setTxDetail(null)}>
-                Fermer
-              </button>
-            </div>
-          ) : null}
+                    <div className="catalog-main">
+                      <strong>{txDisplayTitle(tx)}</strong>
+                      <span>
+                        {formatDateTime(tx.createdAt)}
+                        {txPublicCode(tx) ? ` · Commande ${txPublicCode(tx)}` : ''}
+                      </span>
+                    </div>
+                    <div className="price-tag">{formatTickets(tx.amount)}</div>
+                  </button>
+                ))
+              : null}
 
-          {tab === 'withdrawals' && !withdrawals.filter((w) => dayOffset(w.createdAt) === day).length ? (
-            <div className="empty-block">
-              <h3>Aucun retrait</h3>
-              <p>Tes demandes de retrait apparaîtront ici.</p>
-            </div>
-          ) : null}
-          {tab === 'txs' && !txs.filter((tx) => dayOffset(tx.createdAt) === day).length ? (
-            <div className="empty-block">
-              <h3>Aucun mouvement</h3>
-              <p>Les ventes et retraits s’affichent ici.</p>
-            </div>
-          ) : null}
+            {!dayRows.length ? (
+              <div className="empty-block">
+                <div className="empty-nest">
+                  <div className="empty-nest-inner">
+                    {tab === 'withdrawals' ? <IconWallet size={22} /> : <IconReceipt size={22} />}
+                  </div>
+                </div>
+                <h3>{tab === 'withdrawals' ? 'Aucun retrait' : 'Aucun mouvement'}</h3>
+                <p>
+                  {tab === 'withdrawals'
+                    ? 'Tes demandes de retrait apparaîtront ici.'
+                    : 'Les ventes et retraits s’affichent ici.'}
+                </p>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {txDetail ? (
+        <div className="sheet-backdrop" onClick={() => setTxDetail(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <h2>{txDisplayTitle(txDetail)}</h2>
+            <p className="sub">
+              {formatTickets(txDetail.amount)}
+              {txPublicCode(txDetail) ? ` · Commande ${txPublicCode(txDetail)}` : ''}
+              {txDetail.createdAt ? ` · ${formatDateTime(txDetail.createdAt)}` : ''}
+            </p>
+            <button type="button" className="btn-action fill primary full" onClick={() => setTxDetail(null)}>
+              Fermer
+            </button>
+          </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

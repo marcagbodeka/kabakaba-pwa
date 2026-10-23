@@ -63,14 +63,17 @@ export function AuthProvider({ children }) {
         setSession(next);
         const authFail = err?.statusCode === 401 || err?.statusCode === 403;
         const soft = err?.statusCode === 429 || err?.statusCode >= 500;
-        // Réseau lent ou coupé : garder la cantine déjà affichée.
-        if (
-          !authFail &&
-          (soft || readView('vendor')) &&
+        const pinFresh = isPinSessionFresh(next) || !next.pinVerifiedAt;
+        const canStay =
           next.phone &&
           next.pinConfigured &&
-          (isPinSessionFresh(next) || !next.pinVerifiedAt)
-        ) {
+          pinFresh &&
+          (readView('vendor') || soft || !authFail);
+        // Relance dans les 7 jours : on reste connecté, pas de PIN.
+        if (canStay || (next.phone && next.pinConfigured && isPinSessionFresh(next))) {
+          if (next.pinConfigured && !next.pinVerifiedAt) {
+            setSession(saveSession({ pinVerifiedAt: Date.now() }));
+          }
           setStatus('authenticated');
         } else {
           setStatus(statusFromSession(next));
@@ -85,8 +88,11 @@ export function AuthProvider({ children }) {
     const onExpired = () => {
       const next = loadSession();
       setSession(next);
+      if (isPinSessionFresh(next) && next.pinConfigured) {
+        setStatus('authenticated');
+        return;
+      }
       setStatus(statusFromSession(next));
-      setErrorMessage('Session expirée — reconnecte-toi avec ton PIN');
     };
     window.addEventListener('kaba:session-expired', onExpired);
     return () => window.removeEventListener('kaba:session-expired', onExpired);
@@ -184,12 +190,14 @@ export function AuthProvider({ children }) {
           setErrorMessage('Session d’activation expirée. Recommence la connexion.');
           return false;
         }
-        await vendorAuthApi.setPin(pinSetupToken, pin);
+        const granted = await vendorAuthApi.setPin(pinSetupToken, pin);
         markSessionAlive();
         const next = saveSession({
           phone: session.phone,
           pinConfigured: true,
           pinVerifiedAt: Date.now(),
+          accessToken: granted?.accessToken || loadSession().accessToken,
+          refreshToken: granted?.refreshToken || loadSession().refreshToken,
         });
         setSession(next);
         setStatus('authenticated');
@@ -219,12 +227,14 @@ export function AuthProvider({ children }) {
           setErrorMessage('Numéro requis');
           return false;
         }
-        await vendorAuthApi.loginPin(phone, pin);
+        const granted = await vendorAuthApi.loginPin(phone, pin);
         markSessionAlive();
         const next = saveSession({
           phone,
           pinConfigured: true,
           pinVerifiedAt: Date.now(),
+          accessToken: granted?.accessToken || loadSession().accessToken,
+          refreshToken: granted?.refreshToken || loadSession().refreshToken,
         });
         setSession(next);
         setStatus('authenticated');

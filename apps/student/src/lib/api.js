@@ -3,7 +3,14 @@
  * à un compte STUDENT (ou publiques). Aucune route legacy (menu-items,
  * packaging, transferts, parrainage, etc.).
  */
-import { clearTokens } from './session';
+import {
+  clearAuthTokens,
+  clearTokens,
+  hasUsableRefresh,
+  isPinSessionFresh,
+  loadSession,
+  persistAuthTokens,
+} from './session';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
@@ -59,8 +66,10 @@ function rememberCsrf(data) {
   if (data && typeof data.csrfToken === 'string') csrfMemory = data.csrfToken;
 }
 
-function dropSession() {
+function dropSession({ askPin = true } = {}) {
   csrfMemory = null;
+  clearAuthTokens();
+  if (!askPin && isPinSessionFresh()) return;
   sessionDead = true;
   clearTokens();
 }
@@ -79,6 +88,8 @@ function baseHeaders(method) {
     Accept: 'application/json',
     'X-Kabakaba-App': APP,
   };
+  const access = loadSession().accessToken;
+  if (access) headers.Authorization = `Bearer ${access}`;
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     const csrf = csrfToken();
     if (csrf) headers['X-CSRF-Token'] = csrf;
@@ -98,6 +109,7 @@ async function ensureCsrf(force = false) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (hasUsableRefresh()) return csrfMemory;
     if (res.status === 401 || res.status === 403) {
       /* CSRF illisible : le refresh tranchera, on ne tue pas la session ici. */
     }
@@ -118,12 +130,23 @@ async function refreshAccessToken() {
     throw new ApiError('Session expirée — reconnecte-toi', 401);
   }
   // Toujours relire le CSRF : un jeton en mémoire peut être périmé après rotation.
-  await ensureCsrf(true);
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: baseHeaders('POST'),
-  });
+  try {
+    await ensureCsrf(true);
+  } catch {
+    /* le body refresh suffit si le cookie CSRF est absent */
+  }
+  const sendRefresh = () => {
+    const stored = loadSession().refreshToken;
+    const headers = baseHeaders('POST');
+    if (stored) headers['Content-Type'] = 'application/json';
+    return fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: stored ? JSON.stringify({ refreshToken: stored }) : undefined,
+    });
+  };
+  const res = await sendRefresh();
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = extractMessage(data, 'Session expirée');
@@ -145,15 +168,12 @@ async function refreshAccessToken() {
       await new Promise((r) => setTimeout(r, 450));
       try {
         await ensureCsrf(true);
-        const retry = await fetch(`${API_BASE}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: baseHeaders('POST'),
-        });
+        const retry = await sendRefresh();
         const retryData = await retry.json().catch(() => ({}));
         if (retry.ok) {
           sessionDead = false;
           rememberCsrf(retryData);
+          persistAuthTokens(retryData);
           return true;
         }
       } catch {
@@ -161,12 +181,13 @@ async function refreshAccessToken() {
       }
     }
     if (res.status === 401 || res.status === 403) {
-      dropSession();
+      dropSession({ askPin: !isPinSessionFresh() && !hasUsableRefresh() });
     }
     throw new ApiError(msg || 'Session expirée', res.status);
   }
   sessionDead = false;
   rememberCsrf(data);
+  persistAuthTokens(data);
   return true;
 }
 
@@ -221,6 +242,7 @@ export async function api(path, { method = 'GET', body, auth = true } = {}) {
     throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
   }
   rememberCsrf(data);
+  persistAuthTokens(data);
   return data;
 }
 

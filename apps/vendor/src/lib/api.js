@@ -1,7 +1,14 @@
 /**
  * Client API vendeur — routes CDC V1.3 accessibles au rôle VENDOR.
  */
-import { clearTokens } from './session';
+import {
+  clearAuthTokens,
+  clearTokens,
+  hasUsableRefresh,
+  isPinSessionFresh,
+  loadSession,
+  persistAuthTokens,
+} from './session';
 
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL ||
@@ -64,8 +71,13 @@ function rememberCsrf(data) {
   if (data && typeof data.csrfToken === 'string') csrfMemory = data.csrfToken;
 }
 
-function dropSession() {
+function dropSession({ askPin = true } = {}) {
   csrfMemory = null;
+  clearAuthTokens();
+  if (!askPin && isPinSessionFresh()) {
+    refreshBackoffUntil = Date.now() + 20_000;
+    return;
+  }
   sessionDead = true;
   clearTokens();
   if (typeof window !== 'undefined') {
@@ -93,6 +105,8 @@ function baseHeaders(method, extra) {
     'X-Kabakaba-App': APP,
     ...extra,
   };
+  const access = loadSession().accessToken;
+  if (access) headers.Authorization = `Bearer ${access}`;
   if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
     const csrf = csrfToken();
     if (csrf) headers['X-CSRF-Token'] = csrf;
@@ -112,6 +126,8 @@ async function ensureCsrf(force = false) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    // Un refresh par body n’a pas besoin du cookie CSRF.
+    if (hasUsableRefresh()) return csrfMemory;
     throw new ApiError(
       extractMessage(data, 'Impossible de relire la session'),
       res.status,
@@ -128,12 +144,23 @@ async function refreshAccessToken() {
   if (Date.now() < refreshBackoffUntil) {
     throw new ApiError('Trop de requêtes — réessaie dans un instant', 429);
   }
-  await ensureCsrf(true);
-  const res = await fetch(`${API_BASE}/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: baseHeaders('POST'),
-  });
+  try {
+    await ensureCsrf(true);
+  } catch {
+    /* le body refresh suffit si le cookie CSRF est absent */
+  }
+  const sendRefresh = () => {
+    const stored = loadSession().refreshToken;
+    const headers = baseHeaders('POST');
+    if (stored) headers['Content-Type'] = 'application/json';
+    return fetch(`${API_BASE}/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers,
+      body: stored ? JSON.stringify({ refreshToken: stored }) : undefined,
+    });
+  };
+  const res = await sendRefresh();
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = extractMessage(data, 'Session expirée');
@@ -157,29 +184,27 @@ async function refreshAccessToken() {
       await new Promise((r) => setTimeout(r, 450));
       try {
         await ensureCsrf(true);
-        const retry = await fetch(`${API_BASE}/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-          headers: baseHeaders('POST'),
-        });
+        const retry = await sendRefresh();
         const retryData = await retry.json().catch(() => ({}));
         if (retry.ok) {
           sessionDead = false;
           rememberCsrf(retryData);
+          persistAuthTokens(retryData);
           return true;
         }
       } catch {
         /* fall through */
       }
     }
-    // Couper uniquement sur échec d’auth définitif.
+    // PIN encore frais : on ne déconnecte pas au relance.
     if (res.status === 401 || res.status === 403) {
-      dropSession();
+      dropSession({ askPin: !isPinSessionFresh() && !hasUsableRefresh() });
     }
     throw new ApiError(msg || 'Session expirée', res.status);
   }
   sessionDead = false;
   rememberCsrf(data);
+  persistAuthTokens(data);
   return true;
 }
 
@@ -236,6 +261,7 @@ export async function api(path, { method = 'GET', body, auth = true, headers } =
     throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
   }
   rememberCsrf(data);
+  persistAuthTokens(data);
   return data;
 }
 
@@ -282,6 +308,7 @@ export async function apiUpload(path, file) {
     throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
   }
   rememberCsrf(data);
+  persistAuthTokens(data);
   return data;
 }
 

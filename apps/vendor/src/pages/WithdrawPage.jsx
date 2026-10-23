@@ -49,7 +49,7 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
     setBusy(true);
     try {
       const res = await withdrawalsApi.request(n, operator);
-      showSnack(res.message || 'Demande de retrait enregistrée');
+      showSnack(res.message || 'Demande de retrait enregistrée', 'success');
       onDone?.();
       onBack();
     } catch (e) {
@@ -63,88 +63,94 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
 
   return (
     <div className="dashboard-body">
-      <SubpageBar title="Retirer" onBack={onBack} />
-      <div className="page-pad">
-        <p className="muted" style={{ marginBottom: 14 }}>
-          Solde : <strong>{formatTickets(balance)}</strong>
-        </p>
-
-        <div className="chips" style={{ marginBottom: 14 }}>
-          {QUICK.map((a) => (
-            <button
-              key={a}
-              type="button"
-              className={`chip${Number(amount) === a ? ' active' : ''}`}
-              onClick={() => setAmount(String(a))}
-            >
-              {formatTickets(a)}
-            </button>
-          ))}
-        </div>
-
-        <div className="vfield">
-          <label>Montant à recevoir (FCFA)</label>
-          <input
-            inputMode="numeric"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/\D/g, '').slice(0, 7))}
-            placeholder="Ex. 10000"
-          />
-        </div>
-
-        <div className="vfield">
-          <label>Réseau Mobile Money</label>
-          <div className="chips">
-            {['MIXX', 'FLOOZ'].map((op) => (
-              <button
-                key={op}
-                type="button"
-                className={`chip${operator === op ? ' active' : ''}`}
-                onClick={() => setOperator(op)}
-              >
-                {op === 'MIXX' ? 'Mixx (Yas)' : 'Flooz (Moov)'}
-              </button>
-            ))}
+      <SubpageBar title="Retirer" eyebrow="Portefeuille" onBack={onBack} />
+      <div className="sheet-body sheet-body--sub">
+        <div className="sub-scroll">
+          <div className="withdraw-balance">
+            <span>Solde disponible</span>
+            <strong>{formatTickets(balance)}</strong>
           </div>
-        </div>
 
-        {quoting ? (
-          <p className="muted">Calcul des frais…</p>
-        ) : recap ? (
-          <div className="recap-box">
-            <div>
-              <span>Débit total</span>
-              <strong>
-                {formatTickets(recap.debitedFromBalance ?? recap.totalDebit ?? 0)}
-              </strong>
+          <div className="vfield">
+            <label>Montant rapide</label>
+            <div className="chips" style={{ marginBottom: 0 }}>
+              {QUICK.map((a) => (
+                <button
+                  key={a}
+                  type="button"
+                  className={`chip${Number(amount) === a ? ' active' : ''}`}
+                  onClick={() => setAmount(String(a))}
+                >
+                  {formatTickets(a)}
+                </button>
+              ))}
             </div>
-            <div>
-              <span>Net à recevoir</span>
-              <strong>
-                {formatTickets(recap.payoutAmountToSend ?? recap.payoutAmount ?? amount)}
-              </strong>
-            </div>
-            {(recap.lines || []).length ? (
-              <p className="muted" style={{ marginTop: 8 }}>
-                {recap.lines.join(' · ')}
-              </p>
-            ) : null}
           </div>
-        ) : null}
 
-        <p className="muted" style={{ margin: '14px 0' }}>
-          Le transfert est effectué manuellement par l’équipe kabakaba sur le numéro
-          de ton compte vendeur ({vendor?.phone || '—'}).
-        </p>
+          <div className="vfield">
+            <label>Montant à recevoir (FCFA)</label>
+            <input
+              inputMode="numeric"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/\D/g, '').slice(0, 7))}
+              placeholder="Ex. 10000"
+            />
+          </div>
 
-        <button
-          type="button"
-          className="btn-action fill accent full"
-          disabled={busy || !amount}
-          onClick={submit}
-        >
-          {busy ? 'Envoi…' : 'Demander le retrait'}
-        </button>
+          <div className="vfield">
+            <label>Réseau Mobile Money</label>
+            <div className="chips" style={{ marginBottom: 0 }}>
+              {['MIXX', 'FLOOZ'].map((op) => (
+                <button
+                  key={op}
+                  type="button"
+                  className={`chip${operator === op ? ' active' : ''}`}
+                  onClick={() => setOperator(op)}
+                >
+                  {op === 'MIXX' ? 'Mixx (Yas)' : 'Flooz (Moov)'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {quoting ? (
+            <p className="muted">Calcul des frais…</p>
+          ) : recap ? (
+            <div className="recap-box">
+              <div>
+                <span>Débit total</span>
+                <strong>
+                  {formatTickets(recap.debitedFromBalance ?? recap.totalDebit ?? 0)}
+                </strong>
+              </div>
+              <div>
+                <span>Net à recevoir</span>
+                <strong>
+                  {formatTickets(recap.payoutAmountToSend ?? recap.payoutAmount ?? amount)}
+                </strong>
+              </div>
+              {(recap.lines || []).length ? (
+                <p className="muted" style={{ marginTop: 4 }}>
+                  {recap.lines.join(' · ')}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          <p className="muted" style={{ margin: '16px 0 8px' }}>
+            Le transfert est effectué manuellement par l’équipe kabakaba sur le numéro
+            de ton compte vendeur ({vendor?.phone || '—'}).
+          </p>
+
+          <button
+            type="button"
+            className="btn-action fill accent full"
+            disabled={busy || !amount}
+            onClick={submit}
+          >
+            {busy ? 'Envoi…' : 'Demander le retrait'}
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -78,16 +78,13 @@ export function AuthProvider({ children }) {
         const authFail = err?.statusCode === 401 || err?.statusCode === 403;
         const soft = err?.statusCode === 429 || err?.statusCode >= 500;
         const cached = readView('me');
-        if (
-          !authFail &&
-          (soft || cached) &&
-          (isPinSessionFresh(next) || !next.pinVerifiedAt)
-        ) {
+        const pinFresh = isPinSessionFresh(next) || !next.pinVerifiedAt;
+        if (pinFresh && (cached || soft || !authFail || next.pinConfigured)) {
           if (cached) commitUser(cached);
-          setStatus(cached ? statusAfterUser(cached) : statusFromSession(next));
+          setStatus(cached ? statusAfterUser(cached) : 'authenticated');
         } else {
           setStatus(statusFromSession(next));
-          if (authFail) setUser(null);
+          if (authFail && !isPinSessionFresh(next)) setUser(null);
         }
       } finally {
         setReady(true);
@@ -163,6 +160,8 @@ export function AuthProvider({ children }) {
         const next = saveSession({
           pinConfigured: true,
           pinVerifiedAt: Date.now(),
+          accessToken: res?.accessToken || loadSession().accessToken,
+          refreshToken: res?.refreshToken || loadSession().refreshToken,
         });
         setSession(next);
         setPinSetupToken(null);
@@ -188,6 +187,8 @@ export function AuthProvider({ children }) {
           phone: e164,
           pinConfigured: true,
           pinVerifiedAt: Date.now(),
+          accessToken: res?.accessToken || loadSession().accessToken,
+          refreshToken: res?.refreshToken || loadSession().refreshToken,
         });
         setSession(next);
         const me = await userApi.me().catch(() => normalizeUser(res.user));

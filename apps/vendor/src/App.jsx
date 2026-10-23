@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import InstallPrompt from './components/InstallPrompt';
 import NotificationPrompt from './components/NotificationPrompt';
 import PushHeadsUp from './components/PushHeadsUp';
+import Toast from './components/Toast';
 
 function Bootstrap() {
   return (
@@ -21,22 +22,19 @@ function Bootstrap() {
 
 function Root() {
   const auth = useAuth();
-  const [snack, setSnack] = useState(null);
+  const [toast, setToast] = useState(null);
 
   useEffect(() => {
     if (auth.errorMessage) {
-      setSnack(auth.errorMessage);
-      const t = setTimeout(() => setSnack(null), 3200);
-      return () => clearTimeout(t);
+      setToast({ message: auth.errorMessage, variant: 'error', id: Date.now() });
+      auth.clearError();
     }
-    return undefined;
-  }, [auth.errorMessage]);
+  }, [auth.errorMessage, auth]);
 
   // Stable identity — sinon OrdersPage/Dashboard rechargent en boucle (storm 429).
-  const showSnack = useCallback((message) => {
+  const showSnack = useCallback((message, variant = 'info') => {
     if (!message) return;
-    setSnack(message);
-    setTimeout(() => setSnack(null), 3200);
+    setToast({ message, variant, id: Date.now() });
   }, []);
 
   let screen = <Bootstrap />;
@@ -62,7 +60,14 @@ function Root() {
         </>
       ) : null}
       {auth.ready ? <InstallPrompt /> : null}
-      {snack ? <div className="snack">{snack}</div> : null}
+      {toast ? (
+        <Toast
+          key={toast.id}
+          message={toast.message}
+          variant={toast.variant}
+          onClose={() => setToast(null)}
+        />
+      ) : null}
     </div>
   );
 }
