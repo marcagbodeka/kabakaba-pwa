@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { authApi, markSessionAlive, normalizeUser, userApi } from '../lib/api';
@@ -49,6 +50,8 @@ export function AuthProvider({ children }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [pinSetupToken, setPinSetupToken] = useState(null);
+  // Copie synchrone du jeton : permet d'enchaîner verifyOtp puis setPin dans le même geste.
+  const pinSetupTokenRef = useRef(null);
   const [pinLength, setPinLength] = useState(4);
   const [phoneMasked, setPhoneMasked] = useState(null);
 
@@ -104,7 +107,8 @@ export function AuthProvider({ children }) {
     try {
       return await fn();
     } catch (err) {
-      setError(err.message || 'Une erreur est survenue');
+      // `silent` : erreur attendue, gérée par l'écran appelant (pas de message à l'utilisateur).
+      if (!err?.silent) setError(err.message || 'Une erreur est survenue');
       throw err;
     } finally {
       setBusy(false);
@@ -123,7 +127,7 @@ export function AuthProvider({ children }) {
   );
 
   const verifyOtp = useCallback(
-    ({ phone, code, campusId, referralCode }) =>
+    ({ phone, code, campusId, referralCode, silentCampus }) =>
       run(async () => {
         const body = {
           phone: PhoneFormatter.toE164(phone),
@@ -131,9 +135,19 @@ export function AuthProvider({ children }) {
         };
         if (campusId) body.campusId = campusId;
         if (referralCode?.trim()) body.referralCode = referralCode.trim().toUpperCase();
-        const res = await authApi.verifyOtp(body);
+        let res;
+        try {
+          res = await authApi.verifyOtp(body);
+        } catch (err) {
+          // Nouveau compte sondé sans campus : réponse attendue, pas une erreur à afficher.
+          if (silentCampus && /campus/i.test(String(err?.message || err?.payload?.message || ''))) {
+            err.silent = true;
+          }
+          throw err;
+        }
 
         if (res.stage === 'PIN_SETUP_REQUIRED' && res.pinSetupToken) {
+          pinSetupTokenRef.current = res.pinSetupToken;
           setPinSetupToken(res.pinSetupToken);
           setPinLength(res.pinLength || 4);
           setPhoneMasked(res.phoneMasked || null);
@@ -149,10 +163,11 @@ export function AuthProvider({ children }) {
   const setPin = useCallback(
     (pin, identity) =>
       run(async () => {
-        if (!pinSetupToken) {
+        const token = pinSetupTokenRef.current || pinSetupToken;
+        if (!token) {
           throw new Error('Session expirée. Recommence la connexion.');
         }
-        const res = await authApi.setPin(pinSetupToken, pin, identity);
+        const res = await authApi.setPin(token, pin, identity);
         if (res.user?.role && res.user.role !== 'STUDENT') {
           throw new Error('Ce compte n’est pas un compte étudiant.');
         }
@@ -164,6 +179,7 @@ export function AuthProvider({ children }) {
           refreshToken: res?.refreshToken || loadSession().refreshToken,
         });
         setSession(next);
+        pinSetupTokenRef.current = null;
         setPinSetupToken(null);
         const me = await userApi.me().catch(() => normalizeUser(res.user));
         commitUser(me);
@@ -231,6 +247,7 @@ export function AuthProvider({ children }) {
     clearViews();
     setSession(next);
     setUser(null);
+    pinSetupTokenRef.current = null;
     setPinSetupToken(null);
     setStatus(statusFromSession(next));
   }, []);
@@ -251,6 +268,7 @@ export function AuthProvider({ children }) {
     clearViews();
     setSession(loadSession());
     setUser(null);
+    pinSetupTokenRef.current = null;
     setPinSetupToken(null);
     setStatus('needsOtp');
   }, []);

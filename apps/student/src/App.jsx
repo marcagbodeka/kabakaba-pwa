@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { CartProvider, useCart } from './context/CartContext';
 import BottomNav from './components/BottomNav';
 import Toast from './components/Toast';
-import LoginPage from './pages/LoginPage';
+import AuthEntry from './pages/AuthEntry';
 import IdentityPage from './pages/IdentityPage';
 import HomePage from './pages/HomePage';
 import CanteenListPage from './pages/CanteenListPage';
@@ -182,7 +182,7 @@ function Root() {
           variant={toast?.variant}
           onClose={() => setToast(null)}
         />
-        <LoginPage />
+        <AuthEntry />
         <InstallPrompt />
       </div>
     );

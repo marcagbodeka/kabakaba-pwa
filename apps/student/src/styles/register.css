@@ -1,0 +1,643 @@
+/*
+ * Parcours d'inscription étudiant — styles fidèles à la maquette « kabakaba_inscription_hifi ».
+ *
+ * Échelle fluide : la maquette est dessinée sur un cadre de 280px de large.
+ * Toutes les dimensions sont écrites en « unités de maquette » (ex. calc(48 * var(--u))) et
+ * converties en calc(48 * var(--u)). --u grandit avec la largeur de l'écran
+ * (1px sur petit téléphone → 1.3px sur grand), donc proportions identiques à la
+ * maquette sur tous les écrans. Les bordures fines (1px / 1.5px) restent fixes.
+ */
+.reg {
+  --u: clamp(1px, 0.3vw, 1.3px);
+  /* calc(14 * var(--u)), mais jamais < 16px : en dessous, iOS zoome la page au focus. */
+  --fs-input: max(16px, calc(14 * var(--u)));
+  flex: 1;
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--indigo-dark);
+  color: var(--text);
+  overflow: hidden;
+  padding-bottom: var(--kb-inset, 0px);
+  transition: padding-bottom 0.12s ease-out;
+}
+
+.reg-nowrap {
+  white-space: nowrap;
+}
+
+/* ---------- Hero ---------- */
+.reg-hero {
+  position: relative;
+  overflow: hidden;
+  flex-shrink: 0;
+  /* calc(12 * var(--u)) sous la barre d'état (la maquette compte 30 + 12 = 42 avec sa fausse barre) */
+  padding: calc((12 * var(--u)) + env(safe-area-inset-top, 0px)) calc(24 * var(--u)) calc(46 * var(--u));
+  background: linear-gradient(155deg, var(--primary) 0%, var(--indigo-dark) 100%);
+  transition: padding 0.22s ease;
+}
+
+.reg-hero::before {
+  content: '';
+  position: absolute;
+  top: calc(-60 * var(--u));
+  right: calc(-50 * var(--u));
+  width: calc(170 * var(--u));
+  height: calc(170 * var(--u));
+  border-radius: 50%;
+  background: rgba(240, 120, 64, 0.16);
+}
+
+.reg-hero::after {
+  content: '';
+  position: absolute;
+  bottom: calc(-70 * var(--u));
+  left: calc(-40 * var(--u));
+  width: calc(140 * var(--u));
+  height: calc(140 * var(--u));
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.reg-hero > * {
+  position: relative;
+  z-index: 2;
+}
+
+.reg-hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: calc(22 * var(--u));
+  transition: margin 0.22s ease;
+}
+
+.reg-back {
+  position: relative;
+  width: calc(32 * var(--u));
+  height: calc(32 * var(--u));
+  border-radius: calc(10 * var(--u));
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+/* Zone de toucher agrandie, sans changer l'aspect. */
+.reg-back::after {
+  content: '';
+  position: absolute;
+  inset: -8px;
+}
+
+.reg-pill {
+  font-size: calc(11 * var(--u));
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.12);
+  padding: calc(5 * var(--u)) calc(11 * var(--u));
+  border-radius: calc(20 * var(--u));
+  letter-spacing: 0.02em;
+}
+
+.reg-icon-tile {
+  width: calc(54 * var(--u));
+  height: calc(54 * var(--u));
+  border-radius: calc(16 * var(--u));
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.reg-hero h1 {
+  font-size: calc(21 * var(--u));
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.02em;
+  margin-bottom: calc(6 * var(--u));
+}
+
+.reg-hero p {
+  font-size: calc(12.5 * var(--u));
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1.5;
+  max-width: min(100%, calc(230 * var(--u)));
+}
+
+.reg-progress {
+  height: calc(4 * var(--u));
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: calc(3 * var(--u));
+  margin-top: calc(18 * var(--u));
+  overflow: hidden;
+  transition: margin 0.22s ease;
+}
+
+.reg-progress > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: calc(3 * var(--u));
+  transition: width 0.35s ease;
+}
+
+/* Parties du hero repliées quand le clavier est ouvert. */
+.reg-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows 0.22s ease,
+    opacity 0.18s ease;
+}
+
+.reg-collapse > .reg-collapse-in {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.reg-collapse-icon {
+  padding-bottom: calc(16 * var(--u));
+}
+
+/* ---------- Carte ---------- */
+.reg-card {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-dark);
+  margin-top: calc(-22 * var(--u));
+  border-radius: calc(24 * var(--u)) calc(24 * var(--u)) 0 0;
+  border-top: 1px solid var(--line);
+  position: relative;
+  z-index: 3;
+  padding: calc(26 * var(--u)) calc(22 * var(--u)) calc((22 * var(--u)) + env(safe-area-inset-bottom, 0px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  transition: padding 0.22s ease;
+}
+
+.reg-card-inner {
+  flex: 1 0 auto;
+  display: flex;
+  flex-direction: column;
+  /* backwards (pas both) : un état final d'animation ferait de ce bloc le repère des éléments fixed (la feuille de campus) */
+  animation: reg-in 0.28s ease backwards;
+}
+
+.reg-spacer {
+  flex: 1 1 auto;
+  min-height: calc(12 * var(--u));
+}
+
+/* ---------- Clavier ouvert : hero compact, champ remonté à hauteur d'yeux ---------- */
+.reg--kb .reg-hero {
+  padding-top: calc((8 * var(--u)) + env(safe-area-inset-top, 0px));
+  padding-bottom: calc(30 * var(--u));
+}
+
+.reg--kb .reg-hero-top {
+  margin-bottom: calc(12 * var(--u));
+}
+
+.reg--kb .reg-progress {
+  margin-top: calc(12 * var(--u));
+}
+
+.reg--kb .reg-collapse {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.reg--kb .reg-card {
+  padding-top: calc(22 * var(--u));
+  padding-bottom: calc(14 * var(--u));
+}
+
+/* ---------- Champs ---------- */
+.reg-field {
+  margin-bottom: calc(15 * var(--u));
+}
+
+.reg-field > label {
+  display: block;
+  font-size: calc(11 * var(--u));
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: calc(7 * var(--u));
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.reg-shell {
+  height: calc(48 * var(--u));
+  width: 100%;
+  min-width: 0;
+  border: 1.5px solid var(--line);
+  border-radius: calc(12 * var(--u));
+  display: flex;
+  align-items: center;
+  padding: 0 calc(14 * var(--u));
+  gap: calc(10 * var(--u));
+  background: var(--field);
+  color: var(--text);
+  text-align: left;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.reg-shell:focus-within,
+.reg-shell.is-open {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(240, 120, 64, 0.16);
+  background: var(--field-focus);
+}
+
+.reg-shell .ic {
+  color: var(--muted);
+  flex-shrink: 0;
+  display: flex;
+}
+
+.reg-shell input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--fs-input);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.reg-shell input::placeholder {
+  color: var(--muted-soft);
+  font-weight: 400;
+  opacity: 1;
+}
+
+/* Préfixe +228 : drapeau et indicatif TOUJOURS sur une seule ligne. */
+.reg-prefix {
+  display: flex;
+  align-items: center;
+  gap: calc(6 * var(--u));
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: calc(16 * var(--u));
+  font-weight: 700;
+  color: var(--text);
+  padding-right: calc(9 * var(--u));
+  border-right: 1px solid var(--line);
+}
+
+.reg-eye {
+  position: relative;
+  display: flex;
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.reg-eye::after {
+  content: '';
+  position: absolute;
+  inset: -12px;
+}
+
+/* Sélecteur de campus */
+.reg-select {
+  justify-content: space-between;
+  cursor: pointer;
+}
+
+.reg-select .val {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-input);
+  color: var(--muted-soft);
+}
+
+.reg-select .val.chosen {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.reg-select .chev {
+  color: var(--muted);
+  display: flex;
+  flex-shrink: 0;
+}
+
+/* ---------- Code SMS ---------- */
+.reg-otp {
+  position: relative;
+  display: flex;
+  gap: calc(9 * var(--u));
+  justify-content: center;
+  margin: calc(8 * var(--u)) 0 calc(16 * var(--u));
+}
+
+.reg-otp-box {
+  flex: 0 1 calc(40 * var(--u));
+  min-width: 0;
+  height: calc(48 * var(--u));
+  border: 1.5px solid var(--line);
+  border-radius: calc(12 * var(--u));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(18 * var(--u));
+  font-weight: 700;
+  color: var(--text);
+  background: var(--field);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    background 0.15s;
+}
+
+.reg-otp-box.filled {
+  border-color: rgba(240, 120, 64, 0.5);
+  background: rgba(240, 120, 64, 0.12);
+  color: #fff;
+}
+
+.reg-otp-box.cursor {
+  border-color: var(--accent);
+  border-width: 2px;
+  box-shadow: 0 0 0 3px rgba(240, 120, 64, 0.18);
+}
+
+/* Un seul vrai champ, invisible, par-dessus les cases : saisie, collage et
+   remplissage automatique du SMS fonctionnent d'un seul geste. */
+.reg-otp input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  caret-color: transparent;
+}
+
+.reg-timer {
+  text-align: center;
+  font-size: calc(12.5 * var(--u));
+  color: var(--muted);
+  margin-bottom: calc(6 * var(--u));
+}
+
+.reg-timer span {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.reg-resend {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: calc(12.5 * var(--u));
+  font-weight: 600;
+  color: #fff;
+  padding: calc(6 * var(--u)) 0;
+  margin-bottom: calc(6 * var(--u));
+}
+
+/* ---------- Encadré info ---------- */
+.reg-hint {
+  background: rgba(240, 120, 64, 0.1);
+  border: 1px solid rgba(240, 120, 64, 0.28);
+  border-radius: calc(12 * var(--u));
+  padding: calc(12 * var(--u)) calc(14 * var(--u));
+  font-size: calc(11.5 * var(--u));
+  color: rgba(255, 255, 255, 0.75);
+  display: flex;
+  gap: calc(9 * var(--u));
+  margin-bottom: calc(6 * var(--u));
+  line-height: 1.55;
+  align-items: flex-start;
+  font-weight: 500;
+}
+
+.reg-hint .ic {
+  flex-shrink: 0;
+  margin-top: calc(1 * var(--u));
+  color: var(--accent);
+  display: flex;
+}
+
+/* ---------- Boutons & liens ---------- */
+.reg-btn {
+  width: 100%;
+  height: calc(50 * var(--u));
+  flex-shrink: 0;
+  border-radius: calc(13 * var(--u));
+  background: var(--accent);
+  color: #fff;
+  font-size: calc(14.5 * var(--u));
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(8 * var(--u));
+  box-shadow: 0 calc(8 * var(--u)) calc(20 * var(--u)) calc(-4 * var(--u)) rgba(240, 120, 64, 0.45);
+  transition:
+    opacity 0.15s,
+    transform 0.1s;
+}
+
+.reg-btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.reg-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.reg-foot {
+  text-align: center;
+  font-size: calc(12.5 * var(--u));
+  color: var(--muted);
+  font-weight: 500;
+  margin-top: calc(16 * var(--u));
+}
+
+.reg-foot button {
+  color: #fff;
+  font-weight: 700;
+  padding: calc(6 * var(--u)) 0 calc(6 * var(--u)) calc(2 * var(--u));
+}
+
+.reg-skip {
+  display: block;
+  width: 100%;
+  text-align: center;
+  font-size: calc(12.5 * var(--u));
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: calc(8 * var(--u));
+  padding: calc(6 * var(--u)) 0;
+  margin-bottom: calc(-6 * var(--u));
+}
+
+/* ---------- Feuille de sélection du campus ---------- */
+.reg-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(5, 8, 25, 0.6);
+  animation: reg-fade 0.2s ease both;
+}
+
+.reg-sheet {
+  position: fixed;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: min(100%, 480px);
+  max-height: min(72dvh, calc(560 * var(--u)));
+  z-index: 310;
+  display: flex;
+  flex-direction: column;
+  background: var(--card-dark);
+  border: 1px solid var(--line);
+  border-bottom: none;
+  border-radius: calc(24 * var(--u)) calc(24 * var(--u)) 0 0;
+  padding: calc(10 * var(--u)) calc(22 * var(--u)) calc((18 * var(--u)) + env(safe-area-inset-bottom, 0px));
+  animation: reg-up 0.26s cubic-bezier(0.2, 0.9, 0.2, 1) both;
+}
+
+.reg-sheet-handle {
+  width: calc(36 * var(--u));
+  height: calc(4 * var(--u));
+  border-radius: calc(3 * var(--u));
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 auto calc(14 * var(--u));
+  flex-shrink: 0;
+}
+
+.reg-sheet h2 {
+  font-size: calc(14 * var(--u));
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: calc(12 * var(--u));
+  flex-shrink: 0;
+}
+
+.reg-sheet-list {
+  display: flex;
+  flex-direction: column;
+  gap: calc(8 * var(--u));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.reg-sheet-msg {
+  font-size: calc(12.5 * var(--u));
+  color: var(--muted);
+  padding: calc(8 * var(--u)) 0 calc(12 * var(--u));
+}
+
+.reg-sheet-msg button {
+  color: #fff;
+  font-weight: 700;
+}
+
+.reg-option {
+  width: 100%;
+  text-align: left;
+  padding: calc(12 * var(--u)) calc(14 * var(--u));
+  min-height: calc(48 * var(--u));
+  border-radius: calc(12 * var(--u));
+  border: 1.5px solid var(--line);
+  background: var(--field);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: calc(10 * var(--u));
+}
+
+.reg-option .txt {
+  display: flex;
+  flex-direction: column;
+  gap: calc(2 * var(--u));
+  min-width: 0;
+}
+
+.reg-option strong {
+  font-size: calc(13.5 * var(--u));
+  font-weight: 700;
+}
+
+.reg-option .sub {
+  font-size: calc(11.5 * var(--u));
+  color: var(--muted);
+}
+
+.reg-option.active {
+  border-color: var(--accent);
+  background: rgba(240, 120, 64, 0.14);
+  box-shadow: 0 0 0 3px rgba(240, 120, 64, 0.16);
+}
+
+.reg-option .tick {
+  color: var(--accent);
+  display: flex;
+  flex-shrink: 0;
+}
+
+@keyframes reg-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes reg-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes reg-up {
+  from {
+    transform: translate(-50%, 100%);
+  }
+  to {
+    transform: translate(-50%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reg,
+  .reg * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
