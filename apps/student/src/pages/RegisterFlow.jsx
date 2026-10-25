@@ -2,10 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { campusApi } from '../lib/api';
 import { PhoneFormatter } from '../lib/format';
+import { parsePhoneInput } from '../lib/phoneInput';
 import AuthScreen, { PrimaryButton } from '../components/auth/AuthScreen';
 import { Field } from '../components/auth/Field';
 import OtpInput from '../components/auth/OtpInput';
 import CampusSelect from '../components/auth/CampusSelect';
+import PhonePrefix from '../components/auth/PhonePrefix';
 import {
   IconCap,
   IconEye,
@@ -16,7 +18,6 @@ import {
   IconLock,
   IconPhone,
   IconUser,
-  TogoFlag,
 } from '../components/auth/AuthIcons';
 
 /**
@@ -144,12 +145,7 @@ export default function RegisterFlow({ initialPhone = '', recovery = false, onLo
   }, [current, otpReset]);
 
   // --- Actions ---
-  const onPhoneChange = (raw) => {
-    const digits = /^\s*(\+|00)/.test(raw)
-      ? PhoneFormatter.toNational(raw)
-      : PhoneFormatter.digitsOf(raw).slice(0, PhoneFormatter.localDigits);
-    setPhone(PhoneFormatter.formatDisplay(digits));
-  };
+  const onPhoneChange = (raw) => setPhone(parsePhoneInput(raw));
 
   const phoneValid = PhoneFormatter.isValidLocal(phone);
 
@@ -515,15 +511,5 @@ export default function RegisterFlow({ initialPhone = '', recovery = false, onLo
     >
       {body}
     </AuthScreen>
-  );
-}
-
-/** Préfixe du champ téléphone : drapeau + indicatif, toujours sur une ligne. */
-function PhonePrefix() {
-  return (
-    <span className="reg-prefix">
-      <TogoFlag />
-      +228
-    </span>
   );
 }

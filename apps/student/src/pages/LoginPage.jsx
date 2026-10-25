@@ -1,151 +1,177 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { PhoneFormatter } from '../lib/format';
-import { useKeyboardInset } from '../lib/useKeyboardInset';
+import { parsePhoneInput } from '../lib/phoneInput';
+import AuthScreen, { PrimaryButton } from '../components/auth/AuthScreen';
+import { Field } from '../components/auth/Field';
+import PhonePrefix from '../components/auth/PhonePrefix';
+import PinField from '../components/auth/PinField';
+import { IconLock, IconPhone } from '../components/auth/AuthIcons';
 
-function PinDots({ length, value, onChange, disabled, autoFocus }) {
-  const inputRef = useRef(null);
-
-  useEffect(() => {
-    if (autoFocus) inputRef.current?.focus();
-  }, [autoFocus]);
-
-  return (
-    <div className="pin-dots" onClick={() => inputRef.current?.focus()}>
-      {Array.from({ length }).map((_, i) => (
-        <span
-          key={i}
-          className={`pin-dot${i < value.length ? ' filled' : ''}${i === value.length ? ' next' : ''}`}
-        />
-      ))}
-      <input
-        ref={inputRef}
-        className="pin-hidden"
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        maxLength={length}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, '').slice(0, length))}
-      />
-    </div>
-  );
-}
+const nbsp = (s) => String(s).replace(/ /g, '\u00A0');
 
 /**
- * Connexion par numéro + code PIN (sans SMS).
- * L'inscription et la récupération d'un PIN oublié passent par RegisterFlow
- * (via `onRegister`).
+ * Connexion en deux pages, même direction artistique que l'inscription :
+ *   1. numéro de téléphone   2. code PIN (chiffre visible un instant, puis « * »)
+ * « J'ai oublié mon code PIN » mène à la récupération par SMS (RegisterFlow).
+ * `onBack` (facultatif) : retour vers l'inscription depuis la page du numéro.
  */
-export default function LoginPage({ onRegister, initialPhone = '' }) {
-  useKeyboardInset();
+export default function LoginPage({ onRegister, onBack, initialPhone = '' }) {
   const auth = useAuth();
   const rememberedPhone = auth.session?.phone || '';
   const preferPin = auth.status === 'needsPin' && Boolean(rememberedPhone);
 
   const [step, setStep] = useState(preferPin ? 'pin' : 'phone'); // phone | pin
   const [phone, setPhone] = useState(() =>
-    rememberedPhone
-      ? PhoneFormatter.formatDisplay(rememberedPhone.replace(/^\+?228/, ''))
-      : PhoneFormatter.formatDisplay(PhoneFormatter.toNational(initialPhone)),
+    PhoneFormatter.formatDisplay(PhoneFormatter.toNational(rememberedPhone || initialPhone)),
   );
-  const [e164, setE164] = useState(rememberedPhone || '');
   const [pin, setPin] = useState('');
+  const [shakeKey, setShakeKey] = useState(0);
 
-  const onPhoneChange = (raw) => {
-    const digits = PhoneFormatter.digitsOf(raw).slice(0, 8);
-    setPhone(PhoneFormatter.formatDisplay(digits));
+  const stepRef = useRef(step);
+  const pushed = useRef(false); // la page PIN a-t-elle une entrée d'historique ?
+  const submitting = useRef(false);
+
+  useEffect(() => {
+    stepRef.current = step;
+  });
+
+  // Geste « retour » du téléphone : de la page PIN vers la page du numéro.
+  useEffect(() => {
+    const onPop = () => {
+      if (stepRef.current === 'pin') {
+        pushed.current = false;
+        setPin('');
+        setStep('phone');
+      }
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const phoneValid = PhoneFormatter.isValidLocal(phone);
+
+  const goPin = () => {
+    if (!phoneValid || auth.busy) return;
+    setPin('');
+    window.history.pushState({ kbkLogin: true }, '');
+    pushed.current = true;
+    setStep('pin');
   };
 
-  const title = step === 'pin' ? 'Code PIN' : 'Connexion';
-  const subtitle =
-    step === 'pin'
-      ? `Entre ton code à ${auth.pinLength} chiffres pour ${PhoneFormatter.formatDisplay(
-          (e164 || phone || rememberedPhone).replace(/^\+?228/, ''),
-        )}.`
-      : 'Entre ton numéro, puis ton code PIN, sans SMS.';
+  const backFromPin = () => {
+    if (pushed.current) window.history.back();
+    else {
+      setPin('');
+      setStep('phone');
+    }
+  };
+
+  const login = async (value) => {
+    if (submitting.current || value.length !== auth.pinLength) return;
+    submitting.current = true;
+    try {
+      await auth.loginWithPin({ phone: PhoneFormatter.toE164(phone), pin: value });
+    } catch {
+      // Message affiché par le contexte ; on vide le champ et on le secoue.
+      setPin('');
+      setShakeKey((k) => k + 1);
+    } finally {
+      submitting.current = false;
+    }
+  };
+
+  // Le dernier chiffre reste visible un instant avant l'envoi automatique.
+  useEffect(() => {
+    if (step !== 'pin' || pin.length !== auth.pinLength) return undefined;
+    const t = window.setTimeout(() => login(pin), 300);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pin, step]);
+
+  if (step === 'pin') {
+    const shown = nbsp(`+228 ${PhoneFormatter.formatDisplay(PhoneFormatter.toNational(phone))}`);
+    return (
+      <AuthScreen
+        icon={<IconLock />}
+        title="Entre ton code PIN"
+        subtitle={
+          <>
+            Code à {auth.pinLength} chiffres pour le <span className="reg-nowrap">{shown}</span>.
+          </>
+        }
+        stepKey="login-pin"
+        onBack={backFromPin}
+        footer={
+          <PrimaryButton
+            disabled={auth.busy || pin.length !== auth.pinLength}
+            onClick={() => login(pin)}
+          >
+            {auth.busy ? 'Connexion…' : 'Se connecter'}
+          </PrimaryButton>
+        }
+      >
+        <PinField
+          length={auth.pinLength}
+          value={pin}
+          onChange={setPin}
+          onSubmit={() => login(pin)}
+          disabled={auth.busy}
+          shakeKey={shakeKey}
+        />
+        <button
+          type="button"
+          className="reg-forgot"
+          onClick={() => onRegister?.(PhoneFormatter.toE164(phone), true)}
+        >
+          J’ai oublié mon code PIN
+        </button>
+      </AuthScreen>
+    );
+  }
 
   return (
-    <div className="auth-scaffold">
-      <div className="auth-hero">
-        <img className="auth-logo" src="/logo.png" alt="" width="56" height="56" />
-        <div className="auth-brand">kabakaba</div>
-        <h1>{title}</h1>
-        <p>{subtitle}</p>
-      </div>
-      <div className="auth-card">
-        {step === 'phone' ? (
-          <>
-            <div className="auth-card-body">
-              <div className="field">
-                <label>Téléphone</label>
-                <div className="input-shell">
-                  <span className="prefix">+228</span>
-                  <input
-                    value={phone}
-                    onChange={(e) => onPhoneChange(e.target.value)}
-                    placeholder="90 12 34 56"
-                    inputMode="numeric"
-                    autoComplete="tel-national"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="auth-card-footer">
-              <button
-                type="button"
-                className="btn-fill"
-                disabled={auth.busy || !PhoneFormatter.isValidLocal(phone)}
-                onClick={() => {
-                  setE164(PhoneFormatter.toE164(phone));
-                  setPin('');
-                  setStep('pin');
-                }}
-              >
-                Continuer
-              </button>
-              <button type="button" className="link-btn" onClick={() => onRegister?.(phone)}>
-                Pas encore de compte ? S’inscrire
-              </button>
-            </div>
-          </>
-        ) : null}
-
-        {step === 'pin' ? (
-          <>
-            <div className="auth-card-body">
-              <PinDots
-                length={auth.pinLength}
-                value={pin}
-                disabled={auth.busy}
-                autoFocus
-                onChange={async (v) => {
-                  setPin(v);
-                  if (v.length === auth.pinLength) {
-                    try {
-                      await auth.loginWithPin({ phone: e164 || phone, pin: v });
-                    } catch {
-                      setPin('');
-                    }
-                  }
-                }}
-              />
-            </div>
-            <div className="auth-card-footer">
-              <button
-                type="button"
-                className="link-btn"
-                onClick={() => onRegister?.(e164 || phone, true)}
-              >
-                J’ai oublié mon code PIN
-              </button>
-              <button type="button" className="link-btn" onClick={() => setStep('phone')}>
-                Modifier le numéro
-              </button>
-            </div>
-          </>
-        ) : null}
-      </div>
-    </div>
+    <AuthScreen
+      icon={<IconPhone />}
+      title="Content de te revoir"
+      subtitle="Entre ton numéro de téléphone pour accéder à ton compte."
+      stepKey="login-phone"
+      onBack={onBack ? () => onBack(phone) : undefined}
+      footer={
+        <>
+          <PrimaryButton arrow disabled={auth.busy || !phoneValid} onClick={goPin}>
+            Continuer
+          </PrimaryButton>
+          <div className="reg-foot">
+            Pas encore de compte ?{' '}
+            <button type="button" onClick={() => onRegister?.(phone)}>
+              S’inscrire
+            </button>
+          </div>
+        </>
+      }
+    >
+      <Field label="Numéro de téléphone" prefix={<PhonePrefix />}>
+        {(id) => (
+          <input
+            id={id}
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(parsePhoneInput(e.target.value))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && phoneValid) {
+                e.preventDefault();
+                goPin();
+              }
+            }}
+            placeholder="90 12 34 56"
+            inputMode="numeric"
+            autoComplete="tel-national"
+            enterKeyHint="go"
+            autoFocus
+          />
+        )}
+      </Field>
+    </AuthScreen>
   );
 }

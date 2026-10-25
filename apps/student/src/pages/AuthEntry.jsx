@@ -29,6 +29,14 @@ export default function AuthEntry() {
   return (
     <LoginPage
       initialPhone={carry.phone}
+      onBack={
+        startOnLogin
+          ? undefined
+          : (phone) => {
+              setCarry({ phone: phone || '', recovery: false });
+              setView('register');
+            }
+      }
       onRegister={(phone, recovery = false) => {
         setCarry({ phone: phone || '', recovery });
         setView('register');
