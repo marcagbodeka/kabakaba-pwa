@@ -34,19 +34,13 @@ function statusAfterUser(user) {
   return isIdentityComplete(user) ? 'authenticated' : 'needsIdentity';
 }
 
-function cachedMe() {
-  const me = readView('me');
-  return me && typeof me === 'object' && me.id ? me : null;
-}
-
 export function AuthProvider({ children }) {
-  const bootUser = cachedMe();
   const [session, setSession] = useState(() => loadSession());
-  const [status, setStatus] = useState(() =>
-    bootUser ? statusAfterUser(bootUser) : statusFromSession(loadSession()),
-  );
-  const [ready, setReady] = useState(Boolean(bootUser));
-  const [user, setUser] = useState(bootUser);
+  // Pas d'accueil tant que /users/me n'a pas confirmé la session.
+  // Un profil en cache ne doit pas ouvrir cette page si la session est expirée.
+  const [status, setStatus] = useState(() => statusFromSession(loadSession()));
+  const [ready, setReady] = useState(false);
+  const [user, setUser] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const [pinSetupToken, setPinSetupToken] = useState(null);
@@ -79,7 +73,6 @@ export function AuthProvider({ children }) {
         const next = loadSession();
         setSession(next);
         const authFail = err?.statusCode === 401 || err?.statusCode === 403;
-        const soft = err?.statusCode === 429 || err?.statusCode >= 500;
         const cached = readView('me');
         const pinFresh = isPinSessionFresh(next) || !next.pinVerifiedAt;
         // Trace d'une vraie session : profil mémorisé, PIN configuré ou jeton enregistré.
@@ -88,12 +81,15 @@ export function AuthProvider({ children }) {
         const hadSession = Boolean(
           cached || next.pinConfigured || next.accessToken || next.refreshToken,
         );
-        if (hadSession && pinFresh && (cached || soft || !authFail || next.pinConfigured)) {
+        // Session refusée : page de connexion, jamais l'accueil en cache.
+        if (authFail) {
+          setUser(null);
+          setStatus(statusFromSession(next));
+        } else if (hadSession && pinFresh) {
           if (cached) commitUser(cached);
           setStatus(cached ? statusAfterUser(cached) : 'authenticated');
         } else {
           setStatus(statusFromSession(next));
-          if (authFail && !isPinSessionFresh(next)) setUser(null);
         }
       } finally {
         setReady(true);
