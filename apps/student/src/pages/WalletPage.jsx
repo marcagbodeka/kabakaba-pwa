@@ -14,9 +14,9 @@ import {
 } from '../lib/format';
 
 /** Tickets souhaités (pas le montant payé). Frais ajoutés serveur. */
-const QUICK_TICKETS = [500, 1000, 2000, 5000, 9000];
-const MIN_TICKETS = 400;
-const MAX_TICKETS = 9500;
+const QUICK_TICKETS = [500, 1000, 2000, 5000, 10000];
+const MIN_TICKETS = 500;
+const MAX_TICKETS = 10000;
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const CODE_RE = /^[A-Z]-\d{2}$/i;
 
@@ -244,11 +244,11 @@ export default function WalletPage({ showSnack }) {
   const recharge = async () => {
     const tickets = Math.floor(Number(ticketsWanted));
     if (!Number.isFinite(tickets) || tickets < MIN_TICKETS) {
-      showSnack?.(`Minimum : ${MIN_TICKETS} tickets`);
+      showSnack?.(`Minimum : ${formatTicketCount(MIN_TICKETS)} tickets`);
       return;
     }
     if (tickets > MAX_TICKETS) {
-      showSnack?.(`Maximum : ${MAX_TICKETS} tickets`);
+      showSnack?.(`Maximum : ${formatTicketCount(MAX_TICKETS)} tickets`);
       return;
     }
     if (!quote) {
@@ -436,7 +436,7 @@ export default function WalletPage({ showSnack }) {
               onChange={(e) =>
                 setTicketsWanted(e.target.value.replace(/\D/g, '').slice(0, 5))
               }
-              placeholder={`Ex. 500 (${MIN_TICKETS}–${MAX_TICKETS})`}
+              placeholder={`Ex. 500 (${formatTicketCount(MIN_TICKETS)}–${formatTicketCount(MAX_TICKETS)})`}
               inputMode="numeric"
             />
             <span className="suffix">tickets</span>
@@ -491,7 +491,7 @@ export default function WalletPage({ showSnack }) {
           </div>
         ) : ticketsWanted && Number(ticketsWanted) > 0 ? (
           <div className="recharge-recap recharge-recap--muted">
-            Entre {MIN_TICKETS} et {MAX_TICKETS} tickets
+            Entre {formatTicketCount(MIN_TICKETS)} et {formatTicketCount(MAX_TICKETS)} tickets
           </div>
         ) : null}
 
