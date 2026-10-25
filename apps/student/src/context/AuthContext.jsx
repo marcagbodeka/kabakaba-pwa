@@ -82,7 +82,13 @@ export function AuthProvider({ children }) {
         const soft = err?.statusCode === 429 || err?.statusCode >= 500;
         const cached = readView('me');
         const pinFresh = isPinSessionFresh(next) || !next.pinVerifiedAt;
-        if (pinFresh && (cached || soft || !authFail || next.pinConfigured)) {
+        // Trace d'une vraie session : profil mémorisé, PIN configuré ou jeton enregistré.
+        // Sans elle (premier passage, rafraîchissement en pleine inscription), une erreur
+        // quelconque du serveur ne doit pas ouvrir l'accueil vide : retour à l'inscription.
+        const hadSession = Boolean(
+          cached || next.pinConfigured || next.accessToken || next.refreshToken,
+        );
+        if (hadSession && pinFresh && (cached || soft || !authFail || next.pinConfigured)) {
           if (cached) commitUser(cached);
           setStatus(cached ? statusAfterUser(cached) : 'authenticated');
         } else {
