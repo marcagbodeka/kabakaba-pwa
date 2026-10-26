@@ -622,50 +622,61 @@
   padding-bottom: 110px !important;
 }
 
-.base-sheet {
-  margin-bottom: 10px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
+.menu-roll {
+  position: relative;
+  margin-bottom: 16px;
+  border-radius: 22px;
   background: var(--surface);
+  box-shadow: 0 10px 28px rgba(13, 20, 56, 0.07);
   overflow: hidden;
 }
 
-.base-sheet.is-open {
-  border-color: var(--accent);
-}
-
-.base-sheet.is-off {
-  opacity: 0.45;
-}
-
-.base-name {
+.menu-roll-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 14px;
   width: 100%;
-  min-height: 52px;
-  padding: 14px 16px;
+  min-height: 72px;
+  padding: 14px 18px;
   text-align: left;
-  background: transparent;
   color: var(--text-primary);
-  font-size: 16px;
-  font-weight: 800;
 }
 
-.base-name em {
-  font-style: normal;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
+.menu-roll-title {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.roll-spindle {
+  width: 16px;
+  height: 42px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(13, 20, 56, 0.2), transparent 30%, rgba(255, 255, 255, 0.75) 48%, transparent 70%, rgba(13, 20, 56, 0.16)),
+    var(--peach);
+  box-shadow: inset 0 0 0 1px rgba(240, 120, 64, 0.28);
+}
+
+.roll-lip,
+.dish-lip {
+  display: block;
+  height: 12px;
+  margin: -4px 28px 10px 46px;
+  border-radius: 0 0 14px 14px;
+  background: linear-gradient(180deg, var(--field-light), var(--surface) 70%);
+  box-shadow: 0 8px 12px rgba(13, 20, 56, 0.06);
 }
 
 .base-roll {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows 0.38s ease;
+  transition: grid-template-rows 0.42s ease;
 }
 
-.base-sheet.is-open .base-roll {
+.menu-roll.is-open .base-roll,
+.dish.is-open .base-roll {
   grid-template-rows: 1fr;
 }
 
@@ -673,21 +684,81 @@
   overflow: hidden;
 }
 
-.base-roll-paper {
-  padding: 0 12px 14px;
+.menu-roll-paper {
+  padding: 0 10px 12px;
 }
 
-.roll-cap {
-  height: 8px;
-  margin: 0 8px 10px;
-  border-radius: 0 0 10px 10px;
-  background: linear-gradient(180deg, var(--tint), transparent);
+.dish {
+  margin-bottom: 8px;
 }
 
-.rice-group + .rice-group {
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--border);
+.dish.is-off {
+  opacity: 0.45;
+}
+
+.dish.is-open {
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-radius: 18px;
+  background: var(--field-light);
+}
+
+.dish-face {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 4px 8px 4px 4px;
+}
+
+.dish-open {
+  display: grid;
+  grid-template-columns: 52px auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 56px;
+  text-align: left;
+  color: var(--text-primary);
+}
+
+.dish-open:disabled {
+  cursor: default;
+}
+
+.dish-art {
+  width: 52px;
+  height: 52px;
+  color: var(--accent);
+  display: block;
+}
+
+.dish-art svg {
+  display: block;
+  width: 52px;
+  height: 52px;
+}
+
+.dish-price {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.dish-title {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dish-paper {
+  padding: 2px 8px 8px 14px;
+}
+
+.dish-lip {
+  margin: -2px 18px 4px 62px;
 }
 
 .rice-option {
@@ -696,12 +767,28 @@
   gap: 12px;
   width: 100%;
   min-height: 40px;
-  padding: 6px 4px;
+  padding: 4px 2px;
   text-align: left;
-  background: transparent;
   color: var(--text-primary);
+}
+
+.rice-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rice-label strong {
   font-size: 14.5px;
+  font-weight: 700;
+}
+
+.rice-label em {
+  font-style: normal;
+  font-size: 13px;
   font-weight: 600;
+  color: var(--text-secondary);
 }
 
 .rice-dot {
@@ -727,14 +814,14 @@
 }
 
 .extra-list {
-  margin-top: 12px;
-  padding-top: 8px;
+  margin-top: 8px;
+  padding-top: 6px;
   border-top: 1px solid var(--border);
 }
 
 .extra-row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
   min-height: 48px;
@@ -755,6 +842,7 @@
   font-weight: 700;
   color: var(--accent);
   text-align: center;
+  white-space: nowrap;
 }
 
 .roll-qty {
@@ -768,6 +856,7 @@
   text-align: center;
   font-size: 15px;
   font-weight: 800;
+  color: var(--text-primary);
 }
 
 .roll-plus {
@@ -785,12 +874,6 @@
 
 .roll-plus:disabled {
   opacity: 0.4;
-}
-
-.base-roll-price {
-  margin: 10px 4px 0;
-  font-size: 12px;
-  color: var(--text-secondary);
 }
 
 .empty-soft {

@@ -8,12 +8,19 @@ import { IconBack } from '../components/icons';
 
 const MAX_PARTS = 12;
 
-/** Accompagnements du riz : choix unique, sans quantité. Le backend viendra après. */
+/** Un seul accompagnement, deux noms : français et langue locale. Aperçu, pas encore en commande. */
 const ON_RICE = [
-  { id: 'sauce', options: ['Sauce tomate', 'Nougbagba'] },
-  { id: 'piment', options: ['Piment noir', 'Fionfion'] },
-  { id: 'poudre', options: ['Piment en poudre', 'Tôtô'] },
-  { id: 'huile', options: ['Huile'] },
+  { id: 'sauce', name: 'Sauce tomate', local: 'Nougbagba' },
+  { id: 'piment', name: 'Piment noir', local: 'Fionfion' },
+  { id: 'poudre', name: 'Piment en poudre', local: 'Tôtô' },
+  { id: 'huile', name: 'Huile' },
+];
+
+/** Aperçu boissons, en attendant le catalogue. */
+const DRINKS = [
+  { id: 'bissap', name: 'Bissap', price: 100 },
+  { id: 'gingembre', name: 'Jus de gingembre', price: 100 },
+  { id: 'eau', name: 'Eau', price: 50 },
 ];
 
 function QtyCircles({ parts, onChange, disabled }) {
@@ -56,6 +63,52 @@ function QtyCircles({ parts, onChange, disabled }) {
   );
 }
 
+function DishArt() {
+  return (
+    <span className="dish-art" aria-hidden>
+      <svg viewBox="0 0 48 48" width="48" height="48">
+        <rect width="48" height="48" rx="14" fill="currentColor" opacity="0.16" />
+        <ellipse cx="24" cy="30" rx="15" ry="6" fill="currentColor" />
+        <ellipse cx="24" cy="27.5" rx="13" ry="5" fill="#fff7f2" />
+        <path d="M14 26c2-4 6-6 10-6s8 2 10 6" fill="#f3c7a2" />
+        <circle cx="20" cy="25" r="1.3" fill="#c45c32" />
+        <circle cx="26" cy="24" r="1.1" fill="#e07a3d" />
+        <circle cx="23" cy="27" r="1" fill="#d46a38" />
+      </svg>
+    </span>
+  );
+}
+
+function DrinkArt() {
+  return (
+    <span className="dish-art dish-art--drink" aria-hidden>
+      <svg viewBox="0 0 48 48" width="48" height="48">
+        <rect width="48" height="48" rx="14" fill="currentColor" opacity="0.16" />
+        <path d="M16 14h16l-2 18a6 6 0 0 1-6 5h0a6 6 0 0 1-6-5z" fill="#fff7f2" />
+        <path d="M17.2 18h13.6L29 30a4 4 0 0 1-4 3.2h-2a4 4 0 0 1-4-3.2z" fill="currentColor" />
+        <path d="M24 37v3M20 40h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+    </span>
+  );
+}
+
+function MenuRoll({ title, open, onToggle, children }) {
+  return (
+    <section className={`menu-roll${open ? ' is-open' : ''}`}>
+      <button type="button" className="menu-roll-head" aria-expanded={open} onClick={onToggle}>
+        <span className="roll-spindle" aria-hidden />
+        <span className="menu-roll-title">{title}</span>
+      </button>
+      <div className="base-roll">
+        <div className="base-roll-clip">
+          <div className="menu-roll-paper">{children}</div>
+        </div>
+      </div>
+      {open ? null : <span className="roll-lip" aria-hidden />}
+    </section>
+  );
+}
+
 function acceptsOrders(vendor) {
   const status = String(vendor?.capacityStatus || '').toUpperCase();
   return status === 'OPEN' || status === 'BUSY';
@@ -69,8 +122,12 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
   const [components, setComponents] = useState(cached?.components || []);
   const [categories, setCategories] = useState(cached?.categories || []);
   const [loading, setLoading] = useState(!cached?.vendor);
+  const [platsOpen, setPlatsOpen] = useState(false);
+  const [drinksOpen, setDrinksOpen] = useState(false);
   const [openBaseId, setOpenBaseId] = useState(null);
+  const [baseParts, setBaseParts] = useState({});
   const [extraParts, setExtraParts] = useState({});
+  const [drinkParts, setDrinkParts] = useState({});
   const [rice, setRice] = useState({});
 
   useEffect(() => {
@@ -125,7 +182,6 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
   );
   const bases = plate.base;
   const extras = plate.extra;
-  const selectedBase = bases.find((c) => c.id === openBaseId && c.available) || null;
 
   const guardVendor = () => {
     if (!acceptsOrders(vendor)) {
@@ -141,19 +197,28 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
   };
 
   const plateTickets = useMemo(() => {
-    if (!selectedBase) return 0;
-    let total = Number(selectedBase.priceTickets || 0);
+    let total = 0;
+    let hasBase = false;
+    for (const base of bases) {
+      const parts = baseParts[base.id] || 0;
+      if (parts > 0 && base.available) {
+        hasBase = true;
+        total += Number(base.priceTickets || 0) * parts;
+      }
+    }
+    if (!hasBase) return 0;
     for (const extra of extras) {
       const parts = extraParts[extra.id] || 0;
       if (parts > 0 && extra.available) total += Number(extra.priceTickets || 0) * parts;
     }
     return total;
-  }, [selectedBase, extras, extraParts]);
+  }, [bases, baseParts, extras, extraParts]);
 
   const addPlate = () => {
     if (!guardVendor()) return;
-    if (!selectedBase) {
-      showSnack?.('Choisis d’abord le plat de base, par exemple le riz');
+    const chosen = bases.filter((base) => base.available && (baseParts[base.id] || 0) > 0);
+    if (!chosen.length) {
+      showSnack?.('Ajoute d’abord une part du plat');
       return;
     }
     const push = (item, quantity) => {
@@ -168,12 +233,12 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         soldAlone: Boolean(item.soldAlone),
       });
     };
-    push(selectedBase, 1);
+    for (const base of chosen) push(base, baseParts[base.id]);
     for (const extra of extras) {
       if (extra.available) push(extra, extraParts[extra.id] || 0);
     }
+    setBaseParts({});
     setExtraParts({});
-    setRice({});
     showSnack?.('Plat ajouté', 'success');
   };
 
@@ -209,102 +274,121 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
       </div>
 
       <div className="list-pad canteen-detail-body">
-        {bases.length ? (
-          bases.map((item) => {
-            const open = item.id === openBaseId;
-            const price = Number(item.priceTickets || 0);
-            return (
-              <section
-                key={item.id}
-                className={`base-sheet${!item.available ? ' is-off' : ''}${open ? ' is-open' : ''}`}
-              >
-                <button
-                  type="button"
-                  className="base-name"
-                  disabled={!item.available}
-                  aria-expanded={open}
-                  onClick={() => {
-                    setOpenBaseId(open ? null : item.id);
-                    if (!open) {
-                      setExtraParts({});
-                      setRice({});
-                    }
-                  }}
+        <MenuRoll title="Nos plats" open={platsOpen} onToggle={() => setPlatsOpen((v) => !v)}>
+          {bases.length ? (
+            bases.map((item) => {
+              const open = item.id === openBaseId;
+              const price = Number(item.priceTickets || 0);
+              const parts = baseParts[item.id] || 0;
+              return (
+                <section
+                  key={item.id}
+                  className={`dish${!item.available ? ' is-off' : ''}${open ? ' is-open' : ''}`}
                 >
-                  <span>{item.name}</span>
-                  {!item.available ? <em>Indisponible</em> : null}
-                </button>
-                <div className="base-roll">
-                  <div className="base-roll-clip">
-                    <div className="base-roll-paper">
-                      <div className="roll-cap" aria-hidden />
-                      {ON_RICE.map((group) => (
-                        <div key={group.id} className="rice-group" role="radiogroup">
-                          {group.options.map((label) => {
-                            const on = rice[group.id] === label;
-                            return (
-                              <button
-                                key={label}
-                                type="button"
-                                role="radio"
-                                aria-checked={on}
-                                className={`rice-option${on ? ' is-on' : ''}`}
-                                onClick={() =>
-                                  setRice((current) => ({
-                                    ...current,
-                                    [group.id]: on && group.options.length === 1 ? null : label,
-                                  }))
-                                }
-                              >
-                                <span className="rice-dot" />
-                                <span>{label}</span>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      ))}
-                      {extras.length ? (
-                        <div className="extra-list">
-                          {extras.map((extra) => {
-                            const parts = extraParts[extra.id] || 0;
-                            const extraPrice = Number(extra.priceTickets || 0);
-                            return (
-                              <div
-                                key={extra.id}
-                                className={`extra-row${!extra.available ? ' is-off' : ''}`}
-                              >
-                                <span className="extra-name">{extra.name}</span>
-                                <span className="extra-price">
-                                  {extra.available
-                                    ? `${formatTicketCount(extraPrice)} tickets`
-                                    : 'Indisponible'}
-                                </span>
-                                <QtyCircles
-                                  parts={parts}
-                                  disabled={!extra.available}
-                                  onChange={(next) =>
-                                    setExtraParts((q) => ({ ...q, [extra.id]: next }))
-                                  }
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : null}
-                      <p className="base-roll-price">
-                        {formatTicketCount(price)} tickets la part
-                      </p>
+                  <div className="dish-face">
+                    <button
+                      type="button"
+                      className="dish-open"
+                      disabled={!item.available}
+                      aria-expanded={open}
+                      onClick={() => setOpenBaseId(open ? null : item.id)}
+                    >
+                      <DishArt />
+                      <span className="dish-price">
+                        {item.available ? `${formatTicketCount(price)} tickets` : 'Indisponible'}
+                      </span>
+                      <span className="dish-title">{item.name}</span>
+                    </button>
+                    <QtyCircles
+                      parts={parts}
+                      disabled={!item.available}
+                      onChange={(next) => setBaseParts((q) => ({ ...q, [item.id]: next }))}
+                    />
+                  </div>
+                  <div className="base-roll">
+                    <div className="base-roll-clip">
+                      <div className="dish-paper">
+                        {ON_RICE.map((option) => {
+                          const on = Boolean(rice[option.id]);
+                          return (
+                            <button
+                              key={option.id}
+                              type="button"
+                              role="checkbox"
+                              aria-checked={on}
+                              className={`rice-option${on ? ' is-on' : ''}`}
+                              onClick={() =>
+                                setRice((current) => ({ ...current, [option.id]: !on }))
+                              }
+                            >
+                              <span className="rice-dot" />
+                              <span className="rice-label">
+                                <strong>{option.name}</strong>
+                                {option.local ? <em>{option.local}</em> : null}
+                              </span>
+                            </button>
+                          );
+                        })}
+                        {extras.length ? (
+                          <div className="extra-list">
+                            {extras.map((extra) => {
+                              const extraQty = extraParts[extra.id] || 0;
+                              const extraPrice = Number(extra.priceTickets || 0);
+                              return (
+                                <div
+                                  key={extra.id}
+                                  className={`extra-row${!extra.available ? ' is-off' : ''}`}
+                                >
+                                  <span className="extra-name">{extra.name}</span>
+                                  <span className="extra-price">
+                                    {extra.available
+                                      ? `${formatTicketCount(extraPrice)} tickets`
+                                      : 'Indisponible'}
+                                  </span>
+                                  <QtyCircles
+                                    parts={extraQty}
+                                    disabled={!extra.available}
+                                    onChange={(next) =>
+                                      setExtraParts((q) => ({ ...q, [extra.id]: next }))
+                                    }
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   </div>
+                  {open ? null : <span className="dish-lip" aria-hidden />}
+                </section>
+              );
+            })
+          ) : (
+            <div className="empty-state">
+              <h3>Pas de plat à composer</h3>
+            </div>
+          )}
+        </MenuRoll>
+
+        <MenuRoll title="Jus & Boissons" open={drinksOpen} onToggle={() => setDrinksOpen((v) => !v)}>
+          {DRINKS.map((drink) => (
+            <div key={drink.id} className="dish">
+              <div className="dish-face">
+                <div className="dish-open">
+                  <DrinkArt />
+                  <span className="dish-price">{formatTicketCount(drink.price)} tickets</span>
+                  <span className="dish-title">{drink.name}</span>
                 </div>
-              </section>
-            );
-          })
-        ) : (
-          <div className="empty-state">
-            <h3>Pas de plat à composer</h3>
-          </div>
-        )}
+                <QtyCircles
+                  parts={drinkParts[drink.id] || 0}
+                  onChange={(next) => setDrinkParts((q) => ({ ...q, [drink.id]: next }))}
+                />
+              </div>
+              <span className="dish-lip" aria-hidden />
+            </div>
+          ))}
+        </MenuRoll>
       </div>
 
       <div className="sticky-bar sticky-bar--flutter">
@@ -322,7 +406,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           <span>
             {cartHere
               ? `${formatTicketCount(cart.subtotal)} tickets`
-              : selectedBase
+              : plateTickets
                 ? `${formatTicketCount(plateTickets)} tickets`
                 : 'Choisis ton plat'}
           </span>
@@ -333,7 +417,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           style={{ width: 'auto', padding: '0 16px', height: 42 }}
           onClick={() => {
             if (cartHere) onOpenCart();
-            else if (selectedBase) addPlate();
+            else addPlate();
           }}
         >
           {cartHere ? 'Voir le panier' : 'Ajouter'}
