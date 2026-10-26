@@ -23,8 +23,6 @@ function blankOrder(vendorId, vendorName) {
   return {
     vendorId,
     vendorName: vendorName || 'Cantine',
-    consumptionMode: 'ON_SITE',
-    takeawayOptionId: null,
     when: 'NOW',
     scheduleAt: '',
     plates: [],
@@ -65,15 +63,25 @@ function storageKey(userId) {
   return userId ? `${STORAGE_PREFIX}.${userId}` : STORAGE_PREFIX;
 }
 
-function asPlate(raw) {
+function asPlate(raw, fallback) {
   const lines = Array.isArray(raw?.lines)
     ? raw.lines.filter((line) => line && (line.menuId || line.componentId) && (line.quantity || 0) > 0)
     : [];
   if (!lines.length) return null;
+  const inherited = raw.consumptionMode == null;
+  const consumptionMode =
+    raw.consumptionMode === 'TAKEAWAY' || (inherited && fallback?.consumptionMode === 'TAKEAWAY')
+      ? 'TAKEAWAY'
+      : 'ON_SITE';
   return {
     id: raw.id || plateId(),
     title: raw.title || lines[0].name || 'Plat',
     quantity: Math.max(1, Number(raw.quantity) || 1),
+    consumptionMode,
+    takeawayOptionId:
+      consumptionMode === 'TAKEAWAY'
+        ? raw.takeawayOptionId || (inherited ? fallback?.takeawayOptionId : null) || null
+        : null,
     lines: lines.map((line) => ({
       componentId: line.componentId || null,
       menuId: line.menuId || null,
@@ -86,13 +94,13 @@ function asPlate(raw) {
 }
 
 function asOrder(raw) {
-  const plates = (raw?.plates || []).map(asPlate).filter(Boolean);
+  const plates = (raw?.plates || [])
+    .map((plate) => asPlate(plate, raw))
+    .filter(Boolean);
   if (!raw?.vendorId || !plates.length) return null;
   return {
     vendorId: raw.vendorId,
     vendorName: raw.vendorName || 'Cantine',
-    consumptionMode: raw.consumptionMode === 'TAKEAWAY' ? 'TAKEAWAY' : 'ON_SITE',
-    takeawayOptionId: raw.takeawayOptionId || null,
     when: raw.when === 'LATER' ? 'LATER' : 'NOW',
     scheduleAt: raw.scheduleAt || '',
     plates,
@@ -193,16 +201,32 @@ function reducer(state, action) {
         ...order,
         plates: order.plates.filter((plate) => plate.id !== action.plateId),
       }));
-    case 'setConsumption':
+    case 'setPlateMode':
       return updateOrder(state, action.vendorId, (order) => ({
         ...order,
-        consumptionMode: action.mode,
-        takeawayOptionId: action.mode === 'TAKEAWAY' ? order.takeawayOptionId : null,
+        plates: order.plates.map((plate) =>
+          plate.id === action.plateId
+            ? {
+                ...plate,
+                consumptionMode: action.mode,
+                takeawayOptionId: action.mode === 'TAKEAWAY' ? plate.takeawayOptionId : null,
+              }
+            : plate,
+        ),
       }));
-    case 'setTakeaway':
+    case 'setPlateTakeaway':
       return updateOrder(state, action.vendorId, (order) => ({
         ...order,
-        takeawayOptionId: action.id,
+        plates: order.plates.map((plate) =>
+          plate.id === action.plateId
+            ? { ...plate, consumptionMode: 'TAKEAWAY', takeawayOptionId: action.id }
+            : plate,
+        ),
+      }));
+    case 'dropPlates':
+      return updateOrder(state, action.vendorId, (order) => ({
+        ...order,
+        plates: order.plates.filter((plate) => !action.plateIds.includes(plate.id)),
       }));
     case 'setWhen':
       return updateOrder(state, action.vendorId, (order) => ({
@@ -256,8 +280,11 @@ export function CartProvider({ children }) {
       setPlateQty: (vendorId, plateId, quantity) =>
         dispatch({ type: 'setPlateQty', vendorId, plateId, quantity }),
       removePlate: (vendorId, plateId) => dispatch({ type: 'removePlate', vendorId, plateId }),
-      setConsumption: (vendorId, mode) => dispatch({ type: 'setConsumption', vendorId, mode }),
-      setTakeaway: (vendorId, id) => dispatch({ type: 'setTakeaway', vendorId, id }),
+      setPlateMode: (vendorId, plateId, mode) =>
+        dispatch({ type: 'setPlateMode', vendorId, plateId, mode }),
+      setPlateTakeaway: (vendorId, plateId, id) =>
+        dispatch({ type: 'setPlateTakeaway', vendorId, plateId, id }),
+      dropPlates: (vendorId, plateIds) => dispatch({ type: 'dropPlates', vendorId, plateIds }),
       setWhen: (vendorId, when) => dispatch({ type: 'setWhen', vendorId, when }),
       setScheduleAt: (vendorId, value) => dispatch({ type: 'setScheduleAt', vendorId, value }),
       dropOrder: (vendorId) => dispatch({ type: 'dropOrder', vendorId }),

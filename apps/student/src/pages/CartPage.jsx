@@ -23,8 +23,9 @@ function plateSummary(plate) {
     .join(' · ');
 }
 
-function PlateBlock({ plate, open, onToggle, onQty, onRemove }) {
+function PlateBlock({ plate, options, open, onToggle, onQty, onRemove, onMode, onTakeaway }) {
   const parts = plate.quantity || 1;
+  const away = plate.consumptionMode === 'TAKEAWAY';
   return (
     <article className={`cart-plate${open ? ' is-open' : ''}`}>
       <div className="cart-plate-top">
@@ -46,15 +47,49 @@ function PlateBlock({ plate, open, onToggle, onQty, onRemove }) {
           </button>
         </div>
       </div>
-      <div className="cart-plate-qty">
-        <button type="button" className="qty-btn" onClick={() => onQty(parts - 1)} aria-label="Retirer une part">
-          −
-        </button>
-        <strong>{parts}</strong>
-        <button type="button" className="qty-btn" onClick={() => onQty(parts + 1)} aria-label="Ajouter une part">
-          +
-        </button>
+      <div className="cart-plate-bar">
+        <div className="cart-plate-qty">
+          <button type="button" className="qty-btn" onClick={() => onQty(parts - 1)} aria-label="Retirer une part">
+            −
+          </button>
+          <strong>{parts}</strong>
+          <button type="button" className="qty-btn" onClick={() => onQty(parts + 1)} aria-label="Ajouter une part">
+            +
+          </button>
+        </div>
+        <div className="plate-pack">
+          <button
+            type="button"
+            className={`plate-chip${!away ? ' on' : ''}`}
+            onClick={() => onMode('ON_SITE')}
+          >
+            Sur place
+          </button>
+          <button
+            type="button"
+            className={`plate-chip${away ? ' on' : ''}`}
+            disabled={!options.length}
+            onClick={() => onMode('TAKEAWAY')}
+          >
+            À emporter
+          </button>
+        </div>
       </div>
+      {away ? (
+        <div className="plate-pack-options">
+          {options.map((opt) => (
+            <button
+              key={opt.id}
+              type="button"
+              className={`plate-chip${plate.takeawayOptionId === opt.id ? ' on' : ''}`}
+              onClick={() => onTakeaway(opt.id)}
+            >
+              {opt.name}
+              {Number(opt.priceTickets) > 0 ? ` +${formatTicketCount(opt.priceTickets)}` : ''}
+            </button>
+          ))}
+        </div>
+      ) : null}
       {open ? (
         <ul className="cart-plate-lines">
           {plate.lines.map((line) => {
@@ -127,12 +162,12 @@ export default function CartPage({
   const fees = useMemo(() => {
     const byVendor = {};
     for (const order of cart.orders) {
-      if (order.consumptionMode !== 'TAKEAWAY' || !order.takeawayOptionId) {
-        byVendor[order.vendorId] = 0;
-        continue;
-      }
-      const opt = (optionsByVendor[order.vendorId] || []).find((item) => item.id === order.takeawayOptionId);
-      byVendor[order.vendorId] = Number(opt?.priceTickets ?? 0);
+      const options = optionsByVendor[order.vendorId] || [];
+      byVendor[order.vendorId] = order.plates.reduce((sum, plate) => {
+        if (plate.consumptionMode !== 'TAKEAWAY' || !plate.takeawayOptionId) return sum;
+        const opt = options.find((item) => item.id === plate.takeawayOptionId);
+        return sum + Number(opt?.priceTickets ?? 0);
+      }, 0);
     }
     return byVendor;
   }, [cart.orders, optionsByVendor]);
@@ -166,10 +201,12 @@ export default function CartPage({
     if (items.some((line) => line.quantity > 50)) {
       return 'La quantité d’un article ne peut pas dépasser 50';
     }
-    const plateError = soldAloneViolation(items);
-    if (plateError) return plateError;
-    if (order.consumptionMode === 'TAKEAWAY' && !order.takeawayOptionId) {
-      return `Choisis une option d’emporté pour ${order.vendorName}`;
+    for (const group of shipments(order)) {
+      const plateError = soldAloneViolation(orderItems({ plates: group.plates }));
+      if (plateError) return plateError;
+    }
+    if (order.plates.some((plate) => plate.consumptionMode === 'TAKEAWAY' && !plate.takeawayOptionId)) {
+      return `Choisis l’emporté de chaque plat chez ${order.vendorName}`;
     }
     if (order.when === 'LATER') {
       const when = new Date(order.scheduleAt);
@@ -189,17 +226,29 @@ export default function CartPage({
     return null;
   };
 
-  const orderBody = (order) => {
+  const shipments = (order) => {
+    const groups = [];
+    const onSite = order.plates.filter((plate) => plate.consumptionMode !== 'TAKEAWAY');
+    if (onSite.length) groups.push({ mode: 'ON_SITE', optionId: null, plates: onSite });
+    for (const plate of order.plates) {
+      if (plate.consumptionMode === 'TAKEAWAY') {
+        groups.push({ mode: 'TAKEAWAY', optionId: plate.takeawayOptionId, plates: [plate] });
+      }
+    }
+    return groups;
+  };
+
+  const orderBody = (order, group) => {
     const body = {
       vendorId: order.vendorId,
-      consumptionMode: order.consumptionMode,
-      items: orderItems(order).map((line) =>
+      consumptionMode: group.mode,
+      items: orderItems({ plates: group.plates }).map((line) =>
         line.menuId
           ? { menuId: line.menuId, quantity: line.quantity }
           : { componentId: line.componentId, quantity: line.quantity },
       ),
     };
-    if (order.consumptionMode === 'TAKEAWAY') body.takeawayOptionId = order.takeawayOptionId;
+    if (group.mode === 'TAKEAWAY') body.takeawayOptionId = group.optionId;
     return body;
   };
 
@@ -221,22 +270,24 @@ export default function CartPage({
       return;
     }
     setPaying(true);
-    const done = [];
     let lastNowId = null;
     let scheduled = false;
     try {
       for (const order of cart.orders) {
-        if (order.when === 'LATER') {
-          await scheduledOrdersApi.create({
-            ...orderBody(order),
-            scheduledFor: new Date(order.scheduleAt).toISOString(),
-          });
-          scheduled = true;
-        } else {
-          const created = await ordersApi.create(orderBody(order));
-          lastNowId = created?.id || lastNowId;
+        for (const group of shipments(order)) {
+          const body = orderBody(order, group);
+          if (order.when === 'LATER') {
+            await scheduledOrdersApi.create({
+              ...body,
+              scheduledFor: new Date(order.scheduleAt).toISOString(),
+            });
+            scheduled = true;
+          } else {
+            const created = await ordersApi.create(body);
+            lastNowId = created?.id || lastNowId;
+          }
+          cart.dropPlates(order.vendorId, group.plates.map((plate) => plate.id));
         }
-        done.push(order.vendorId);
       }
       cart.clear();
       await refreshMe();
@@ -249,7 +300,6 @@ export default function CartPage({
         else onBack();
       }
     } catch (e) {
-      for (const vendorId of done) cart.dropOrder(vendorId);
       showSnack?.(e.message || 'Commande impossible');
     } finally {
       setPaying(false);
@@ -329,6 +379,7 @@ export default function CartPage({
                     <PlateBlock
                       key={plate.id}
                       plate={plate}
+                      options={options}
                       open={Boolean(openPlates[plate.id])}
                       onToggle={() =>
                         setOpenPlates((current) => ({ ...current, [plate.id]: !current[plate.id] }))
@@ -342,6 +393,8 @@ export default function CartPage({
                         cart.setPlateQty(order.vendorId, plate.id, quantity);
                       }}
                       onRemove={() => cart.removePlate(order.vendorId, plate.id)}
+                      onMode={(mode) => cart.setPlateMode(order.vendorId, plate.id, mode)}
+                      onTakeaway={(id) => cart.setPlateTakeaway(order.vendorId, plate.id, id)}
                     />
                   ))}
 
@@ -353,18 +406,18 @@ export default function CartPage({
                     + Ajouter d’autres plats de cette cantine
                   </button>
 
-                  <div className="section-label">Quand ?</div>
-                  <div className="mode-row mode-row--cards">
+                  <div className="cart-when">
+                    <span>Quand</span>
                     <button
                       type="button"
-                      className={`mode-card${order.when !== 'LATER' ? ' active' : ''}`}
+                      className={`plate-chip${order.when !== 'LATER' ? ' on' : ''}`}
                       onClick={() => cart.setWhen(order.vendorId, 'NOW')}
                     >
                       Maintenant
                     </button>
                     <button
                       type="button"
-                      className={`mode-card${order.when === 'LATER' ? ' active' : ''}`}
+                      className={`plate-chip${order.when === 'LATER' ? ' on' : ''}`}
                       onClick={() => cart.setWhen(order.vendorId, 'LATER')}
                     >
                       Programmer
@@ -380,48 +433,6 @@ export default function CartPage({
                         />
                       </div>
                     </div>
-                  ) : null}
-
-                  <div className="section-label">Conditionnement</div>
-                  <div className="mode-row mode-row--cards">
-                    <button
-                      type="button"
-                      className={`mode-card${order.consumptionMode === 'ON_SITE' ? ' active' : ''}`}
-                      onClick={() => cart.setConsumption(order.vendorId, 'ON_SITE')}
-                    >
-                      Sur place
-                    </button>
-                    <button
-                      type="button"
-                      className={`mode-card${order.consumptionMode === 'TAKEAWAY' ? ' active' : ''}`}
-                      disabled={!options.length}
-                      onClick={() => cart.setConsumption(order.vendorId, 'TAKEAWAY')}
-                    >
-                      À emporter
-                    </button>
-                  </div>
-                  {order.consumptionMode === 'TAKEAWAY' ? (
-                    options.length ? (
-                      <div className="takeaway-options">
-                        {options.map((opt) => (
-                          <button
-                            key={opt.id}
-                            type="button"
-                            className={`takeaway-option${order.takeawayOptionId === opt.id ? ' active' : ''}`}
-                            onClick={() => cart.setTakeaway(order.vendorId, opt.id)}
-                          >
-                            <span>{opt.name}</span>
-                            <strong>
-                              {Number(opt.priceTickets) > 0
-                                ? `+${formatTicketCount(opt.priceTickets)} tickets`
-                                : 'Sans supplément'}
-                            </strong>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="muted">Aucune option d’emporté pour cette cantine.</p>
-                    )
                   ) : null}
 
                   <div className="cart-order-sum">

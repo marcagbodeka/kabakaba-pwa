@@ -2515,11 +2515,61 @@ button.plate-choice {
   color: var(--text-secondary);
 }
 
+.cart-plate-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
 .cart-plate-qty {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  margin: 10px 0 0 18px;
+  margin: 0;
+}
+
+.plate-pack,
+.plate-pack-options,
+.cart-when {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.plate-pack-options,
+.cart-when {
+  margin-top: 8px;
+}
+
+.cart-when span {
+  margin-right: 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plate-chip {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 99px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.plate-chip.on {
+  border-color: var(--accent);
+  background: rgba(240, 120, 64, 0.1);
+  color: var(--accent);
+}
+
+.plate-chip:disabled {
+  opacity: 0.4;
 }
 
 .cart-plate-lines {
