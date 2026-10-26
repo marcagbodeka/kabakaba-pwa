@@ -4,6 +4,7 @@ export const PLATE = {
   extra: 'En plus',
   choice: 'Au choix',
   always: 'Toujours mis',
+  drink: 'Jus & Boissons',
 };
 
 const BY_NAME = {
@@ -11,6 +12,7 @@ const BY_NAME = {
   [PLATE.extra]: 'extra',
   [PLATE.choice]: 'choice',
   [PLATE.always]: 'always',
+  [PLATE.drink]: 'drink',
 };
 
 export function roleOfComponent(component, categories) {
@@ -19,7 +21,7 @@ export function roleOfComponent(component, categories) {
 }
 
 export function groupPlate(components, categories) {
-  const groups = { base: [], extra: [], choice: [], always: [], other: [] };
+  const groups = { base: [], extra: [], choice: [], always: [], drink: [], other: [] };
   for (const component of components || []) {
     groups[roleOfComponent(component, categories)].push(component);
   }

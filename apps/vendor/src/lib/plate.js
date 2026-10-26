@@ -4,6 +4,7 @@ export const PLATE = {
   extra: 'En plus',
   choice: 'Au choix',
   always: 'Toujours mis',
+  drink: 'Jus & Boissons',
 };
 
 const BY_NAME = {
@@ -11,6 +12,7 @@ const BY_NAME = {
   [PLATE.extra]: 'extra',
   [PLATE.choice]: 'choice',
   [PLATE.always]: 'always',
+  [PLATE.drink]: 'drink',
 };
 
 export function roleOfName(name) {

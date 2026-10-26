@@ -32,10 +32,18 @@ const ROLE_COPY = {
   with: {
     label: 'Avec',
     title: 'Servi avec le plat',
-    lead: 'Ce que tu poses avec le plat de base. La sauce ou l’huile : il en choisit une. Le piment : tu le mets toujours.',
+    lead: 'Ce que l’étudiant coche sur le riz. Deux noms pour le même article : Sauce tomate et Nougbagba.',
     empty: 'Ajoute la sauce, l’huile, le piment.',
-    name: 'Sauce',
+    name: 'Sauce tomate',
     price: '',
+  },
+  drink: {
+    label: 'Boissons',
+    title: 'Jus & Boissons',
+    lead: 'À part des plats. L’étudiant en prend la quantité qu’il veut.',
+    empty: 'Ajoute le bissap, un jus, l’eau.',
+    name: 'Bissap',
+    price: 'Prix d’une part.',
   },
   menus: {
     label: 'Menus',
@@ -68,15 +76,18 @@ function Field({ label, hint, children }) {
 }
 
 function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
-  const [kind, setKind] = useState(role === 'extra' ? 'extra' : role === 'with' ? 'choice' : role === 'always' ? 'always' : role === 'choice' ? 'choice' : 'base');
+  const [kind, setKind] = useState(
+    role === 'extra' ? 'extra' : role === 'drink' ? 'drink' : role === 'with' || role === 'choice' ? 'choice' : role === 'always' ? 'always' : 'base',
+  );
   const [name, setName] = useState(initial?.name || '');
+  const [localName, setLocalName] = useState(initial?.localName || '');
   const [priceTickets, setPrice] = useState(
     String(initial?.priceTickets ?? (kind === 'choice' || kind === 'always' ? '0' : '')),
   );
   const [quantity, setQty] = useState(String(initial?.quantity ?? '20'));
   const [isAvailable, setAvail] = useState(initial?.isAvailable !== false);
   const [soldAlone, setSoldAlone] = useState(
-    typeof initial?.soldAlone === 'boolean' ? initial.soldAlone : kind === 'base',
+    typeof initial?.soldAlone === 'boolean' ? initial.soldAlone : kind === 'base' || kind === 'drink',
   );
   const included = kind === 'choice' || kind === 'always';
   const copy = included ? ROLE_COPY.with : ROLE_COPY[kind] || ROLE_COPY.base;
@@ -84,7 +95,7 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
   const selectKind = (next) => {
     setKind(next);
     if (next === 'choice' || next === 'always') setPrice('0');
-    if (!initial) setSoldAlone(next === 'base');
+    if (!initial) setSoldAlone(next === 'base' || next === 'drink');
   };
 
   return (
@@ -99,6 +110,7 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
               ['extra', 'En plus'],
               ['choice', 'Sauce ou huile'],
               ['always', 'Toujours mis'],
+              ['drink', 'Boisson'],
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -119,10 +131,17 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
           />
         </Field>
         {included ? (
+          <Field label="Autre nom" hint="Le même article, dans l’autre langue. Exemple : Nougbagba.">
+            <input
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              placeholder="Nougbagba"
+            />
+          </Field>
+        ) : null}
+        {included ? (
           <p className="field-hint">
-            {kind === 'choice'
-              ? 'L’étudiant en choisit une seule, offerte avec le plat. Exemple : sauce ou huile.'
-              : 'Ajouté tout seul avec le plat. Exemple : le piment. Pas de prix à part.'}
+            L’étudiant coche cet article sur le riz. Pas de quantité, pas de prix à part.
           </p>
         ) : (
           <Field label="Prix d’une part (tickets)" hint={copy.price}>
@@ -170,6 +189,7 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
               onSave({
                 kind,
                 name: name.trim(),
+                localName: included ? localName.trim() || null : null,
                 unit: 'PORTION',
                 priceTickets: included ? 0 : Number(priceTickets),
                 isAvailable,
@@ -459,7 +479,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   }, [vendorId, showSnack]);
 
   const grouped = useMemo(() => {
-    const groups = { base: [], extra: [], choice: [], always: [], other: [] };
+    const groups = { base: [], extra: [], choice: [], always: [], drink: [], other: [] };
     const rows = Array.isArray(components) ? components : [];
     const cats = Array.isArray(categories) ? categories : [];
     for (const component of rows) {
@@ -483,6 +503,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       { key: 'base', label: 'Base' },
       { key: 'extra', label: 'En plus' },
       { key: 'with', label: 'Avec' },
+      { key: 'drinks', label: 'Boissons' },
       { key: 'menus', label: 'Menus' },
       { key: 'takeaway', label: 'Emporté' },
     ];
@@ -490,7 +511,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     return list;
   }, [grouped.other.length]);
 
-  const copy = ROLE_COPY[tab] || ROLE_COPY.base;
+  const copy = ROLE_COPY[tab === 'drinks' ? 'drink' : tab] || ROLE_COPY.base;
 
   const categoryIdFor = async (name) => {
     const found = categories.find((c) => c.name === name);
@@ -506,12 +527,14 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       extra: PLATE.extra,
       choice: PLATE.choice,
       always: PLATE.always,
+      drink: PLATE.drink,
     }[body.kind];
     setBusy(true);
     try {
       const categoryId = await categoryIdFor(categoryName);
       const payload = {
         name: body.name,
+        localName: body.localName,
         unit: 'PORTION',
         priceTickets: body.priceTickets,
         isAvailable: body.isAvailable,
@@ -540,12 +563,13 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
         extra: PLATE.extra,
         choice: PLATE.choice,
         always: PLATE.always,
+        drink: PLATE.drink,
       }[kind];
       const categoryId = await categoryIdFor(categoryName);
       await componentsApi.update(item.id, {
         categoryId,
         priceTickets: isIncludedRole(kind) ? 0 : Number(item.priceTickets || 0),
-        soldAlone: kind === 'base',
+        soldAlone: kind === 'base' || kind === 'drink',
       });
       await reload();
       showSnack(`${item.name} rangé`);
@@ -662,7 +686,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     if (tab === 'menus') setSheet({ type: 'menus', item: null });
     else if (tab === 'takeaway') setSheet({ type: 'takeaway', item: null });
     else if (tab === 'sort') return;
-    else setSheet({ type: 'food', role: tab === 'with' ? 'choice' : tab, item: null });
+    else setSheet({ type: 'food', role: tab === 'with' ? 'choice' : tab === 'drinks' ? 'drink' : tab, item: null });
   };
 
   const foodOf = (role) => grouped[role] || [];
@@ -674,9 +698,9 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     return (
       <div key={item.id} className={`catalog-card${!available ? ' dim' : ''}`}>
         <div className="catalog-main">
-          <strong>{item.name}</strong>
+          <strong>{item.localName ? `${item.name} · ${item.localName}` : item.name}</strong>
           <span>
-            {included ? 'Offert avec le plat' : formatTickets(item.priceTickets)}
+            {included ? 'Avec le plat' : formatTickets(item.priceTickets)}
             {' · '}
             {item.quantity} part{Number(item.quantity) > 1 ? 's' : ''}
             {!item.isAvailable ? ' · masqué' : ''}
@@ -746,6 +770,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
 
           {tab === 'base' ? foodOf('base').map(renderFood) : null}
           {tab === 'extra' ? foodOf('extra').map(renderFood) : null}
+          {tab === 'drinks' ? foodOf('drink').map(renderFood) : null}
           {tab === 'with' ? (
             <>
               <div className="kicker-inline">L’étudiant en choisit une</div>
@@ -834,6 +859,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
                     <button type="button" onClick={() => classify(item, 'extra')}>En plus</button>
                     <button type="button" onClick={() => classify(item, 'choice')}>Sauce ou huile</button>
                     <button type="button" onClick={() => classify(item, 'always')}>Toujours mis</button>
+                    <button type="button" onClick={() => classify(item, 'drink')}>Boisson</button>
                   </div>
                 </div>
               ))
@@ -853,6 +879,12 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           {tab === 'extra' && !foodOf('extra').length ? (
             <div className="empty-block">
               <h3>Rien en plus</h3>
+              <p>{copy.empty}</p>
+            </div>
+          ) : null}
+          {tab === 'drinks' && !foodOf('drink').length ? (
+            <div className="empty-block">
+              <h3>Pas encore de boisson</h3>
               <p>{copy.empty}</p>
             </div>
           ) : null}

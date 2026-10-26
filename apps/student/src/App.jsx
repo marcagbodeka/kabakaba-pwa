@@ -118,6 +118,7 @@ function Shell() {
       <CartPage
         onBack={() => setTab('home')}
         onDiscover={() => navigate('canteens')}
+        onOpenCanteen={(id) => navigate('canteen', { vendorId: id })}
         onOrdered={(orderId) => {
           setFocusOrderId(orderId);
           setTab('orders');

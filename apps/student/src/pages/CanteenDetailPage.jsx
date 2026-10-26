@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { catalogApi, vendorsApi } from '../lib/api';
-import { useCart } from '../context/CartContext';
+import { orderSubtotal, useCart } from '../context/CartContext';
 import { readView, writeView } from '../lib/instantView';
 import { groupPlate } from '../lib/plate';
 import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
@@ -8,20 +8,9 @@ import { IconBack } from '../components/icons';
 
 const MAX_PARTS = 12;
 
-/** Un seul accompagnement, deux noms : français et langue locale. Aperçu, pas encore en commande. */
-const ON_RICE = [
-  { id: 'sauce', name: 'Sauce tomate', local: 'Nougbagba' },
-  { id: 'piment', name: 'Piment noir', local: 'Fionfion' },
-  { id: 'poudre', name: 'Piment en poudre', local: 'Tôtô' },
-  { id: 'huile', name: 'Huile' },
-];
-
-/** Aperçu boissons, en attendant le catalogue. */
-const DRINKS = [
-  { id: 'bissap', name: 'Bissap', price: 100 },
-  { id: 'gingembre', name: 'Jus de gingembre', price: 100 },
-  { id: 'eau', name: 'Eau', price: 50 },
-];
+function lineName(item) {
+  return item?.localName ? `${item.name} · ${item.localName}` : item?.name || '';
+}
 
 function QtyCircles({ parts, onChange, disabled }) {
   const atMax = parts >= MAX_PARTS;
@@ -152,6 +141,8 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
   );
   const bases = plate.base;
   const extras = plate.extra;
+  const onRice = useMemo(() => [...plate.choice, ...plate.always], [plate.choice, plate.always]);
+  const drinks = plate.drink;
 
   const guardVendor = () => {
     if (!acceptsOrders(vendor)) {
@@ -176,50 +167,81 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         total += Number(base.priceTickets || 0) * parts;
       }
     }
-    if (!hasBase) return 0;
-    for (const base of bases) {
-      if (!(baseParts[base.id] > 0) || !base.available) continue;
-      const picked = extraParts[base.id] || {};
-      for (const extra of extras) {
-        const parts = picked[extra.id] || 0;
-        if (parts > 0 && extra.available) total += Number(extra.priceTickets || 0) * parts;
+    if (hasBase) {
+      for (const base of bases) {
+        if (!(baseParts[base.id] > 0) || !base.available) continue;
+        const picked = extraParts[base.id] || {};
+        for (const extra of extras) {
+          const parts = picked[extra.id] || 0;
+          if (parts > 0 && extra.available) total += Number(extra.priceTickets || 0) * parts;
+        }
+        const sauces = rice[base.id] || {};
+        for (const item of onRice) {
+          if (sauces[item.id] && item.available) total += Number(item.priceTickets || 0);
+        }
       }
     }
+    for (const drink of drinks) {
+      const parts = drinkParts[drink.id] || 0;
+      if (parts > 0 && drink.available) total += Number(drink.priceTickets || 0) * parts;
+    }
     return total;
-  }, [bases, baseParts, extras, extraParts]);
+  }, [bases, baseParts, extras, extraParts, drinks, drinkParts, onRice, rice]);
 
   const addPlate = () => {
     if (!guardVendor()) return;
     const chosen = bases.filter((base) => base.available && (baseParts[base.id] || 0) > 0);
-    if (!chosen.length) {
+    const chosenDrinks = drinks.filter((drink) => drink.available && (drinkParts[drink.id] || 0) > 0);
+    if (!chosen.length && !chosenDrinks.length) {
       showSnack?.('Ajoute d’abord une part du plat');
       return;
     }
-    const push = (item, quantity) => {
-      if (!item || quantity < 1) return;
-      cart.add({
-        vendorId,
-        vendorName: vendor?.canteenName,
-        componentId: item.id,
-        name: item.name,
-        unitPrice: Number(item.priceTickets ?? 0),
-        quantity,
-        soldAlone: Boolean(item.soldAlone),
-      });
-    };
+    const lineOf = (item, quantity) => ({
+      componentId: item.id,
+      name: lineName(item),
+      unitPrice: Number(item.priceTickets ?? 0),
+      quantity,
+      soldAlone: Boolean(item.soldAlone),
+    });
     for (const base of chosen) {
-      push(base, baseParts[base.id]);
+      const lines = [lineOf(base, baseParts[base.id])];
       const picked = extraParts[base.id] || {};
       for (const extra of extras) {
-        if (extra.available) push(extra, picked[extra.id] || 0);
+        const parts = picked[extra.id] || 0;
+        if (extra.available && parts > 0) lines.push(lineOf(extra, parts));
       }
+      const sauces = rice[base.id] || {};
+      for (const item of onRice) {
+        if (sauces[item.id] && item.available) lines.push(lineOf(item, 1));
+      }
+      cart.addPlate({
+        vendorId,
+        vendorName: vendor?.canteenName,
+        title: base.name,
+        lines,
+      });
+    }
+    for (const drink of chosenDrinks) {
+      cart.addPlate({
+        vendorId,
+        vendorName: vendor?.canteenName,
+        title: drink.name,
+        lines: [lineOf(drink, drinkParts[drink.id])],
+      });
     }
     setBaseParts({});
     setExtraParts({});
+    setRice({});
+    setDrinkParts({});
     showSnack?.('Plat ajouté', 'success');
   };
 
-  const cartHere = cart.vendorId === vendorId && cart.itemCount > 0;
+  const orderHere = cart.orders.find((order) => order.vendorId === vendorId);
+  const cartHere = Boolean(orderHere?.plates.length);
+  const cartSubtotal = orderHere ? orderSubtotal(orderHere) : 0;
+  const cartCountHere = orderHere
+    ? orderHere.plates.reduce((sum, plate) => sum + plate.quantity, 0)
+    : 0;
 
   if (loading) {
     return (
@@ -294,7 +316,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                   <div className="base-roll">
                     <div className="base-roll-clip">
                       <div className="dish-paper">
-                        {ON_RICE.map((option) => {
+                        {onRice.map((option) => {
                           const on = Boolean(pickedRice[option.id]);
                           return (
                             <button
@@ -302,7 +324,8 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                               type="button"
                               role="checkbox"
                               aria-checked={on}
-                              className={`rice-option${on ? ' is-on' : ''}`}
+                              disabled={!option.available}
+                              className={`rice-option${on ? ' is-on' : ''}${!option.available ? ' is-off' : ''}`}
                               onClick={() =>
                                 setRice((current) => ({
                                   ...current,
@@ -313,7 +336,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                               <span className="rice-dot" />
                               <span className="rice-label">
                                 <strong>{option.name}</strong>
-                                {option.local ? <em>{option.local}</em> : null}
+                                {option.localName ? <em>{option.localName}</em> : null}
                               </span>
                             </button>
                           );
@@ -362,18 +385,23 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           )}
         </MenuRoll>
 
-        <MenuRoll title="Jus & Boissons" open={drinksOpen} onToggle={() => setDrinksOpen((v) => !v)}>
-          {DRINKS.map((drink) => (
-            <div key={drink.id} className="extra-row">
-              <span className="extra-name">{drink.name}</span>
-              <span className="extra-price">{formatTicketCount(drink.price)} tickets</span>
-              <QtyCircles
-                parts={drinkParts[drink.id] || 0}
-                onChange={(next) => setDrinkParts((q) => ({ ...q, [drink.id]: next }))}
-              />
-            </div>
-          ))}
-        </MenuRoll>
+        {drinks.length ? (
+          <MenuRoll title="Jus & Boissons" open={drinksOpen} onToggle={() => setDrinksOpen((v) => !v)}>
+            {drinks.map((drink) => (
+              <div key={drink.id} className={`extra-row${!drink.available ? ' is-off' : ''}`}>
+                <span className="extra-name">{drink.name}</span>
+                <span className="extra-price">
+                  {drink.available ? `${formatTicketCount(drink.priceTickets)} tickets` : 'Indisponible'}
+                </span>
+                <QtyCircles
+                  parts={drinkParts[drink.id] || 0}
+                  disabled={!drink.available}
+                  onChange={(next) => setDrinkParts((q) => ({ ...q, [drink.id]: next }))}
+                />
+              </div>
+            ))}
+          </MenuRoll>
+        ) : null}
       </div>
 
       <div className="sticky-bar sticky-bar--flutter">
@@ -384,13 +412,13 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
             <circle cx="9" cy="20" r="1" />
             <circle cx="17" cy="20" r="1" />
           </svg>
-          {cartHere ? <span className="sticky-badge">{cart.itemCount > 9 ? '9+' : cart.itemCount}</span> : null}
+          {cartHere ? <span className="sticky-badge">{cartCountHere > 9 ? '9+' : cartCountHere}</span> : null}
         </div>
         <div className="meta">
           <strong>Total</strong>
           <span>
             {cartHere
-              ? `${formatTicketCount(cart.subtotal)} tickets`
+              ? `${formatTicketCount(cartSubtotal)} tickets`
               : plateTickets
                 ? `${formatTicketCount(plateTickets)} tickets`
                 : 'Choisis ton plat'}
