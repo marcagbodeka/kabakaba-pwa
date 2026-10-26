@@ -731,6 +731,54 @@
   padding: 0;
 }
 
+.profile-hero-edit-btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  text-align: left;
+  color: inherit;
+}
+
+.profile-field:last-child {
+  border-bottom: none;
+}
+
+.profile-field-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.profile-field-value {
+  margin-left: auto;
+  min-width: 0;
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
 .profile-hero-avatar {
   position: relative;
   width: 58px;
@@ -744,6 +792,9 @@
   font-size: 20px;
   font-weight: 800;
   flex-shrink: 0;
+  padding: 0;
+  color: inherit;
+  cursor: pointer;
 }
 
 .profile-hero-avatar img,

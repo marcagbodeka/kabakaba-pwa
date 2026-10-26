@@ -211,6 +211,34 @@ export default function ProfilePage({ showSnack, initialPanel }) {
     }
   };
 
+  const enableDevicePush = async () => {
+    if (pushOn || pushBusy || !isWebPushConfigured()) return;
+    setPushBusy(true);
+    try {
+      try {
+        sessionStorage.removeItem('kabakaba_student_push_later');
+      } catch {
+        /* ignore */
+      }
+      const token = await registerWebPush({ forcePrompt: true });
+      const perm = getNotificationPermission();
+      setPushPerm(perm);
+      if (token) {
+        setPushOn(true);
+        showSnack?.('Notifications activées', 'success');
+      } else {
+        setPushOn(false);
+        showSnack?.(
+          perm === 'denied'
+            ? getPushBlockedHelp()
+            : 'Accepte la popup du navigateur pour activer',
+        );
+      }
+    } finally {
+      setPushBusy(false);
+    }
+  };
+
   const setNotify = async ({ orders, promos }) => {
     if (!user?.id) return;
     const nextOrders = orders ?? notifyOrders;
@@ -674,13 +702,13 @@ export default function ProfilePage({ showSnack, initialPanel }) {
           </button>
         </div>
 
-        <button type="button" className="profile-hero-user" onClick={openEdit}>
-          <span
+        <div className="profile-hero-user">
+          <button
+            type="button"
             className="profile-hero-avatar"
-            onClick={(e) => {
-              e.stopPropagation();
-              fileRef.current?.click();
-            }}
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            aria-label="Changer la photo"
           >
             {user?.avatarUrl ? (
               <img src={user.avatarUrl} alt="" />
@@ -693,7 +721,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
                 <circle cx="12" cy="13" r="4" />
               </svg>
             </span>
-          </span>
+          </button>
           <input
             ref={fileRef}
             type="file"
@@ -704,124 +732,73 @@ export default function ProfilePage({ showSnack, initialPanel }) {
           />
           <span className="profile-hero-meta">
             <strong>{displayName}</strong>
-            <span>{uploading ? 'Envoi de la photo…' : campusName || 'Campus non défini'}</span>
-            <span className="profile-hero-hint">Touche la photo pour la changer</span>
+            <span>{uploading ? 'Envoi de la photo…' : campusName || phone}</span>
           </span>
-          <svg className="profile-hero-edit" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 20h9" />
-            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5Z" />
-          </svg>
-        </button>
+          <button type="button" className="profile-hero-edit-btn" onClick={openEdit}>
+            Modifier
+          </button>
+        </div>
       </div>
 
       <div className="sheet-body sheet-body--profile">
-        <div className="push-settings-card" id="push-settings">
-          <div className="push-settings-head">
-            <div className="push-settings-icon" aria-hidden>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-              </svg>
-            </div>
-            <div>
-              <strong>Notifications push</strong>
-              <p>
-                {pushBusy
-                  ? 'Activation en cours…'
-                  : pushPerm === 'denied'
-                    ? 'Bloquées dans le navigateur — autorise kabakaba dans les réglages du site.'
-                    : !isWebPushConfigured()
-                      ? 'Config Firebase manquante sur ce déploiement.'
-                      : pushOn
-                        ? 'Activées sur cet appareil.'
-                        : 'Active pour être alerté quand ta commande est prête.'}
-              </p>
-            </div>
-          </div>
-          {pushPerm === 'denied' ? (
-            <button
-              type="button"
-              className="push-settings-unblock"
-              onClick={() => showSnack?.(getPushBlockedHelp())}
-            >
-              Comment débloquer
-            </button>
-          ) : (
-            <label className="push-settings-toggle">
-              <span>{pushOn ? 'Activé' : 'Désactivé'}</span>
-              <input
-                type="checkbox"
-                checked={pushOn}
-                disabled={pushBusy || pushOn || !isWebPushConfigured()}
-                onChange={async (e) => {
-                  const wantOn = e.target.checked;
-                  if (!wantOn) return;
-                  setPushBusy(true);
-                  try {
-                    try {
-                      sessionStorage.removeItem('kabakaba_student_push_later');
-                    } catch {
-                      /* ignore */
-                    }
-                    const token = await registerWebPush({ forcePrompt: true });
-                    const perm = getNotificationPermission();
-                    setPushPerm(perm);
-                    if (token) {
-                      setPushOn(true);
-                      showSnack?.('Notifications activées', 'success');
-                    } else {
-                      setPushOn(false);
-                      if (perm === 'denied') {
-                        showSnack?.(getPushBlockedHelp());
-                      } else {
-                        showSnack?.('Accepte la popup du navigateur pour activer');
-                      }
-                    }
-                  } finally {
-                    setPushBusy(false);
-                  }
-                }}
-              />
-            </label>
-          )}
-        </div>
-
-        <div className="section-label">Informations personnelles</div>
+        <div className="section-label">Compte</div>
         <div className="settings-card">
-          <div className="field-row">
-            <span>Prénom(s)</span>
-            <strong>{user?.firstName?.trim() || '—'}</strong>
+          <button type="button" className="profile-field" onClick={openEdit}>
+            <span className="profile-field-label">Prénom</span>
+            <span className="profile-field-value">{user?.firstName?.trim() || '—'}</span>
+            <span className="nav-row-chevron">›</span>
+          </button>
+          <button type="button" className="profile-field" onClick={openEdit}>
+            <span className="profile-field-label">Nom</span>
+            <span className="profile-field-value">{user?.lastName?.trim() || '—'}</span>
+            <span className="nav-row-chevron">›</span>
+          </button>
+          <div className="profile-field">
+            <span className="profile-field-label">Téléphone</span>
+            <span className="profile-field-value">{phone}</span>
           </div>
-          <div className="field-row">
-            <span>Nom</span>
-            <strong>{user?.lastName?.trim() || '—'}</strong>
-          </div>
-          <div className="field-row">
-            <span>Téléphone</span>
-            <strong className="locked">{phone}</strong>
-          </div>
-        </div>
-
-        <div className="section-label">Campus</div>
-        <div className="settings-card">
-          <button type="button" className="nav-row" onClick={() => showSnack?.('Campus géré sur dossier')}>
-            <MiniIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m12 3 9 5v2H3V8l9-5Z"/><path d="M5 10v7h14v-7"/><path d="M9 21v-4h6v4"/></svg>
-            </MiniIcon>
-            <span className="nav-row-body">
-              <strong>{campusName || 'Campus non défini'}</strong>
-              <span>Changer de campus sur dossier</span>
-            </span>
+          <button
+            type="button"
+            className="profile-field"
+            onClick={() => showSnack?.('Campus géré sur dossier')}
+          >
+            <span className="profile-field-label">Campus</span>
+            <span className="profile-field-value">{campusName || 'Non défini'}</span>
             <span className="nav-row-chevron">›</span>
           </button>
         </div>
 
-        <div className="section-label">Préférences</div>
+        <div className="section-label">Notifications</div>
         <div className="settings-card">
+          {pushPerm === 'denied' ? (
+            <button
+              type="button"
+              className="profile-field"
+              onClick={() => showSnack?.(getPushBlockedHelp())}
+            >
+              <span className="profile-field-label">Cet appareil</span>
+              <span className="profile-field-value">Bloquées</span>
+              <span className="nav-row-chevron">›</span>
+            </button>
+          ) : (
+            <label className="toggle-row">
+              <span className="nav-row-body">
+                <strong>Cet appareil</strong>
+                <span>
+                  {pushBusy ? 'Activation…' : pushOn ? 'Activées' : 'Désactivées'}
+                </span>
+              </span>
+              <input
+                type="checkbox"
+                checked={pushOn}
+                disabled={pushBusy || pushOn || !isWebPushConfigured()}
+                onChange={(e) => {
+                  if (e.target.checked) enableDevicePush();
+                }}
+              />
+            </label>
+          )}
           <label className="toggle-row">
-            <MiniIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 2h9l3 3v17H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>
-            </MiniIcon>
             <span className="nav-row-body">
               <strong>Mes commandes</strong>
               <span>Acceptation, refus, prête</span>
@@ -833,12 +810,9 @@ export default function ProfilePage({ showSnack, initialPanel }) {
             />
           </label>
           <label className="toggle-row">
-            <MiniIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.6 12.6a2 2 0 0 0 0-2.8l-1.4-1.4a2 2 0 0 0-2.8 0L5 19.8V22h2.2l13.4-9.4Z"/><path d="m15 6 3 3"/></svg>
-            </MiniIcon>
             <span className="nav-row-body">
-              <strong>Promotions & nouveautés</strong>
-              <span>Offres et actualités kabakaba</span>
+              <strong>Promotions</strong>
+              <span>Offres et actualités</span>
             </span>
             <input
               type="checkbox"
@@ -846,51 +820,36 @@ export default function ProfilePage({ showSnack, initialPanel }) {
               onChange={(e) => setNotify({ promos: e.target.checked })}
             />
           </label>
-        </div>
-
-        <div className="amb-card">
-          <div className="amb-card-top">
-            <span className="amb-chip">{referral?.referralCode || user?.referralCode || 'PARRAINAGE'}</span>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffb347" strokeWidth="2"><path d="M20 12v8H4v-8"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z"/></svg>
-          </div>
-          <h3>Parrainage kabakaba</h3>
-          <p>
-            {referral
-              ? `${referral.referredCount || 0} filleuls · ${formatTicketCount(referral.totalRewardTickets || 0)} tickets gagnés`
-              : 'Partage ton code : 100 tickets à la 1re recharge d’un filleul.'}
-          </p>
-          <div className="amb-stats">
-            <div>
-              <label>FILLEULS</label>
-              <strong>{referral?.referredCount ?? 0}</strong>
-            </div>
-            <div>
-              <label>TICKETS</label>
-              <strong>{formatTicketCount(referral?.totalRewardTickets || 0)}</strong>
-            </div>
-          </div>
-          <button type="button" className="btn-fill amb-cta" onClick={() => setPanel('referral')}>
-            Voir mon code
+          <button type="button" className="nav-row" onClick={openNotes}>
+            <span className="nav-row-body">
+              <strong>Reçues</strong>
+            </span>
+            <span className="nav-row-chevron">›</span>
           </button>
         </div>
 
         <div className="section-label">Plus</div>
         <div className="settings-card">
+          <button type="button" className="nav-row" onClick={() => setPanel('referral')}>
+            <MiniIcon>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 12v8H4v-8"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7Z"/><path d="M12 7h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z"/></svg>
+            </MiniIcon>
+            <span className="nav-row-body">
+              <strong>Parrainage</strong>
+              <span>
+                {referral
+                  ? `${referral.referredCount || 0} filleuls · ${formatTicketCount(referral.totalRewardTickets || 0)} tickets`
+                  : 'Ton code et tes filleuls'}
+              </span>
+            </span>
+            <span className="nav-row-chevron">›</span>
+          </button>
           <button type="button" className="nav-row" onClick={() => setPanel('help')}>
             <MiniIcon>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M9.1 9a3 3 0 1 1 4.4 2.6C12.5 12.3 12 13 12 14"/><path d="M12 17h.01"/></svg>
             </MiniIcon>
             <span className="nav-row-body">
               <strong>Centre d’aide</strong>
-            </span>
-            <span className="nav-row-chevron">›</span>
-          </button>
-          <button type="button" className="nav-row" onClick={openNotes}>
-            <MiniIcon>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6.7 9.1c0-3.3 2.4-5.9 5.3-5.9s5.3 2.6 5.3 5.9l1.1 4.5c.2.7-.3 1.4-1 1.4H6.6c-.7 0-1.2-.7-1-1.4l1.1-4.5Z"/><path d="M10 18.5a2 2 0 0 0 4 0"/></svg>
-            </MiniIcon>
-            <span className="nav-row-body">
-              <strong>Notifications</strong>
             </span>
             <span className="nav-row-chevron">›</span>
           </button>
