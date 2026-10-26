@@ -8,7 +8,6 @@ import { Field } from '../components/auth/Field';
 import OtpInput from '../components/auth/OtpInput';
 import CampusSelect from '../components/auth/CampusSelect';
 import PhonePrefix from '../components/auth/PhonePrefix';
-import TermsCheck from '../components/auth/TermsCheck';
 import {
   IconCap,
   IconDoc,
@@ -45,8 +44,6 @@ export default function RegisterFlow({
   initialPhone = '',
   recovery = false,
   onLogin,
-  onCreating,
-  onCreateFailed,
 }) {
   const auth = useAuth();
 
@@ -54,8 +51,6 @@ export default function RegisterFlow({
   const [stack, setStackState] = useState(['phone']);
   const stackRef = useRef(['phone']);
   const onLoginRef = useRef(onLogin);
-  const onCreatingRef = useRef(onCreating);
-  const onCreateFailedRef = useRef(onCreateFailed);
   const phoneRef = useRef('');
 
   const setStack = useCallback((next) => {
@@ -109,12 +104,9 @@ export default function RegisterFlow({
   const [referral, setReferral] = useState('');
   // Compte déjà existant (code PIN oublié) : le backend a accepté le code sans campus.
   const [existing, setExisting] = useState(false);
-  const [accepted, setAccepted] = useState(false); // conditions générales
 
   useEffect(() => {
     onLoginRef.current = onLogin;
-    onCreatingRef.current = onCreating;
-    onCreateFailedRef.current = onCreateFailed;
     phoneRef.current = phone;
   });
 
@@ -206,8 +198,6 @@ export default function RegisterFlow({
   const identity = () => ({ firstName: firstName.trim(), lastName: lastName.trim() });
 
   const createAccount = async (referralValue) => {
-    // Les conditions doivent être acceptées pour un nouveau compte (pas pour un PIN oublié).
-    if (!existing && !accepted) return;
     const ref = referralValue.trim().toUpperCase();
     if (!tokenReady.current) {
       try {
@@ -231,13 +221,10 @@ export default function RegisterFlow({
         return;
       }
     }
-    // Nouveau compte : l'écran de bienvenue doit prendre le relais dès la connexion.
-    if (!existing) onCreatingRef.current?.(firstName.trim());
     try {
       await auth.setPin(pin, identity());
     } catch {
       /* message affiché par le contexte ; le jeton reste valable pour réessayer */
-      onCreateFailedRef.current?.();
     }
   };
 
@@ -479,7 +466,7 @@ export default function RegisterFlow({
               value={referral}
               onChange={(e) => setReferral(e.target.value.toUpperCase())}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !auth.busy && accepted) {
+                if (e.key === 'Enter' && !auth.busy) {
                   e.preventDefault();
                   createAccount(referral);
                 }
@@ -500,23 +487,17 @@ export default function RegisterFlow({
           </span>
           Une fois ton compte créé, ce code ne pourra plus être modifié.
         </div>
-        <TermsCheck
-          checked={accepted}
-          onChange={setAccepted}
-          onOpenTerms={() => go('terms')}
-          disabled={auth.busy}
-        />
       </>
     );
     footer = (
       <>
-        <PrimaryButton disabled={auth.busy || !accepted} onClick={() => createAccount(referral)}>
+        <PrimaryButton disabled={auth.busy} onClick={() => createAccount(referral)}>
           {auth.busy ? 'Création…' : 'Créer mon compte'}
         </PrimaryButton>
         <button
           type="button"
           className="reg-skip"
-          disabled={auth.busy || !accepted}
+          disabled={auth.busy}
           onClick={() => {
             setReferral('');
             createAccount('');

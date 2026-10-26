@@ -17,6 +17,15 @@ import InstallPrompt from './components/InstallPrompt';
 import NotificationPrompt from './components/NotificationPrompt';
 import PushHeadsUp from './components/PushHeadsUp';
 import { ConfirmProvider } from './components/ConfirmDialog';
+import { userApi } from './lib/api';
+
+function needsTerms(user) {
+  return (
+    user?.role === 'STUDENT' &&
+    Object.prototype.hasOwnProperty.call(user, 'termsAcceptedAt') &&
+    !user.termsAcceptedAt
+  );
+}
 
 function Bootstrap() {
   return (
@@ -151,8 +160,6 @@ function Shell() {
 function Root() {
   const auth = useAuth();
   const [toast, setToast] = useState(null);
-  // Prénom du compte en cours de création : tant qu'il est défini, on affiche l'écran de bienvenue.
-  const [welcome, setWelcome] = useState(null);
 
   useEffect(() => {
     if (auth.error) {
@@ -162,22 +169,6 @@ function Root() {
   }, [auth.error, auth]);
 
   if (!auth.ready) return <Bootstrap />;
-
-  if (welcome && auth.authenticated) {
-    return (
-      <div className="app-shell app-shell--dark">
-        <Toast
-          message={toast?.message}
-          variant={toast?.variant}
-          onClose={() => setToast(null)}
-        />
-        <WelcomeScreen
-          firstName={welcome.firstName || auth.user?.firstName}
-          onContinue={() => setWelcome(null)}
-        />
-      </div>
-    );
-  }
 
   if (auth.needsIdentity) {
     return (
@@ -201,14 +192,38 @@ function Root() {
           variant={toast?.variant}
           onClose={() => setToast(null)}
         />
-        <AuthEntry
-          onCreating={(firstName) => setWelcome({ firstName })}
-          onCreateFailed={() => setWelcome(null)}
-        />
+        <AuthEntry />
         <InstallPrompt />
       </div>
     );
   }
+  if (needsTerms(auth.user)) {
+    return (
+      <div className="app-shell app-shell--dark">
+        <Toast
+          message={toast?.message}
+          variant={toast?.variant}
+          onClose={() => setToast(null)}
+        />
+        <WelcomeScreen
+          firstName={auth.user?.firstName}
+          onContinue={async () => {
+            try {
+              await userApi.update(auth.user.id, { acceptTerms: true });
+              await auth.refreshMe();
+            } catch (err) {
+              setToast({
+                message: err?.message || 'Impossible d’enregistrer ton choix',
+                variant: 'error',
+              });
+              throw err;
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <CartProvider>
       <Shell />

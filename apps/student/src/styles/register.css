@@ -821,6 +821,11 @@
   border-top: 1px solid var(--line);
 }
 
+.reg-success-bottom .reg-check {
+  margin-top: 0;
+  margin-bottom: calc(16 * var(--u));
+}
+
 @keyframes reg-pop {
   from {
     transform: scale(0.4);
