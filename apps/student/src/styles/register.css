@@ -733,6 +733,178 @@
   }
 }
 
+/* ---------- Écran 6 : confirmation « Bienvenue » ---------- */
+.reg-success {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(30 * var(--u));
+  text-align: center;
+  background: linear-gradient(155deg, var(--primary) 0%, var(--indigo-dark) 100%);
+}
+
+.reg-success::before {
+  content: '';
+  position: absolute;
+  top: calc(-50 * var(--u));
+  left: calc(-60 * var(--u));
+  width: calc(200 * var(--u));
+  height: calc(200 * var(--u));
+  border-radius: 50%;
+  background: rgba(240, 120, 64, 0.14);
+}
+
+.reg-success::after {
+  content: '';
+  position: absolute;
+  bottom: calc(-80 * var(--u));
+  right: calc(-50 * var(--u));
+  width: calc(220 * var(--u));
+  height: calc(220 * var(--u));
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.reg-success-ring {
+  position: relative;
+  z-index: 2;
+  width: calc(84 * var(--u));
+  height: calc(84 * var(--u));
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: calc(22 * var(--u));
+}
+
+.reg-success-circle {
+  width: calc(60 * var(--u));
+  height: calc(60 * var(--u));
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: reg-pop 0.5s cubic-bezier(0.2, 1.2, 0.3, 1) both;
+}
+
+.reg-success h2 {
+  position: relative;
+  z-index: 2;
+  font-size: calc(21 * var(--u));
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: calc(8 * var(--u));
+  letter-spacing: -0.01em;
+}
+
+.reg-success p {
+  position: relative;
+  z-index: 2;
+  font-size: calc(12.5 * var(--u));
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1.6;
+  max-width: calc(220 * var(--u));
+}
+
+.reg-success-bottom {
+  flex-shrink: 0;
+  padding: calc(20 * var(--u)) calc(22 * var(--u)) calc(calc(26 * var(--u)) + env(safe-area-inset-bottom, 0px));
+  background: var(--card-dark);
+  border-top: 1px solid var(--line);
+}
+
+@keyframes reg-pop {
+  from {
+    transform: scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* ---------- Case des conditions générales ---------- */
+.reg-check {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: calc(10 * var(--u));
+  margin-top: calc(14 * var(--u));
+  cursor: pointer;
+  font-size: calc(12 * var(--u));
+  line-height: 1.5;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.reg-check input {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: calc(20 * var(--u));
+  height: calc(20 * var(--u));
+  margin: 0;
+  opacity: 0;
+}
+
+.reg-check .box {
+  flex-shrink: 0;
+  width: calc(20 * var(--u));
+  height: calc(20 * var(--u));
+  border-radius: calc(6 * var(--u));
+  border: 1.5px solid rgba(255, 255, 255, 0.3);
+  background: var(--field);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.reg-check input:checked + .box {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.reg-check input:focus-visible + .box {
+  box-shadow: 0 0 0 3px rgba(240, 120, 64, 0.25);
+}
+
+.reg-check .txt {
+  padding-top: calc(1 * var(--u));
+}
+
+.reg-check .txt button {
+  padding: 0;
+  color: var(--accent);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.reg-skip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reg-empty {
+  font-size: calc(12.5 * var(--u));
+  color: var(--muted);
+  padding: calc(6 * var(--u)) 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reg,
   .reg * {

@@ -7,7 +7,7 @@ import RegisterFlow from './RegisterFlow';
  * Point d'entrée non connecté : inscription (maquette) ou connexion par PIN.
  * Un compte avec PIN mémorisé arrive directement sur la connexion.
  */
-export default function AuthEntry() {
+export default function AuthEntry({ onCreating, onCreateFailed }) {
   const auth = useAuth();
   const startOnLogin = auth.status === 'needsPin' && Boolean(auth.session?.phone);
   const [view, setView] = useState(startOnLogin ? 'login' : 'register');
@@ -18,6 +18,8 @@ export default function AuthEntry() {
       <RegisterFlow
         initialPhone={carry.phone}
         recovery={carry.recovery}
+        onCreating={onCreating}
+        onCreateFailed={onCreateFailed}
         onLogin={(phone) => {
           setCarry({ phone: phone || '', recovery: false });
           setView('login');

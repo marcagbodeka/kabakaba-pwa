@@ -4,6 +4,7 @@ import { CartProvider, useCart } from './context/CartContext';
 import BottomNav from './components/BottomNav';
 import Toast from './components/Toast';
 import AuthEntry from './pages/AuthEntry';
+import WelcomeScreen from './components/auth/WelcomeScreen';
 import IdentityPage from './pages/IdentityPage';
 import HomePage from './pages/HomePage';
 import CanteenListPage from './pages/CanteenListPage';
@@ -150,6 +151,8 @@ function Shell() {
 function Root() {
   const auth = useAuth();
   const [toast, setToast] = useState(null);
+  // Prénom du compte en cours de création : tant qu'il est défini, on affiche l'écran de bienvenue.
+  const [welcome, setWelcome] = useState(null);
 
   useEffect(() => {
     if (auth.error) {
@@ -159,6 +162,22 @@ function Root() {
   }, [auth.error, auth]);
 
   if (!auth.ready) return <Bootstrap />;
+
+  if (welcome && auth.authenticated) {
+    return (
+      <div className="app-shell app-shell--dark">
+        <Toast
+          message={toast?.message}
+          variant={toast?.variant}
+          onClose={() => setToast(null)}
+        />
+        <WelcomeScreen
+          firstName={welcome.firstName || auth.user?.firstName}
+          onContinue={() => setWelcome(null)}
+        />
+      </div>
+    );
+  }
 
   if (auth.needsIdentity) {
     return (
@@ -182,7 +201,10 @@ function Root() {
           variant={toast?.variant}
           onClose={() => setToast(null)}
         />
-        <AuthEntry />
+        <AuthEntry
+          onCreating={(firstName) => setWelcome({ firstName })}
+          onCreateFailed={() => setWelcome(null)}
+        />
         <InstallPrompt />
       </div>
     );
