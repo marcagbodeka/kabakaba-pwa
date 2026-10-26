@@ -251,13 +251,8 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         {tab === 0 ? (
           bases.length ? (
             <>
-              <div className="hint-box">
-                Comme au comptoir : d’abord le plat de base, par exemple le riz. Ensuite, poisson, spaghetti ou gari, pour combien tu veux. La sauce ou l’huile, et le piment, viennent avec.
-              </div>
-
               <div className="plate-block">
                 <div className="section-title">Nourriture de base</div>
-                <p className="plate-help">Obligatoire. Sans elle, la commande ne part pas.</p>
                 {bases.map((item) => {
                   const picked = item.id === selectedBase?.id;
                   const price = Number(item.priceTickets || 0);
@@ -300,7 +295,6 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
               {extras.length ? (
                 <div className="plate-block">
                   <div className="section-title">En plus, pour combien ?</div>
-                  <p className="plate-help">Tu peux rester à zéro.</p>
                   {extras.map((item) => {
                     const parts = extraParts[item.id] || 0;
                     const price = Number(item.priceTickets || 0);
@@ -336,7 +330,6 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                   <div className="section-title">Servi avec le plat</div>
                   {openChoices.length ? (
                     <>
-                      <p className="plate-help">Choisis-en une.</p>
                       {choices.map((item) => (
                         <button
                           key={item.id}
@@ -378,20 +371,13 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           ) : (
             <div className="empty-state">
               <h3>Pas de plat à composer</h3>
-              <p>
-                {menus.length
-                  ? 'Cette cantine propose des menus fixés. Tu les prends comme ils sont.'
-                  : 'La carte n’est pas encore publiée.'}
-              </p>
+              {!menus.length ? <p>La carte n’est pas encore publiée.</p> : null}
             </div>
           )
         ) : null}
 
         {tab === 1 ? (
           <>
-            <div className="hint-box">
-              Ces menus sont fixés. Tu les commandes tels quels, sans rien changer.
-            </div>
             {menus.map((menu) => {
               const missing = (menu.missingComponents || []).map((m) => m.name).filter(Boolean);
               return (
@@ -426,7 +412,6 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
             {!menus.length ? (
               <div className="empty-state">
                 <h3>Aucun menu fixé</h3>
-                <p>Compose ton plat dans l’onglet « Mon plat ».</p>
               </div>
             ) : null}
           </>
@@ -434,12 +419,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
 
         {tab === 2 ? (
           <div className="empty-state">
-            <div className="hint-box" style={{ marginBottom: 16, textAlign: 'left' }}>
-              Les avis restent internes : ils aident kabakaba et le vendeur, ils ne sont pas affichés
-              aux autres étudiants.
-            </div>
             <h3>Pas encore d’avis</h3>
-            <p>Tu pourras noter cette cantine dès que ta commande sera prête.</p>
           </div>
         ) : null}
       </div>

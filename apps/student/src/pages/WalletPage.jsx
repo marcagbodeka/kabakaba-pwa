@@ -17,6 +17,7 @@ import {
 const QUICK_TICKETS = [500, 1000, 2000, 5000, 10000];
 const MIN_TICKETS = 500;
 const MAX_TICKETS = 10000;
+const YAS_MAINTENANCE = 'Le réseau Yas est en maintenance. Disponible bientôt';
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const CODE_RE = /^[A-Z]-\d{2}$/i;
 
@@ -255,6 +256,10 @@ export default function WalletPage({ showSnack }) {
       showSnack?.('Attends le calcul des frais');
       return;
     }
+    if (operator === 'MIXX') {
+      showSnack?.(YAS_MAINTENANCE);
+      return;
+    }
     if (!PhoneFormatter.isValidLocal(phone)) {
       showSnack?.('Numéro Mobile Money invalide');
       return;
@@ -265,22 +270,11 @@ export default function WalletPage({ showSnack }) {
         ticketsReceived: tickets,
         operator,
       });
-      // Flooz → +228… ; Mixx → national (doc FedaPay)
-      const mmPhone = PhoneFormatter.toMobileMoney(phone, operator);
-      const initiated = await paymentsApi.initiate(intent.id, mmPhone);
+      const mmPhone = PhoneFormatter.toE164(phone);
+      await paymentsApi.initiate(intent.id, mmPhone);
       setTicketsWanted('');
       setQuote(null);
-
-      // Fallback Mixx : push togocel non autorisé → page Checkout FedaPay
-      if (initiated?.channel === 'redirect' && initiated?.paymentUrl) {
-        showSnack?.(
-          initiated.message ||
-            'Ouvre la page FedaPay et choisis Mixx pour payer.',
-        );
-        window.open(initiated.paymentUrl, '_blank', 'noopener,noreferrer');
-      } else {
-        showSnack?.('Paiement initié — valide sur ton téléphone');
-      }
+      showSnack?.('Paiement initié — valide sur ton téléphone');
 
       startPoll(intent.id, {
         amountFcfa: intent.amountFcfa || quote.amountFcfa,
@@ -436,7 +430,7 @@ export default function WalletPage({ showSnack }) {
               onChange={(e) =>
                 setTicketsWanted(e.target.value.replace(/\D/g, '').slice(0, 5))
               }
-              placeholder={`Ex. 500 (${formatTicketCount(MIN_TICKETS)}–${formatTicketCount(MAX_TICKETS)})`}
+              placeholder="Entrez le montant des tickets"
               inputMode="numeric"
             />
             <span className="suffix">tickets</span>
@@ -450,13 +444,21 @@ export default function WalletPage({ showSnack }) {
               <button
                 key={op}
                 type="button"
-                className={`mode-chip${operator === op ? ' active' : ''}`}
-                onClick={() => setOperator(op)}
+                className={`mode-chip${operator === op ? ' active' : ''}${op === 'MIXX' ? ' is-disabled' : ''}`}
+                aria-disabled={op === 'MIXX'}
+                onClick={() => {
+                  if (op === 'MIXX') {
+                    showSnack?.(YAS_MAINTENANCE);
+                    return;
+                  }
+                  setOperator(op);
+                }}
               >
                 {op === 'FLOOZ' ? 'Flooz' : 'Mixx'}
               </button>
             ))}
           </div>
+          <p className="recharge-hint">{YAS_MAINTENANCE}</p>
         </div>
 
         <div className="field">

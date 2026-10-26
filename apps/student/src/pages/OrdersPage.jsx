@@ -758,9 +758,6 @@ export default function OrdersPage({
             {!scheduled.length ? (
               <div className="empty-state">
                 <h3>Aucune commande programmée</h3>
-                <p>
-                  Depuis le panier, choisis « Programmer » pour réserver un créneau (15 min à 24 h).
-                </p>
               </div>
             ) : null}
           </>
