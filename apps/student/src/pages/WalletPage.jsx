@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { BalanceEye, useBalanceHidden } from '../components/BalanceEye';
 import { useAuth } from '../context/AuthContext';
 import { paymentsApi, transactionsApi } from '../lib/api';
 import { readView, writeView } from '../lib/instantView';
@@ -290,6 +291,7 @@ export default function WalletPage({ showSnack }) {
   };
 
   const firstName = user?.firstName || 'Étudiant';
+  const { hidden: balanceHidden, toggle: toggleBalance } = useBalanceHidden();
 
   return (
     <div className="page page--flush">
@@ -317,13 +319,12 @@ export default function WalletPage({ showSnack }) {
           </button>
         </div>
         <div className="hero-balance-row">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-            <circle cx="12" cy="12" r="3" />
-          </svg>
+          <BalanceEye hidden={balanceHidden} onToggle={toggleBalance} />
           <span>Solde tickets</span>
         </div>
-        <div className="hero-balance-amount">{formatTicketCount(balance)} tickets</div>
+        <div className="hero-balance-amount">
+          {balanceHidden ? '••••' : `${formatTicketCount(balance)} tickets`}
+        </div>
         <div className="hero-pills hero-pills--3">
           <button type="button" className="hero-pill hero-pill--primary" onClick={() => scrollTo(rechargeRef)}>
             Recharger

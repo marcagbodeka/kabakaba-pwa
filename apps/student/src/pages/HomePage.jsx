@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BalanceEye, useBalanceHidden } from '../components/BalanceEye';
 import { useAuth } from '../context/AuthContext';
 import { notificationsApi, vendorsApi } from '../lib/api';
 import { formatTicketCount, initialsFrom } from '../lib/format';
@@ -20,15 +21,6 @@ function IconBell() {
       <path d="M6.7 9.1c0-3.3 2.4-5.9 5.3-5.9s5.3 2.6 5.3 5.9l1.1 4.5c.2.7-.3 1.4-1 1.4H6.6c-.7 0-1.2-.7-1-1.4l1.1-4.5Z" />
       <path d="M10 18.5a2 2 0 0 0 4 0" />
       <path d="M12 3.4v1.2" />
-    </svg>
-  );
-}
-
-function IconEye() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-      <circle cx="12" cy="12" r="3" />
     </svg>
   );
 }
@@ -151,6 +143,7 @@ export default function HomePage({ onNavigate, showSnack }) {
 
   const firstName = user?.firstName || 'Étudiant';
   const balance = formatTicketCount(user?.walletBalance ?? 0);
+  const { hidden: balanceHidden, toggle: toggleBalance } = useBalanceHidden();
 
   return (
     <div className="page page--flush">
@@ -184,10 +177,12 @@ export default function HomePage({ onNavigate, showSnack }) {
         </div>
 
         <div className="hero-balance-row">
-          <IconEye />
+          <BalanceEye hidden={balanceHidden} onToggle={toggleBalance} />
           <span>Solde tickets</span>
         </div>
-        <div className="hero-balance-amount">{balance} tickets</div>
+        <div className="hero-balance-amount">
+          {balanceHidden ? '••••' : `${balance} tickets`}
+        </div>
 
         <div className="hero-pills">
           <button type="button" className="hero-pill hero-pill--primary" onClick={() => onNavigate('wallet')}>
