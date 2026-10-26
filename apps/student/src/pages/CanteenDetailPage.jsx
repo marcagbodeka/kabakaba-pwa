@@ -63,48 +63,18 @@ function QtyCircles({ parts, onChange, disabled }) {
   );
 }
 
-function DishArt() {
-  return (
-    <span className="dish-art" aria-hidden>
-      <svg viewBox="0 0 48 48" width="48" height="48">
-        <rect width="48" height="48" rx="14" fill="currentColor" opacity="0.16" />
-        <ellipse cx="24" cy="30" rx="15" ry="6" fill="currentColor" />
-        <ellipse cx="24" cy="27.5" rx="13" ry="5" fill="#fff7f2" />
-        <path d="M14 26c2-4 6-6 10-6s8 2 10 6" fill="#f3c7a2" />
-        <circle cx="20" cy="25" r="1.3" fill="#c45c32" />
-        <circle cx="26" cy="24" r="1.1" fill="#e07a3d" />
-        <circle cx="23" cy="27" r="1" fill="#d46a38" />
-      </svg>
-    </span>
-  );
-}
-
-function DrinkArt() {
-  return (
-    <span className="dish-art dish-art--drink" aria-hidden>
-      <svg viewBox="0 0 48 48" width="48" height="48">
-        <rect width="48" height="48" rx="14" fill="currentColor" opacity="0.16" />
-        <path d="M16 14h16l-2 18a6 6 0 0 1-6 5h0a6 6 0 0 1-6-5z" fill="#fff7f2" />
-        <path d="M17.2 18h13.6L29 30a4 4 0 0 1-4 3.2h-2a4 4 0 0 1-4-3.2z" fill="currentColor" />
-        <path d="M24 37v3M20 40h8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-      </svg>
-    </span>
-  );
-}
-
 function MenuRoll({ title, open, onToggle, children }) {
   return (
     <section className={`menu-roll${open ? ' is-open' : ''}`}>
       <button type="button" className="menu-roll-head" aria-expanded={open} onClick={onToggle}>
-        <span className="roll-spindle" aria-hidden />
         <span className="menu-roll-title">{title}</span>
+        <span className={`roll-chevron${open ? ' is-open' : ''}`} aria-hidden />
       </button>
       <div className="base-roll">
         <div className="base-roll-clip">
           <div className="menu-roll-paper">{children}</div>
         </div>
       </div>
-      {open ? null : <span className="roll-lip" aria-hidden />}
     </section>
   );
 }
@@ -207,9 +177,13 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
       }
     }
     if (!hasBase) return 0;
-    for (const extra of extras) {
-      const parts = extraParts[extra.id] || 0;
-      if (parts > 0 && extra.available) total += Number(extra.priceTickets || 0) * parts;
+    for (const base of bases) {
+      if (!(baseParts[base.id] > 0) || !base.available) continue;
+      const picked = extraParts[base.id] || {};
+      for (const extra of extras) {
+        const parts = picked[extra.id] || 0;
+        if (parts > 0 && extra.available) total += Number(extra.priceTickets || 0) * parts;
+      }
     }
     return total;
   }, [bases, baseParts, extras, extraParts]);
@@ -233,9 +207,12 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         soldAlone: Boolean(item.soldAlone),
       });
     };
-    for (const base of chosen) push(base, baseParts[base.id]);
-    for (const extra of extras) {
-      if (extra.available) push(extra, extraParts[extra.id] || 0);
+    for (const base of chosen) {
+      push(base, baseParts[base.id]);
+      const picked = extraParts[base.id] || {};
+      for (const extra of extras) {
+        if (extra.available) push(extra, picked[extra.id] || 0);
+      }
     }
     setBaseParts({});
     setExtraParts({});
@@ -280,24 +257,26 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
               const open = item.id === openBaseId;
               const price = Number(item.priceTickets || 0);
               const parts = baseParts[item.id] || 0;
+              const pickedRice = rice[item.id] || {};
+              const pickedExtras = extraParts[item.id] || {};
               return (
                 <section
                   key={item.id}
-                  className={`dish${!item.available ? ' is-off' : ''}${open ? ' is-open' : ''}`}
+                  className={`dish${open ? ' is-open' : ''}${!item.available ? ' is-off' : ''}`}
                 >
-                  <div className="dish-face">
+                  <div className="line">
                     <button
                       type="button"
-                      className="dish-open"
+                      className="line-main"
                       disabled={!item.available}
                       aria-expanded={open}
                       onClick={() => setOpenBaseId(open ? null : item.id)}
                     >
-                      <DishArt />
-                      <span className="dish-price">
+                      <span className={`roll-chevron${open ? ' is-open' : ''}`} aria-hidden />
+                      <span className="line-price">
                         {item.available ? `${formatTicketCount(price)} tickets` : 'Indisponible'}
                       </span>
-                      <span className="dish-title">{item.name}</span>
+                      <span className="line-name">{item.name}</span>
                     </button>
                     <QtyCircles
                       parts={parts}
@@ -309,7 +288,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                     <div className="base-roll-clip">
                       <div className="dish-paper">
                         {ON_RICE.map((option) => {
-                          const on = Boolean(rice[option.id]);
+                          const on = Boolean(pickedRice[option.id]);
                           return (
                             <button
                               key={option.id}
@@ -318,7 +297,10 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                               aria-checked={on}
                               className={`rice-option${on ? ' is-on' : ''}`}
                               onClick={() =>
-                                setRice((current) => ({ ...current, [option.id]: !on }))
+                                setRice((current) => ({
+                                  ...current,
+                                  [item.id]: { ...current[item.id], [option.id]: !on },
+                                }))
                               }
                             >
                               <span className="rice-dot" />
@@ -332,7 +314,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                         {extras.length ? (
                           <div className="extra-list">
                             {extras.map((extra) => {
-                              const extraQty = extraParts[extra.id] || 0;
+                              const extraQty = pickedExtras[extra.id] || 0;
                               const extraPrice = Number(extra.priceTickets || 0);
                               return (
                                 <div
@@ -349,7 +331,10 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                                     parts={extraQty}
                                     disabled={!extra.available}
                                     onChange={(next) =>
-                                      setExtraParts((q) => ({ ...q, [extra.id]: next }))
+                                      setExtraParts((q) => ({
+                                        ...q,
+                                        [item.id]: { ...q[item.id], [extra.id]: next },
+                                      }))
                                     }
                                   />
                                 </div>
@@ -360,7 +345,6 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                       </div>
                     </div>
                   </div>
-                  {open ? null : <span className="dish-lip" aria-hidden />}
                 </section>
               );
             })
@@ -373,19 +357,13 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
 
         <MenuRoll title="Jus & Boissons" open={drinksOpen} onToggle={() => setDrinksOpen((v) => !v)}>
           {DRINKS.map((drink) => (
-            <div key={drink.id} className="dish">
-              <div className="dish-face">
-                <div className="dish-open">
-                  <DrinkArt />
-                  <span className="dish-price">{formatTicketCount(drink.price)} tickets</span>
-                  <span className="dish-title">{drink.name}</span>
-                </div>
-                <QtyCircles
-                  parts={drinkParts[drink.id] || 0}
-                  onChange={(next) => setDrinkParts((q) => ({ ...q, [drink.id]: next }))}
-                />
-              </div>
-              <span className="dish-lip" aria-hidden />
+            <div key={drink.id} className="extra-row">
+              <span className="extra-name">{drink.name}</span>
+              <span className="extra-price">{formatTicketCount(drink.price)} tickets</span>
+              <QtyCircles
+                parts={drinkParts[drink.id] || 0}
+                onChange={(next) => setDrinkParts((q) => ({ ...q, [drink.id]: next }))}
+              />
             </div>
           ))}
         </MenuRoll>
