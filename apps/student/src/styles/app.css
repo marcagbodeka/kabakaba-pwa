@@ -2731,6 +2731,10 @@ button.plate-choice {
   color: var(--accent) !important;
 }
 
+.summary-row--short strong {
+  color: var(--red);
+}
+
 .recharge-hint {
   margin: -4px 0 14px;
   font-size: 13px;

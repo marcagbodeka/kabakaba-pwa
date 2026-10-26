@@ -182,6 +182,7 @@ export default function CartPage({
   }, 0);
   const balance = Number(user?.walletBalance ?? 0);
   const canPay = cart.orders.length > 0 && balance >= dueNow;
+  const shortfall = Math.max(0, dueNow - balance);
 
   const confirmClearCart = async () => {
     if (!cart.orders.length) return;
@@ -472,10 +473,17 @@ export default function CartPage({
                 <span>Solde actuel</span>
                 <strong>{formatTicketCount(balance)} tickets</strong>
               </div>
-              <div className="summary-row">
-                <span>Il te restera</span>
-                <strong>{formatTicketCount(Math.max(0, balance - dueNow))} tickets</strong>
-              </div>
+              {shortfall > 0 ? (
+                <div className="summary-row summary-row--short">
+                  <span>Il manque</span>
+                  <strong>{formatTicketCount(shortfall)} tickets</strong>
+                </div>
+              ) : (
+                <div className="summary-row">
+                  <span>Il te restera</span>
+                  <strong>{formatTicketCount(balance - dueNow)} tickets</strong>
+                </div>
+              )}
             </div>
           </>
         )}
