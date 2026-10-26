@@ -618,16 +618,21 @@
   z-index: 2;
   background: var(--surface);
   border-radius: 24px 24px 0 0;
-  padding-top: 18px !important;
+  padding-top: 22px !important;
   padding-bottom: 110px !important;
 }
 
+.canteen-intro .meta-chips {
+  margin-bottom: 22px;
+}
+
 .menu-roll {
-  margin-bottom: 12px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background: var(--surface);
-  overflow: hidden;
+  margin-bottom: 6px;
+  background: transparent;
+}
+
+.menu-roll + .menu-roll {
+  margin-top: 10px;
 }
 
 .menu-roll-head {
@@ -636,14 +641,14 @@
   justify-content: space-between;
   gap: 12px;
   width: 100%;
-  min-height: 52px;
-  padding: 12px 14px;
+  min-height: 40px;
+  padding: 4px 2px 8px;
   text-align: left;
   color: var(--text-primary);
 }
 
 .menu-roll-title {
-  font-size: 16px;
+  font-size: 17px;
   font-weight: 800;
 }
 
@@ -677,7 +682,7 @@
 }
 
 .menu-roll-paper {
-  padding: 0 10px 10px;
+  padding: 2px 0 8px;
 }
 
 .dish {
@@ -697,9 +702,9 @@
 
 .line {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   min-height: 52px;
   padding: 8px 10px;
 }

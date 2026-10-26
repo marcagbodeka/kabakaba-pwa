@@ -251,6 +251,13 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
       </div>
 
       <div className="list-pad canteen-detail-body">
+        <div className="canteen-intro">
+          <div className="kicker kicker--muted">Cantine du campus</div>
+          <div className="meta-chips">
+            <span className="meta-chip">{CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}</span>
+            {bases.length ? <span className="meta-chip">Plat à composer</span> : null}
+          </div>
+        </div>
         <MenuRoll title="Nos plats" open={platsOpen} onToggle={() => setPlatsOpen((v) => !v)}>
           {bases.length ? (
             bases.map((item) => {
@@ -273,11 +280,11 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
                       onClick={() => setOpenBaseId(open ? null : item.id)}
                     >
                       <span className={`roll-chevron${open ? ' is-open' : ''}`} aria-hidden />
-                      <span className="line-price">
-                        {item.available ? `${formatTicketCount(price)} tickets` : 'Indisponible'}
-                      </span>
                       <span className="line-name">{item.name}</span>
                     </button>
+                    <span className="line-price">
+                      {item.available ? `${formatTicketCount(price)} tickets` : 'Indisponible'}
+                    </span>
                     <QtyCircles
                       parts={parts}
                       disabled={!item.available}
