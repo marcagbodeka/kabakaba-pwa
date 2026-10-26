@@ -417,10 +417,10 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         <div className="meta">
           <strong>Total</strong>
           <span>
-            {cartHere
-              ? `${formatTicketCount(cartSubtotal)} tickets`
-              : plateTickets
-                ? `${formatTicketCount(plateTickets)} tickets`
+            {plateTickets
+              ? `${formatTicketCount(plateTickets)} tickets`
+              : cartHere
+                ? `${formatTicketCount(cartSubtotal)} tickets`
                 : 'Choisis ton plat'}
           </span>
         </div>
@@ -429,11 +429,12 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           className="btn-fill"
           style={{ width: 'auto', padding: '0 16px', height: 42 }}
           onClick={() => {
-            if (cartHere) onOpenCart();
+            if (plateTickets) addPlate();
+            else if (cartHere) onOpenCart();
             else addPlate();
           }}
         >
-          {cartHere ? 'Voir le panier' : 'Ajouter'}
+          {plateTickets ? 'Ajouter' : cartHere ? 'Voir le panier' : 'Ajouter'}
         </button>
       </div>
     </div>

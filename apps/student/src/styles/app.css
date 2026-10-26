@@ -2553,6 +2553,13 @@ button.plate-choice {
   font-weight: 700;
 }
 
+.cart-order-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
 .cart-item-icon {
   width: 68px;
   height: 68px;

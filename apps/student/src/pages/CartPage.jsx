@@ -18,7 +18,7 @@ function plateSummary(plate) {
       const qty = (line.quantity || 0) * parts;
       const cost = lineCost(line, parts);
       const qtyLabel = qty > 1 ? ` x${qty}` : '';
-      return cost > 0 ? `${line.name}${qtyLabel} ${formatTicketCount(cost)}` : line.name;
+      return `${line.name}${qtyLabel} ${formatTicketCount(cost)}`;
     })
     .join(' · ');
 }
@@ -424,25 +424,39 @@ export default function CartPage({
                     )
                   ) : null}
 
-                  <div className="summary-row">
-                    <span>{order.vendorName}</span>
-                    <strong>{formatTicketCount(orderSubtotal(order) + fee)} tickets</strong>
+                  <div className="cart-order-sum">
+                    <div className="summary-row">
+                      <span>Plats</span>
+                      <strong>{formatTicketCount(orderSubtotal(order))} tickets</strong>
+                    </div>
+                    {fee > 0 ? (
+                      <div className="summary-row">
+                        <span>Emporté</span>
+                        <strong>{formatTicketCount(fee)} tickets</strong>
+                      </div>
+                    ) : null}
+                    <div className="summary-row summary-row--total">
+                      <span>Total</span>
+                      <strong>{formatTicketCount(orderSubtotal(order) + fee)} tickets</strong>
+                    </div>
                   </div>
                 </section>
               );
             })}
 
             <div className="light-card summary-card">
+              {dueNow > 0 ? (
+                <div className="summary-row summary-row--total">
+                  <span>À payer maintenant</span>
+                  <strong>{formatTicketCount(dueNow)} tickets</strong>
+                </div>
+              ) : null}
               {dueLater > 0 ? (
-                <div className="summary-row">
-                  <span>Programmé</span>
+                <div className="summary-row summary-row--total">
+                  <span>Débité à l’heure prévue</span>
                   <strong>{formatTicketCount(dueLater)} tickets</strong>
                 </div>
               ) : null}
-              <div className="summary-row summary-row--total">
-                <span>À payer maintenant</span>
-                <strong>{formatTicketCount(dueNow)} tickets</strong>
-              </div>
               <div className="summary-row">
                 <span>Solde actuel</span>
                 <strong>{formatTicketCount(balance)} tickets</strong>
