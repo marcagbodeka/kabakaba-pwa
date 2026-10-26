@@ -683,7 +683,7 @@ export default function OrdersPage({
   );
 
   return (
-    <div className="page page--flush">
+    <div className="page page--flush page--orders">
       <div className="hero hero--orders">
         <div className="hero-top">
           <div>

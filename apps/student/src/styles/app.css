@@ -1201,7 +1201,35 @@
 }
 
 .hero--orders {
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
   padding-bottom: 28px;
+}
+
+.hero--orders .hero-name {
+  margin-top: 1px;
+  line-height: 1.15;
+}
+
+/* Le sheet ne mange plus le titre, et le padding du haut est réduit d’autant :
+   la liste commence à la même hauteur. */
+.page--orders {
+  background: var(--bg);
+}
+
+.page--orders .sheet-body {
+  margin-top: -16px;
+  padding-top: 14px;
+  padding-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.page--orders .empty-state {
+  flex: 1;
+  display: grid;
+  align-content: center;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 .bottom-nav-wrap {
