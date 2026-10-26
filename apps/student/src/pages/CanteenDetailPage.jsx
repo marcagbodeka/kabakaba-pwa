@@ -4,30 +4,51 @@ import { useCart } from '../context/CartContext';
 import { readView, writeView } from '../lib/instantView';
 import { groupPlate } from '../lib/plate';
 import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
-import { IconBack, IconPlus } from '../components/icons';
+import { IconBack } from '../components/icons';
 
 const MAX_PARTS = 12;
 
-function AmountStepper({ parts, min, price, onChange, disabled }) {
-  const total = parts * Number(price || 0);
-  return (
-    <div className="qty-stepper qty-stepper--amount">
+/** Accompagnements du riz : choix unique, sans quantité. Le backend viendra après. */
+const ON_RICE = [
+  { id: 'sauce', options: ['Sauce tomate', 'Nougbagba'] },
+  { id: 'piment', options: ['Piment noir', 'Fionfion'] },
+  { id: 'poudre', options: ['Piment en poudre', 'Tôtô'] },
+  { id: 'huile', options: ['Huile'] },
+];
+
+function QtyCircles({ parts, onChange, disabled }) {
+  const atMax = parts >= MAX_PARTS;
+  if (!parts) {
+    return (
       <button
         type="button"
-        className="qty-btn"
-        disabled={disabled || parts <= min}
-        onClick={() => onChange(Math.max(min, parts - 1))}
-        aria-label="Moins"
+        className="roll-plus"
+        disabled={disabled}
+        onClick={() => onChange(1)}
+        aria-label="Ajouter une part"
+      >
+        +
+      </button>
+    );
+  }
+  return (
+    <div className="roll-qty">
+      <button
+        type="button"
+        className="roll-plus"
+        disabled={disabled}
+        onClick={() => onChange(parts - 1)}
+        aria-label="Retirer une part"
       >
         −
       </button>
-      <strong>{parts === 0 ? 'Non' : formatTicketCount(total)}</strong>
+      <strong>{parts}</strong>
       <button
         type="button"
-        className="qty-btn"
-        disabled={disabled || parts >= MAX_PARTS}
-        onClick={() => onChange(Math.min(MAX_PARTS, parts + 1))}
-        aria-label="Plus"
+        className="roll-plus"
+        disabled={disabled || atMax}
+        onClick={() => onChange(parts + 1)}
+        aria-label="Ajouter une part"
       >
         +
       </button>
@@ -43,16 +64,14 @@ function acceptsOrders(vendor) {
 export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSnack }) {
   const cart = useCart();
   const cached = readView(`canteen:${vendorId}`);
-  const [tab, setTab] = useState(0);
   const [vendor, setVendor] = useState(cached?.vendor || null);
   const [menus, setMenus] = useState(cached?.menus || []);
   const [components, setComponents] = useState(cached?.components || []);
   const [categories, setCategories] = useState(cached?.categories || []);
   const [loading, setLoading] = useState(!cached?.vendor);
-  const [baseId, setBaseId] = useState(null);
-  const [baseParts, setBaseParts] = useState(1);
+  const [openBaseId, setOpenBaseId] = useState(null);
   const [extraParts, setExtraParts] = useState({});
-  const [choiceId, setChoiceId] = useState(null);
+  const [rice, setRice] = useState({});
 
   useEffect(() => {
     if (!vendorId) return undefined;
@@ -106,19 +125,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
   );
   const bases = plate.base;
   const extras = plate.extra;
-  const choices = plate.choice;
-  const always = plate.always;
-  const openChoices = choices.filter((c) => c.available);
-  const openAlways = always.filter((c) => c.available);
-  const selectedBase = bases.find((c) => c.id === baseId && c.available) || null;
-  const selectedChoice = openChoices.find((c) => c.id === choiceId) || null;
-
-  useEffect(() => {
-    const openBases = bases.filter((c) => c.available);
-    const open = choices.filter((c) => c.available);
-    setBaseId((prev) => (prev && openBases.some((b) => b.id === prev) ? prev : openBases[0]?.id || null));
-    setChoiceId((prev) => (prev && open.some((c) => c.id === prev) ? prev : open[0]?.id || null));
-  }, [bases, choices]);
+  const selectedBase = bases.find((c) => c.id === openBaseId && c.available) || null;
 
   const guardVendor = () => {
     if (!acceptsOrders(vendor)) {
@@ -133,34 +140,15 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
     return true;
   };
 
-  const addMenu = (menu) => {
-    if (!guardVendor()) return;
-    if (!menu.available) {
-      showSnack?.('Ce menu est indisponible');
-      return;
-    }
-    cart.add({
-      vendorId,
-      vendorName: vendor?.canteenName,
-      menuId: menu.id,
-      name: menu.name,
-      unitPrice: Number(menu.priceTickets ?? 0),
-      quantity: 1,
-    });
-    showSnack?.(`${menu.name} ajouté`, 'success');
-  };
-
   const plateTickets = useMemo(() => {
     if (!selectedBase) return 0;
-    let total = Number(selectedBase.priceTickets || 0) * baseParts;
+    let total = Number(selectedBase.priceTickets || 0);
     for (const extra of extras) {
       const parts = extraParts[extra.id] || 0;
       if (parts > 0 && extra.available) total += Number(extra.priceTickets || 0) * parts;
     }
-    if (selectedChoice) total += Number(selectedChoice.priceTickets || 0);
-    for (const item of openAlways) total += Number(item.priceTickets || 0);
     return total;
-  }, [selectedBase, baseParts, extras, extraParts, selectedChoice, openAlways]);
+  }, [selectedBase, extras, extraParts]);
 
   const addPlate = () => {
     if (!guardVendor()) return;
@@ -180,13 +168,12 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         soldAlone: Boolean(item.soldAlone),
       });
     };
-    push(selectedBase, baseParts);
+    push(selectedBase, 1);
     for (const extra of extras) {
       if (extra.available) push(extra, extraParts[extra.id] || 0);
     }
-    push(selectedChoice, 1);
-    for (const item of openAlways) push(item, 1);
     setExtraParts({});
+    setRice({});
     showSnack?.('Plat ajouté', 'success');
   };
 
@@ -222,206 +209,102 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
       </div>
 
       <div className="list-pad canteen-detail-body">
-        <div className="kicker kicker--muted">Cantine du campus</div>
-        <div className="meta-chips">
-          <span className="meta-chip">{CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}</span>
-          {bases.length ? (
-            <span className="meta-chip">Plat à composer</span>
-          ) : null}
-          {menus.length ? (
-            <span className="meta-chip">
-              {menus.length} menu{menus.length > 1 ? 's' : ''} fixé{menus.length > 1 ? 's' : ''}
-            </span>
-          ) : null}
-        </div>
-
-        <div className="light-tabs">
-          {['Mon plat', 'Menus fixés', 'Avis'].map((label, i) => (
-            <button
-              key={label}
-              type="button"
-              className={`light-tab${tab === i ? ' active' : ''}`}
-              onClick={() => setTab(i)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {tab === 0 ? (
-          bases.length ? (
-            <>
-              <div className="plate-block">
-                <div className="section-title">Nourriture de base</div>
-                {bases.map((item) => {
-                  const picked = item.id === selectedBase?.id;
-                  const price = Number(item.priceTickets || 0);
-                  return (
-                    <div
-                      key={item.id}
-                      className={`menu-card${picked ? ' is-picked' : ''}${!item.available ? ' unavailable' : ''}`}
-                    >
-                      <div className="menu-card-head">
-                        <button
-                          type="button"
-                          className="plate-pick"
-                          disabled={!item.available}
-                          onClick={() => {
-                            setBaseId(item.id);
-                            setBaseParts(1);
-                          }}
-                        >
-                          <h3>{item.name}</h3>
-                          <p>
-                            {item.available
-                              ? `${formatTicketCount(price)} tickets la part`
-                              : 'Indisponible'}
-                          </p>
-                        </button>
-                        {picked ? (
-                          <AmountStepper
-                            parts={baseParts}
-                            min={1}
-                            price={price}
-                            onChange={setBaseParts}
-                          />
-                        ) : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {extras.length ? (
-                <div className="plate-block">
-                  <div className="section-title">En plus, pour combien ?</div>
-                  {extras.map((item) => {
-                    const parts = extraParts[item.id] || 0;
-                    const price = Number(item.priceTickets || 0);
-                    return (
-                      <div key={item.id} className={`menu-card${!item.available ? ' unavailable' : ''}`}>
-                        <div className="menu-card-head">
-                          <div>
-                            <h3>{item.name}</h3>
-                            <p>
-                              {item.available
-                                ? `${formatTicketCount(price)} tickets la part`
-                                : 'Indisponible'}
-                            </p>
-                          </div>
-                          <AmountStepper
-                            parts={parts}
-                            min={0}
-                            price={price}
-                            disabled={!item.available}
-                            onChange={(next) =>
-                              setExtraParts((q) => ({ ...q, [item.id]: next }))
-                            }
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : null}
-
-              {openChoices.length || openAlways.length ? (
-                <div className="plate-block">
-                  <div className="section-title">Servi avec le plat</div>
-                  {openChoices.length ? (
-                    <>
-                      {choices.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          className={`menu-card plate-choice${item.id === selectedChoice?.id ? ' is-picked' : ''}${!item.available ? ' unavailable' : ''}`}
-                          disabled={!item.available}
-                          onClick={() => setChoiceId(item.id)}
-                        >
-                          <h3>{item.name}</h3>
-                          <p>{item.available ? 'Avec le plat' : 'Indisponible'}</p>
-                        </button>
-                      ))}
-                    </>
-                  ) : null}
-                  {openAlways.length ? (
-                    <p className="plate-included">
-                      Toujours mis : {openAlways.map((item) => item.name).join(', ')}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              <div className="compose-summary">
-                <div>
-                  <strong>{selectedBase ? selectedBase.name : 'Plat de base'}</strong>
-                  <span>{formatTicketCount(plateTickets)} tickets</span>
-                </div>
+        {bases.length ? (
+          bases.map((item) => {
+            const open = item.id === openBaseId;
+            const price = Number(item.priceTickets || 0);
+            return (
+              <section
+                key={item.id}
+                className={`base-sheet${!item.available ? ' is-off' : ''}${open ? ' is-open' : ''}`}
+              >
                 <button
                   type="button"
-                  className="btn-fill"
-                  style={{ width: 'auto', padding: '0 16px', height: 40 }}
-                  disabled={!selectedBase}
-                  onClick={addPlate}
+                  className="base-name"
+                  disabled={!item.available}
+                  aria-expanded={open}
+                  onClick={() => {
+                    setOpenBaseId(open ? null : item.id);
+                    if (!open) {
+                      setExtraParts({});
+                      setRice({});
+                    }
+                  }}
                 >
-                  Ajouter le plat
+                  <span>{item.name}</span>
+                  {!item.available ? <em>Indisponible</em> : null}
                 </button>
-              </div>
-            </>
-          ) : (
-            <div className="empty-state">
-              <h3>Pas de plat à composer</h3>
-              {!menus.length ? <p>La carte n’est pas encore publiée.</p> : null}
-            </div>
-          )
-        ) : null}
-
-        {tab === 1 ? (
-          <>
-            {menus.map((menu) => {
-              const missing = (menu.missingComponents || []).map((m) => m.name).filter(Boolean);
-              return (
-                <div key={menu.id} className={`menu-card${!menu.available ? ' unavailable' : ''}`}>
-                  <div className="menu-card-head">
-                    <div>
-                      <h3>{menu.name}</h3>
-                      <span className={`status-pill tiny ${menu.available ? 'open' : 'closed'}`}>
-                        {menu.available ? 'Disponible' : 'Indisponible'}
-                      </span>
+                <div className="base-roll">
+                  <div className="base-roll-clip">
+                    <div className="base-roll-paper">
+                      <div className="roll-cap" aria-hidden />
+                      {ON_RICE.map((group) => (
+                        <div key={group.id} className="rice-group" role="radiogroup">
+                          {group.options.map((label) => {
+                            const on = rice[group.id] === label;
+                            return (
+                              <button
+                                key={label}
+                                type="button"
+                                role="radio"
+                                aria-checked={on}
+                                className={`rice-option${on ? ' is-on' : ''}`}
+                                onClick={() =>
+                                  setRice((current) => ({
+                                    ...current,
+                                    [group.id]: on && group.options.length === 1 ? null : label,
+                                  }))
+                                }
+                              >
+                                <span className="rice-dot" />
+                                <span>{label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))}
+                      {extras.length ? (
+                        <div className="extra-list">
+                          {extras.map((extra) => {
+                            const parts = extraParts[extra.id] || 0;
+                            const extraPrice = Number(extra.priceTickets || 0);
+                            return (
+                              <div
+                                key={extra.id}
+                                className={`extra-row${!extra.available ? ' is-off' : ''}`}
+                              >
+                                <span className="extra-name">{extra.name}</span>
+                                <span className="extra-price">
+                                  {extra.available
+                                    ? `${formatTicketCount(extraPrice)} tickets`
+                                    : 'Indisponible'}
+                                </span>
+                                <QtyCircles
+                                  parts={parts}
+                                  disabled={!extra.available}
+                                  onChange={(next) =>
+                                    setExtraParts((q) => ({ ...q, [extra.id]: next }))
+                                  }
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      <p className="base-roll-price">
+                        {formatTicketCount(price)} tickets la part
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      className="qty-btn qty-btn--accent"
-                      disabled={!menu.available}
-                      onClick={() => addMenu(menu)}
-                      aria-label="Ajouter"
-                    >
-                      <IconPlus />
-                    </button>
                   </div>
-                  <p>
-                    {(menu.lines || []).map((l) => l.name).join(' · ') || 'Menu fixé'}
-                  </p>
-                  {!menu.available && missing.length ? (
-                    <p className="menu-missing">Manque : {missing.join(', ')}</p>
-                  ) : null}
-                  <div className="menu-card-price">{formatTicketCount(menu.priceTickets)} tickets</div>
                 </div>
-              );
-            })}
-            {!menus.length ? (
-              <div className="empty-state">
-                <h3>Aucun menu fixé</h3>
-              </div>
-            ) : null}
-          </>
-        ) : null}
-
-        {tab === 2 ? (
+              </section>
+            );
+          })
+        ) : (
           <div className="empty-state">
-            <h3>Pas encore d’avis</h3>
+            <h3>Pas de plat à composer</h3>
           </div>
-        ) : null}
+        )}
       </div>
 
       <div className="sticky-bar sticky-bar--flutter">
@@ -439,7 +322,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           <span>
             {cartHere
               ? `${formatTicketCount(cart.subtotal)} tickets`
-              : selectedBase && tab === 0
+              : selectedBase
                 ? `${formatTicketCount(plateTickets)} tickets`
                 : 'Choisis ton plat'}
           </span>
@@ -450,11 +333,10 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
           style={{ width: 'auto', padding: '0 16px', height: 42 }}
           onClick={() => {
             if (cartHere) onOpenCart();
-            else if (tab === 0 && selectedBase) addPlate();
-            else setTab(0);
+            else if (selectedBase) addPlate();
           }}
         >
-          {cartHere ? 'Voir le panier' : selectedBase && tab === 0 ? 'Ajouter' : 'Mon plat'}
+          {cartHere ? 'Voir le panier' : 'Ajouter'}
         </button>
       </div>
     </div>
