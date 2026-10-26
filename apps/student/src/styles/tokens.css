@@ -19,10 +19,52 @@
   --peach: #ffe8dc;
   --border: rgba(27, 42, 107, 0.1);
   --field-light: #f0f3fa;
+  --tint: #e8ecff;
+  --track: #d8deef;
   --green: #10b981;
   --green-soft: #ecfdf5;
   --red: #ef4444;
   --red-soft: #fff1f2;
   --amber: #f59e0b;
   --font: 'Plus Jakarta Sans', system-ui, sans-serif;
+}
+
+/* Mêmes couleurs que kabakaba/lib/core/theme/app_colors.dart (mode sombre). */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0d1438;
+  --surface: #111a45;
+  --text-primary: #ffffff;
+  --text-secondary: rgba(255, 255, 255, 0.62);
+  --peach: #1e293b;
+  --border: rgba(255, 255, 255, 0.12);
+  --field-light: rgba(255, 255, 255, 0.06);
+  --green-soft: rgba(16, 185, 129, 0.16);
+  --red-soft: rgba(239, 68, 68, 0.16);
+  --tint: rgba(255, 255, 255, 0.08);
+  --track: rgba(255, 255, 255, 0.18);
+}
+
+[data-theme='dark'] .nav-row-icon,
+[data-theme='dark'] .soft-back,
+[data-theme='dark'] .btn-outline {
+  color: #fff;
+}
+
+[data-theme='dark'] .soft-back {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+[data-theme='dark'] .btn-outline {
+  border-color: rgba(255, 255, 255, 0.28);
+}
+
+[data-theme='dark'] .btn-logout {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fecaca;
+}
+
+[data-theme='dark'] .install-sheet::before {
+  background: rgba(255, 255, 255, 0.18);
 }

@@ -20,6 +20,20 @@
       rel="stylesheet"
     />
     <title>kabakaba</title>
+    <script>
+      (function () {
+        var mode = 'system';
+        try {
+          var saved = localStorage.getItem('kabakaba.theme');
+          if (saved === 'light' || saved === 'dark' || saved === 'system') mode = saved;
+        } catch (e) {}
+        var dark =
+          mode === 'dark' ||
+          (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+        document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

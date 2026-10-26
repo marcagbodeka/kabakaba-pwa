@@ -196,7 +196,7 @@ a {
   border: 1.5px solid var(--primary);
   color: var(--primary);
   font-weight: 700;
-  background: #fff;
+  background: var(--surface);
 }
 
 .page {
@@ -211,7 +211,7 @@ a {
 /* flush = hero collé en haut — fond blanc pour éviter un “trou” sous le sheet */
 .page--flush {
   padding-bottom: var(--nav-clearance);
-  background: #fff;
+  background: var(--surface);
 }
 
 .page--sticky {
@@ -287,7 +287,7 @@ a {
 .install-sheet {
   width: 100%;
   max-width: none;
-  background: #fff;
+  background: var(--surface);
   border-radius: 24px 24px 0 0;
   padding: 10px 22px calc(20px + env(safe-area-inset-bottom, 0px));
   box-shadow: 0 -12px 48px rgba(13, 20, 56, 0.28);
@@ -617,7 +617,7 @@ a {
   border-radius: 12px;
   object-fit: cover;
   flex-shrink: 0;
-  background: #fff;
+  background: var(--surface);
 }
 
 .confirm-backdrop {
@@ -644,7 +644,7 @@ a {
 
 .confirm-dialog {
   width: min(360px, calc(100% - 32px));
-  background: #fff;
+  background: var(--surface);
   border-radius: 24px;
   padding: 22px 20px 18px;
   box-shadow: 0 24px 60px rgba(13, 20, 56, 0.28);

@@ -10,6 +10,7 @@ import {
 } from '../lib/api';
 import { PhoneFormatter, formatTicketCount, formatTime, initialsFrom } from '../lib/format';
 import { readView, writeView } from '../lib/instantView';
+import { useThemeMode } from '../lib/theme';
 import { IconBack } from '../components/icons';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
@@ -33,6 +34,7 @@ const REPORT_LABEL = {
 export default function ProfilePage({ showSnack, initialPanel }) {
   const { user, logout, forget, refreshMe } = useAuth();
   const confirm = useConfirm();
+  const { mode: themeMode, choose: chooseTheme } = useThemeMode();
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [panel, setPanel] = useState(initialPanel || 'home');
@@ -826,6 +828,26 @@ export default function ProfilePage({ showSnack, initialPanel }) {
             </span>
             <span className="nav-row-chevron">›</span>
           </button>
+        </div>
+
+        <div className="section-label">Apparence</div>
+        <div className="settings-card">
+          {[
+            ['light', 'Clair'],
+            ['dark', 'Sombre'],
+            ['system', 'Système'],
+          ].map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className="profile-field"
+              aria-pressed={themeMode === id}
+              onClick={() => chooseTheme(id)}
+            >
+              <span className="profile-field-label">{label}</span>
+              {themeMode === id ? <span className="profile-field-check">✓</span> : null}
+            </button>
+          ))}
         </div>
 
         <div className="section-label">Plus</div>
