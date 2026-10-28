@@ -10,6 +10,7 @@ export default function VendorHeader({
   hasUnread = false,
   onNotificationTap,
   onCapacityTap,
+  showCapacity = true,
   eyebrow = 'Espace vendeur',
   compact = false,
   liveCount = null,
@@ -55,14 +56,16 @@ export default function VendorHeader({
               {hasUnread ? <span className="dot" /> : null}
             </button>
           ) : null}
-          <button
-            type="button"
-            className={`vhero-chip ${chipClass}`}
-            onClick={onCapacityTap}
-          >
-            <span className="pip" />
-            {CAPACITY_LABEL[capacity] || 'Fermée'}
-          </button>
+          {showCapacity ? (
+            <button
+              type="button"
+              className={`vhero-chip ${chipClass}`}
+              onClick={onCapacityTap}
+            >
+              <span className="pip" />
+              {CAPACITY_LABEL[capacity] || 'Fermée'}
+            </button>
+          ) : null}
         </div>
       </div>
     </header>

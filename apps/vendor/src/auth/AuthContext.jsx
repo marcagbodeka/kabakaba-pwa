@@ -85,20 +85,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    const onExpired = () => {
-      const next = loadSession();
-      setSession(next);
-      if (isPinSessionFresh(next) && next.pinConfigured) {
-        setStatus('authenticated');
-        return;
-      }
-      setStatus(statusFromSession(next));
-    };
-    window.addEventListener('kaba:session-expired', onExpired);
-    return () => window.removeEventListener('kaba:session-expired', onExpired);
-  }, []);
-
-  useEffect(() => {
     if (status === 'authenticated' && ready) {
       registerWebPush({ welcome: true }).catch(() => {});
     }

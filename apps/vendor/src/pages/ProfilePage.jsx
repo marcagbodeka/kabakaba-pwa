@@ -13,6 +13,14 @@ import {
 
 const ORDER_SOUND_MUTE_KEY = 'kaba_vendor_order_sounds_muted';
 
+function formatPhone(phone) {
+  if (!phone) return 'Non renseigné';
+  const digits = String(phone).replace(/\D/g, '');
+  const local = digits.startsWith('228') ? digits.slice(3) : digits;
+  const groups = local.match(/.{1,2}/g)?.join(' ') || phone;
+  return digits.startsWith('228') ? `+228 ${groups}` : groups;
+}
+
 export default function ProfilePage({
   vendor,
   onCapacityTap,
@@ -129,6 +137,7 @@ export default function ProfilePage({
       <VendorHeader
         vendor={vendor}
         showNotification
+        showCapacity={false}
         hasUnread={hasUnread}
         onNotificationTap={onNotificationTap}
         onCapacityTap={onCapacityTap}
@@ -148,48 +157,180 @@ export default function ProfilePage({
         </div>
       ) : null}
 
-      <div className="push-settings-card" id="push-settings">
-        <div className="push-settings-head">
-          <div className="push-settings-icon" aria-hidden>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
+      <div className="profile-section-label">Vitrine</div>
+      <div className="profile-media">
+        <button
+          type="button"
+          className="profile-media-tile"
+          disabled={uploading === 'logo' || suspended}
+          onClick={() => logoRef.current?.click()}
+        >
+          <span className="profile-media-frame profile-media-frame--logo">
+            {vendor?.logoUrl ? (
+              <img src={vendor.logoUrl} alt="" />
+            ) : (
+              <span className="profile-media-fallback">{initials}</span>
+            )}
+          </span>
+          <span className="profile-media-meta">
+            <strong>Logo</strong>
+            <em>{uploading === 'logo' ? 'Envoi…' : 'Modifier'}</em>
+          </span>
+        </button>
+        <button
+          type="button"
+          className="profile-media-tile"
+          disabled={uploading === 'banner' || suspended}
+          onClick={() => bannerRef.current?.click()}
+        >
+          <span className="profile-media-frame">
+            {vendor?.bannerUrl ? (
+              <img src={vendor.bannerUrl} alt="" />
+            ) : (
+              <span className="profile-media-fallback profile-media-fallback--empty">Aucune</span>
+            )}
+          </span>
+          <span className="profile-media-meta">
+            <strong>Bannière</strong>
+            <em>{uploading === 'banner' ? 'Envoi…' : 'Modifier'}</em>
+          </span>
+        </button>
+      </div>
+      <p className="profile-media-note">Images de la fiche que les étudiants voient.</p>
+      <input
+        ref={logoRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        hidden
+        onChange={(e) => {
+          upload('logo', e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={bannerRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif"
+        hidden
+        onChange={(e) => {
+          upload('banner', e.target.files?.[0]);
+          e.target.value = '';
+        }}
+      />
+
+      <div className="profile-section-label">Cantine</div>
+      <div className="nav-rows">
+        {editing ? (
+          <div className="profile-edit">
+            <div className="vfield">
+              <label htmlFor="canteen-name">Nom</label>
+              <input
+                id="canteen-name"
+                value={canteenName}
+                onChange={(e) => setCanteenName(e.target.value)}
+              />
+            </div>
+            <div className="vfield">
+              <label htmlFor="canteen-description">Description</label>
+              <input
+                id="canteen-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+            <div className="profile-edit-actions">
+              <button
+                type="button"
+                className="btn-action outline"
+                disabled={busy}
+                onClick={() => setEditing(false)}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="btn-action fill primary"
+                disabled={busy || !canteenName.trim() || suspended}
+                onClick={save}
+              >
+                {busy ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+            </div>
           </div>
+        ) : (
+          <button
+            type="button"
+            className="nav-row"
+            disabled={suspended}
+            onClick={() => {
+              setCanteenName(vendor?.canteenName || '');
+              setDescription(vendor?.description || '');
+              setEditing(true);
+            }}
+          >
+            <div>
+              <strong>Présentation</strong>
+              <span>
+                {vendor?.description?.trim() || 'Ajoute une courte présentation.'}
+              </span>
+            </div>
+          </button>
+        )}
+        <div className="nav-row nav-row--static">
           <div>
-            <strong>Notifications push</strong>
-            <p>
-              {pushBusy
-                ? 'Activation en cours…'
-                : pushPerm === 'denied'
-                  ? 'Bloquées dans le navigateur — autorise kabakaba dans les réglages du site.'
-                  : !isWebPushConfigured()
-                    ? 'Config Firebase manquante sur ce déploiement.'
-                    : pushOn
-                      ? 'Activées sur cet appareil — alertes nouvelles commandes.'
-                      : 'Active pour recevoir les alertes de nouvelles commandes.'}
-            </p>
+            <strong>Téléphone</strong>
+            <span>{formatPhone(vendor?.phone)}</span>
           </div>
         </div>
+        <button type="button" className="nav-row" onClick={onOpenCatalog} disabled={suspended}>
+          <div>
+            <strong>Carte</strong>
+            <span>Plat de base, en plus, menus fixés</span>
+          </div>
+        </button>
+        <button type="button" className="nav-row" onClick={onCapacityTap} disabled={suspended}>
+          <div>
+            <strong>Disponibilité</strong>
+            <span>{CAPACITY_LABEL[capacity] || 'Fermée'}</span>
+          </div>
+        </button>
+      </div>
+
+      <div className="profile-section-label" id="push-settings">Alertes</div>
+      <div className="nav-rows">
         {pushPerm === 'denied' ? (
           <button
             type="button"
-            className="push-settings-unblock"
+            className="nav-row"
             onClick={() => showSnack?.(getPushBlockedHelp())}
           >
-            Comment débloquer
+            <div>
+              <strong>Alertes de commandes</strong>
+              <span>Bloquées dans le navigateur. Appuie pour les autoriser.</span>
+            </div>
           </button>
         ) : (
-          <label className="push-settings-toggle">
-            <span>{pushOn ? 'Activé' : 'Désactivé'}</span>
+          <label className="nav-row nav-row--switch">
+            <div>
+              <strong>Alertes de commandes</strong>
+              <span>
+                {pushBusy
+                  ? 'Activation en cours…'
+                  : !isWebPushConfigured()
+                    ? 'Indisponibles sur ce déploiement.'
+                    : pushOn
+                      ? 'Activées sur cet appareil.'
+                      : 'Reçois un signal à chaque nouvelle commande.'}
+              </span>
+            </div>
             <input
+              className="setting-switch"
               type="checkbox"
-            checked={pushOn}
-            disabled={pushBusy || pushOn || !isWebPushConfigured()}
+              checked={pushOn}
+              disabled={pushBusy || pushOn || !isWebPushConfigured()}
               onChange={async (e) => {
-              const wantOn = e.target.checked;
-              if (!wantOn) return;
-              setPushBusy(true);
+                if (!e.target.checked) return;
+                setPushBusy(true);
                 try {
                   try {
                     sessionStorage.removeItem('kabakaba_vendor_push_later');
@@ -204,11 +345,11 @@ export default function ProfilePage({
                     showSnack?.('Notifications activées');
                   } else {
                     setPushOn(false);
-                    if (perm === 'denied') {
-                      showSnack?.(getPushBlockedHelp());
-                    } else {
-                      showSnack?.('Accepte la popup du navigateur pour activer');
-                    }
+                    showSnack?.(
+                      perm === 'denied'
+                        ? getPushBlockedHelp()
+                        : 'Accepte la demande du navigateur pour activer',
+                    );
                   }
                 } finally {
                   setPushBusy(false);
@@ -217,151 +358,18 @@ export default function ProfilePage({
             />
           </label>
         )}
-      </div>
-
-      <div className="profile-card">
-        <div className="profile-banner">
-          {vendor?.bannerUrl ? <img src={vendor.bannerUrl} alt="" /> : null}
-          <button
-            type="button"
-            className="profile-media-btn"
-            disabled={uploading === 'banner' || suspended}
-            onClick={() => bannerRef.current?.click()}
-          >
-            {uploading === 'banner' ? '…' : 'Bannière'}
-          </button>
-          <input
-            ref={bannerRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            hidden
-            onChange={(e) => {
-              upload('banner', e.target.files?.[0]);
-              e.target.value = '';
-            }}
-          />
-        </div>
-        <div className="profile-main">
-          <div className="profile-logo">
-            {vendor?.logoUrl ? <img src={vendor.logoUrl} alt="" /> : initials}
-          </div>
-          <button
-            type="button"
-            className="profile-media-btn profile-media-btn--logo"
-            disabled={uploading === 'logo' || suspended}
-            onClick={() => logoRef.current?.click()}
-          >
-            {uploading === 'logo' ? '…' : 'Logo'}
-          </button>
-          <input
-            ref={logoRef}
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            hidden
-            onChange={(e) => {
-              upload('logo', e.target.files?.[0]);
-              e.target.value = '';
-            }}
-          />
-          <div>
-            <div className="profile-name">{vendor?.canteenName || '—'}</div>
-            {vendor?.campusName ? (
-              <span className="profile-campus-pill">{vendor.campusName}</span>
-            ) : null}
-            <span className="profile-active-pill">
-              {suspended ? 'Suspendu' : 'Vendeur actif'}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {editing ? (
-        <div className="nav-rows" style={{ padding: 16 }}>
-          <div className="vfield">
-            <label>Nom de la cantine</label>
-            <input value={canteenName} onChange={(e) => setCanteenName(e.target.value)} />
-          </div>
-          <div className="vfield">
-            <label>Description</label>
-            <input value={description} onChange={(e) => setDescription(e.target.value)} />
-          </div>
-          <button
-            type="button"
-            className="btn-action fill primary full"
-            disabled={busy || !canteenName.trim() || suspended}
-            onClick={save}
-          >
-            {busy ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
-        </div>
-      ) : null}
-
-      <div className="profile-section-label">Carte</div>
-      <div className="nav-rows">
-        <button
-          type="button"
-          className="nav-row"
-          onClick={() => {
-            setCanteenName(vendor?.canteenName || '');
-            setDescription(vendor?.description || '');
-            setEditing((v) => !v);
-          }}
-        >
-          <div>
-            <strong>Présentation</strong>
-            <span>Nom et description de la cantine</span>
-          </div>
-        </button>
-        <button type="button" className="nav-row" onClick={onOpenCatalog} disabled={suspended}>
-          <div>
-            <strong>Ma carte</strong>
-            <span>Plat de base, en plus, menus fixés</span>
-          </div>
-        </button>
-        <button type="button" className="nav-row" onClick={onCapacityTap} disabled={suspended}>
-          <div>
-            <strong>Disponibilité</strong>
-            <span>{CAPACITY_LABEL[capacity] || 'Fermée'} — Ouverte · Occupée · Fermée</span>
-          </div>
-        </button>
-      </div>
-
-      <div className="profile-section-label">Établissement</div>
-      <div className="nav-rows">
-        <div className="nav-row nav-row--static">
-          <div>
-            <strong>{vendor?.canteenName || '—'}</strong>
-            <span>Nom géré avec l’administration</span>
-          </div>
-        </div>
-        <div className="nav-row nav-row--static">
-          <div>
-            <strong>{vendor?.campusName || '—'}</strong>
-            <span>Campus</span>
-          </div>
-        </div>
-        <div className="nav-row nav-row--static">
-          <div>
-            <strong>{vendor?.phone || '—'}</strong>
-            <span>Téléphone du compte</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="profile-section-label">Préférences</div>
-      <div className="nav-rows">
-        <button type="button" className="nav-row" onClick={onNotificationTap}>
-          <div>
-            <strong>Notifications</strong>
-            <span>Commandes, retraits et alertes</span>
-          </div>
-        </button>
-        <button type="button" className="nav-row" onClick={toggleSound}>
+        <label className="nav-row nav-row--switch">
           <div>
             <strong>Son nouvelle commande</strong>
             <span>{soundMuted ? 'Coupé' : 'Activé'}</span>
           </div>
-        </button>
+          <input
+            className="setting-switch"
+            type="checkbox"
+            checked={!soundMuted}
+            onChange={toggleSound}
+          />
+        </label>
       </div>
 
       <div className="profile-section-label">Compte</div>
@@ -369,12 +377,12 @@ export default function ProfilePage({
         <button type="button" className="nav-row" onClick={() => auth.logout()}>
           <div>
             <strong>Se déconnecter</strong>
-            <span>Revenir à l’écran PIN</span>
+            <span>Revenir à l’écran du code PIN</span>
           </div>
         </button>
         <button
           type="button"
-          className="nav-row"
+          className="nav-row nav-row--danger"
           onClick={async () => {
             const ok = await confirm({
               title: 'Utiliser un autre compte',
@@ -388,7 +396,7 @@ export default function ProfilePage({
         >
           <div>
             <strong>Utiliser un autre compte</strong>
-            <span>Oublier ce téléphone</span>
+            <span>Oublier cet appareil</span>
           </div>
         </button>
       </div>

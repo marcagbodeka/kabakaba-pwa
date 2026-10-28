@@ -64,8 +64,6 @@ let refreshPromise = null;
 let csrfMemory = null;
 /** Empêche la tempête csrf→refresh→401 quand les cookies sont morts. */
 let sessionDead = false;
-/** Pause refresh après un 429 pour éviter de tuer / spam le token. */
-let refreshBackoffUntil = 0;
 
 function rememberCsrf(data) {
   if (data && typeof data.csrfToken === 'string') csrfMemory = data.csrfToken;
@@ -74,25 +72,14 @@ function rememberCsrf(data) {
 function dropSession({ askPin = true } = {}) {
   csrfMemory = null;
   clearAuthTokens();
-  if (!askPin && isPinSessionFresh()) {
-    refreshBackoffUntil = Date.now() + 20_000;
-    return;
-  }
+  if (!askPin && isPinSessionFresh()) return;
   sessionDead = true;
   clearTokens();
-  if (typeof window !== 'undefined') {
-    window.dispatchEvent(new CustomEvent('kaba:session-expired'));
-  }
 }
 
 /** À appeler après login PIN / set-pin réussi. */
 export function markSessionAlive() {
   sessionDead = false;
-  refreshBackoffUntil = 0;
-}
-
-export function isSessionDead() {
-  return sessionDead;
 }
 
 function csrfToken() {
@@ -126,14 +113,19 @@ async function ensureCsrf(force = false) {
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    // Un refresh par body n’a pas besoin du cookie CSRF.
     if (hasUsableRefresh()) return csrfMemory;
+    if (res.status === 401 || res.status === 403) {
+      /* CSRF illisible : le refresh tranchera, on ne tue pas la session ici. */
+    }
     throw new ApiError(
       extractMessage(data, 'Impossible de relire la session'),
       res.status,
     );
   }
   rememberCsrf(data);
+  if (!csrfMemory) {
+    throw new ApiError('Protection CSRF indisponible', 401);
+  }
   return csrfMemory;
 }
 
@@ -141,9 +133,7 @@ async function refreshAccessToken() {
   if (sessionDead) {
     throw new ApiError('Session expirée — reconnecte-toi', 401);
   }
-  if (Date.now() < refreshBackoffUntil) {
-    throw new ApiError('Trop de requêtes — réessaie dans un instant', 429);
-  }
+  // Toujours relire le CSRF : un jeton en mémoire peut être périmé après rotation.
   try {
     await ensureCsrf(true);
   } catch {
@@ -164,11 +154,8 @@ async function refreshAccessToken() {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const msg = extractMessage(data, 'Session expirée');
-    // Throttle / panne serveur : ne pas tuer la session (sinon "expire vite").
+    // Throttle / panne serveur : ne pas tuer la session (sinon « expire vite »).
     if (res.status === 429 || res.status >= 500) {
-      if (res.status === 429) {
-        refreshBackoffUntil = Date.now() + 60_000;
-      }
       throw new ApiError(
         res.status === 429
           ? 'Trop de requêtes — réessaie dans un instant'
@@ -176,7 +163,8 @@ async function refreshAccessToken() {
         res.status,
       );
     }
-    // Race refresh concurrent : retenter une fois avant de couper.
+    // Race de refresh concurrent : un autre appel a déjà tourné le cookie.
+    // On retente une fois après un court délai au lieu de déconnecter.
     if (
       res.status === 401 &&
       /invalidée|déjà utilisé|reconnecter/i.test(msg)
@@ -196,7 +184,6 @@ async function refreshAccessToken() {
         /* fall through */
       }
     }
-    // PIN encore frais : on ne déconnecte pas au relance.
     if (res.status === 401 || res.status === 403) {
       dropSession({ askPin: !isPinSessionFresh() && !hasUsableRefresh() });
     }

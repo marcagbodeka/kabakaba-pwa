@@ -12,209 +12,168 @@ import { formatTickets } from '../lib/format';
 import { readView, writeView } from '../lib/instantView';
 import { PLATE, isIncludedRole, roleOfComponent } from '../lib/plate';
 
-const ROLE_COPY = {
-  base: {
-    label: 'Base',
-    title: 'Plat de base',
-    lead: 'Ce que l’étudiant annonce en premier. Exemple : riz 250. Sans ce plat, il ne peut pas commander.',
-    empty: 'Ajoute le riz, ou un autre plat sans lequel tu ne sers pas.',
-    name: 'Riz',
-    price: 'C’est le montant d’une part. Riz à 250 : l’étudiant dit « riz 250 ». Deux parts font 500.',
-  },
-  extra: {
-    label: 'En plus',
-    title: 'En plus',
-    lead: 'Ce que tu demandes ensuite : « du poisson pour combien ? du spaghetti ? du gari ? ». Il peut répondre zéro.',
-    empty: 'Ajoute le poisson, le spaghetti, le gari…',
-    name: 'Poisson',
-    price: 'Prix d’une part. L’étudiant choisit pour combien : 0, une part, deux parts.',
-  },
-  with: {
-    label: 'Avec',
-    title: 'Servi avec le plat',
-    lead: 'Ce que l’étudiant coche sur le riz. Deux noms pour le même article : Sauce tomate et Nougbagba.',
-    empty: 'Ajoute la sauce, l’huile, le piment.',
-    name: 'Sauce tomate',
-    price: '',
-  },
-  drink: {
-    label: 'Boissons',
-    title: 'Jus & Boissons',
-    lead: 'À part des plats. L’étudiant en prend la quantité qu’il veut.',
-    empty: 'Ajoute le bissap, un jus, l’eau.',
-    name: 'Bissap',
-    price: 'Prix d’une part.',
-  },
-  menus: {
-    label: 'Menus',
-    title: 'Menus fixés',
-    lead: 'Un menu fixé se commande tel quel. L’étudiant ne retire rien et n’ajoute rien.',
-    empty: 'Crée un plat déjà composé, avec son prix fermé.',
-  },
-  takeaway: {
-    label: 'Emporté',
-    title: 'À emporter',
-    lead: 'Un supplément seulement quand l’étudiant ne mange pas sur place. Exemple : la barquette.',
-    empty: 'Sans option ici, les étudiants commandent uniquement sur place.',
-  },
-  sort: {
-    label: 'À ranger',
-    title: 'À ranger',
-    lead: 'Ces articles ne sont pas encore dans la carte. Range-les pour que les étudiants les voient au bon endroit.',
-    empty: '',
-  },
+const SELL_KINDS = [
+  { id: 'base', title: 'Plat de base', example: 'Riz, attiéké, pâtes' },
+  { id: 'extra', title: 'En plus', example: 'Poisson, spaghetti, gari' },
+  { id: 'with', title: 'Avec le plat', example: 'Sauce, huile, piment' },
+  { id: 'drink', title: 'Boisson', example: 'Bissap, jus, eau' },
+];
+
+const SECTION_HINT = {
+  base: 'Sans ce plat, l’étudiant ne commande pas.',
+  extra: 'Il peut en prendre, ou pas.',
+  with: 'C’est compris dans le plat. Pas de prix à part.',
+  drink: 'À part du plat.',
+  menus: 'Un plat déjà composé. L’étudiant le prend tel quel.',
+  takeaway: 'Seulement s’il n’est pas sur place.',
 };
 
-function Field({ label, hint, children }) {
-  return (
-    <div className="vfield">
-      <label>{label}</label>
-      {children}
-      {hint ? <p className="field-hint">{hint}</p> : null}
-    </div>
-  );
+function includedKind(kind) {
+  return kind === 'choice' || kind === 'always';
 }
 
-function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
-  const [kind, setKind] = useState(
-    role === 'extra' ? 'extra' : role === 'drink' ? 'drink' : role === 'with' || role === 'choice' ? 'choice' : role === 'always' ? 'always' : 'base',
-  );
+function FoodSheet({ initial, role, onClose, onSave, onDelete, onSwitch, busy }) {
+  const preset = role === 'with' || role === 'choice' ? 'choice' : role === 'always' ? 'always' : role;
+  const [picking, setPicking] = useState(!initial && !preset);
+  const [kind, setKind] = useState(preset || 'base');
   const [name, setName] = useState(initial?.name || '');
   const [localName, setLocalName] = useState(initial?.localName || '');
   const [priceTickets, setPrice] = useState(
-    String(initial?.priceTickets ?? (kind === 'choice' || kind === 'always' ? '0' : '')),
+    initial ? String(initial.priceTickets ?? '') : '',
   );
-  const [quantity, setQty] = useState(String(initial?.quantity ?? '20'));
   const [isAvailable, setAvail] = useState(initial?.isAvailable !== false);
-  const [soldAlone, setSoldAlone] = useState(
-    typeof initial?.soldAlone === 'boolean' ? initial.soldAlone : kind === 'base' || kind === 'drink',
-  );
-  const included = kind === 'choice' || kind === 'always';
-  const copy = included ? ROLE_COPY.with : ROLE_COPY[kind] || ROLE_COPY.base;
+  const included = includedKind(kind);
+  const kindMeta = SELL_KINDS.find((item) => item.id === (included ? 'with' : kind));
 
-  const selectKind = (next) => {
-    setKind(next);
-    if (next === 'choice' || next === 'always') setPrice('0');
-    if (!initial) setSoldAlone(next === 'base' || next === 'drink');
+  const choose = (next) => {
+    setKind(next === 'with' ? 'choice' : next);
+    setPicking(false);
+    if (next === 'with') setPrice('0');
   };
+
+  const originalKind = preset;
+  const soldAlone =
+    initial && kind === originalKind
+      ? Boolean(initial.soldAlone)
+      : kind === 'base' || kind === 'drink';
 
   return (
     <div className="sheet-backdrop" onClick={onClose}>
-      <div className="sheet sheet--tall" onClick={(e) => e.stopPropagation()}>
-        <h2>{initial ? 'Modifier' : copy.title}</h2>
-        <p className="sub">{copy.lead}</p>
-        <Field label="C’est quoi ?">
-          <div className="kind-picks">
-            {[
-              ['base', 'Plat de base'],
-              ['extra', 'En plus'],
-              ['choice', 'Sauce ou huile'],
-              ['always', 'Toujours mis'],
-              ['drink', 'Boisson'],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={`kind-pick${kind === id ? ' on' : ''}`}
-                onClick={() => selectKind(id)}
-              >
-                {label}
+      <div className="sheet sheet--tall sell-sheet" onClick={(e) => e.stopPropagation()}>
+        {picking ? (
+          <>
+            <h2>Qu’est-ce que tu vends ?</h2>
+            <div className="sell-picks">
+              {SELL_KINDS.map((item) => (
+                <button key={item.id} type="button" className="sell-pick" onClick={() => choose(item.id)}>
+                  <strong>{item.title}</strong>
+                  <span>{item.example}</span>
+                </button>
+              ))}
+              <button type="button" className="sell-quiet" onClick={() => onSwitch('menus')}>
+                Un menu déjà composé
               </button>
-            ))}
-          </div>
-        </Field>
-        <Field label="Nom">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={copy.name}
-          />
-        </Field>
-        {included ? (
-          <Field label="Autre nom" hint="Le même article, dans l’autre langue. Exemple : Nougbagba.">
-            <input
-              value={localName}
-              onChange={(e) => setLocalName(e.target.value)}
-              placeholder="Nougbagba"
-            />
-          </Field>
-        ) : null}
-        {included ? (
-          <p className="field-hint">
-            L’étudiant coche cet article sur le riz. Pas de quantité, pas de prix à part.
-          </p>
+              <button type="button" className="sell-quiet" onClick={() => onSwitch('takeaway')}>
+                À emporter, par exemple une barquette
+              </button>
+            </div>
+          </>
         ) : (
-          <Field label="Prix d’une part (tickets)" hint={copy.price}>
+          <>
+            <h2>{initial ? 'Modifier' : kindMeta?.title || 'Ajouter'}</h2>
+            {!initial && !role ? (
+              <button type="button" className="sell-quiet sell-quiet--back" onClick={() => setPicking(true)}>
+                Changer
+              </button>
+            ) : null}
             <input
-              inputMode="numeric"
-              value={priceTickets}
-              onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
-              placeholder="250"
+              className="sell-name"
+              value={name}
+              autoFocus
+              placeholder={included ? 'Sauce tomate' : kindMeta?.example?.split(',')[0] || 'Le nom'}
+              onChange={(e) => setName(e.target.value)}
             />
-          </Field>
-        )}
-        {!initial ? (
-          <Field label="Combien de parts en stock ?" hint="Une commande d’une part retire 1.">
-            <input
-              inputMode="numeric"
-              value={quantity}
-              onChange={(e) => setQty(e.target.value.replace(/\D/g, ''))}
-              placeholder="20"
-            />
-          </Field>
-        ) : null}
-        <label className="check-row">
-          <input
-            type="checkbox"
-            checked={isAvailable}
-            onChange={(e) => setAvail(e.target.checked)}
-          />
-          <span>Proposé aujourd’hui</span>
-        </label>
-        <label className="check-row">
-          <input
-            type="checkbox"
-            checked={soldAlone}
-            onChange={(e) => setSoldAlone(e.target.checked)}
-          />
-          <span>Peut se vendre seul</span>
-        </label>
-        <p className="field-hint">Décoche pour le piment, la sauce, le poisson…</p>
-        <div className="sheet-actions">
-          <button
-            type="button"
-            className="btn-action fill primary full"
-            disabled={busy || !name.trim() || (!included && priceTickets === '')}
-            onClick={() =>
-              onSave({
-                kind,
-                name: name.trim(),
-                localName: included ? localName.trim() || null : null,
-                unit: 'PORTION',
-                priceTickets: included ? 0 : Number(priceTickets),
-                isAvailable,
-                soldAlone,
-                lowStockThreshold: initial?.lowStockThreshold ?? 5,
-                ...(initial ? {} : { quantity: Number(quantity || 0) }),
-              })
-            }
-          >
-            {busy ? 'Enregistrement…' : 'Enregistrer'}
-          </button>
-          {initial && onDelete ? (
+            {included ? (
+              <>
+                <div className="sell-pair">
+                  <button
+                    type="button"
+                    className={`sell-pick${kind === 'choice' ? ' on' : ''}`}
+                    onClick={() => setKind('choice')}
+                  >
+                    <strong>Il choisit</strong>
+                    <span>Sauce ou huile</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`sell-pick${kind === 'always' ? ' on' : ''}`}
+                    onClick={() => setKind('always')}
+                  >
+                    <strong>Toujours dessus</strong>
+                    <span>Piment, par exemple</span>
+                  </button>
+                </div>
+                <input
+                  className="sell-name sell-name--quiet"
+                  value={localName}
+                  placeholder="Autre nom, par exemple Nougbagba"
+                  onChange={(e) => setLocalName(e.target.value)}
+                />
+              </>
+            ) : (
+              <label className="sell-price">
+                <span>Prix en tickets</span>
+                <input
+                  inputMode="numeric"
+                  value={priceTickets}
+                  placeholder="250"
+                  onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
+                />
+              </label>
+            )}
+            {initial ? (
+              <label className="sell-today">
+                <span>Je le vends aujourd’hui</span>
+                <input
+                  className="setting-switch"
+                  type="checkbox"
+                  checked={isAvailable}
+                  onChange={(e) => setAvail(e.target.checked)}
+                />
+              </label>
+            ) : null}
             <button
               type="button"
-              className="btn-action outline full"
-              disabled={busy}
-              onClick={() => onDelete(initial)}
+              className="btn-action fill primary full"
+              disabled={busy || !name.trim() || (!included && priceTickets === '')}
+              onClick={() =>
+                onSave({
+                  kind,
+                  name: name.trim(),
+                  localName: included ? localName.trim() || null : null,
+                  unit: 'PORTION',
+                  priceTickets: included ? 0 : Number(priceTickets),
+                  isAvailable,
+                  soldAlone,
+                  lowStockThreshold: initial?.lowStockThreshold ?? 5,
+                  ...(initial ? {} : { quantity: included ? 80 : 40 }),
+                })
+              }
             >
-              Supprimer
+              {busy ? 'Enregistrement…' : 'C’est bon'}
             </button>
-          ) : null}
-          <button type="button" className="btn-action outline full" onClick={onClose}>
-            Annuler
-          </button>
-        </div>
+            {initial && onDelete ? (
+              <button
+                type="button"
+                className="sell-quiet sell-quiet--danger"
+                disabled={busy}
+                onClick={() => onDelete(initial)}
+              >
+                Retirer de la carte
+              </button>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
@@ -222,12 +181,11 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, busy }) {
 
 function MenuSheet({ components, categories, initial, onClose, onSave, onDelete, busy }) {
   const [name, setName] = useState(initial?.name || '');
-  const [description, setDesc] = useState(initial?.description || '');
   const [isActive, setActive] = useState(initial?.isActive !== false);
   const [selected, setSelected] = useState(() => {
     const map = {};
     (initial?.lines || []).forEach((l) => {
-      map[l.componentId] = String(l.quantity || 1);
+      map[l.componentId] = Math.max(1, Number(l.quantity) || 1);
     });
     return map;
   });
@@ -236,9 +194,16 @@ function MenuSheet({ components, categories, initial, onClose, onSave, onDelete,
     setSelected((s) => {
       const next = { ...s };
       if (next[id]) delete next[id];
-      else next[id] = '1';
+      else next[id] = 1;
       return next;
     });
+  };
+
+  const bump = (id, delta) => {
+    setSelected((s) => ({
+      ...s,
+      [id]: Math.max(1, (Number(s[id]) || 1) + delta),
+    }));
   };
 
   const lines = Object.entries(selected).map(([componentId, quantity]) => ({
@@ -257,20 +222,15 @@ function MenuSheet({ components, categories, initial, onClose, onSave, onDelete,
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet sheet--tall" onClick={(e) => e.stopPropagation()}>
-        <h2>{initial ? 'Modifier le menu' : 'Menu fixé'}</h2>
-        <p className="sub">
-          L’étudiant le prend comme tu l’as composé. Il ne choisit pas les quantités.
-        </p>
-        <Field label="Nom">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Riz poisson" />
-        </Field>
-        <Field label="Description (optionnel)">
-          <input
-            value={description}
-            onChange={(e) => setDesc(e.target.value)}
-            placeholder="Ce que le menu contient, en une phrase"
-          />
-        </Field>
+        <h2>{initial ? 'Modifier le menu' : 'Menu déjà composé'}</h2>
+        <p className="sub">Donne-lui un nom, puis touche ce qu’il contient.</p>
+        <input
+          className="sell-name"
+          value={name}
+          autoFocus
+          placeholder="Riz poisson"
+          onChange={(e) => setName(e.target.value)}
+        />
         <div className="kicker-inline">Dedans</div>
         <div className="pick-list">
           {components.map((c) => {
@@ -285,61 +245,51 @@ function MenuSheet({ components, categories, initial, onClose, onSave, onDelete,
                   </span>
                 </button>
                 {on ? (
-                  <input
-                    className="qty-mini"
-                    inputMode="numeric"
-                    aria-label={`Parts de ${c.name}`}
-                    value={selected[c.id]}
-                    onChange={(e) =>
-                      setSelected((s) => ({
-                        ...s,
-                        [c.id]: e.target.value.replace(/\D/g, '') || '1',
-                      }))
-                    }
-                  />
+                  <span className="pick-step">
+                    <button type="button" aria-label="Moins" onClick={() => bump(c.id, -1)}>
+                      −
+                    </button>
+                    {selected[c.id]}
+                    <button type="button" aria-label="Plus" onClick={() => bump(c.id, 1)}>
+                      +
+                    </button>
+                  </span>
                 ) : null}
               </div>
             );
           })}
         </div>
-        <label className="check-row">
-          <input
-            type="checkbox"
-            checked={isActive}
-            onChange={(e) => setActive(e.target.checked)}
-          />
-          <span>Proposé aux étudiants</span>
-        </label>
-        <div className="sheet-actions">
-          <button
-            type="button"
-            className="btn-action fill primary full"
-            disabled={busy || !name.trim() || lines.length === 0}
-            onClick={() =>
-              onSave({
-                name: name.trim(),
-                description: description.trim() || undefined,
-                isActive,
-                lines,
-              })
-            }
-          >
-            {busy ? 'Enregistrement…' : 'Enregistrer'}
+        {initial ? (
+          <label className="sell-today">
+            <span>Je le propose</span>
+            <input
+              className="setting-switch"
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setActive(e.target.checked)}
+            />
+          </label>
+        ) : null}
+        <button
+          type="button"
+          className="btn-action fill primary full"
+          disabled={busy || !name.trim() || lines.length === 0}
+          onClick={() =>
+            onSave({
+              name: name.trim(),
+              description: initial?.description?.trim() || undefined,
+              isActive,
+              lines,
+            })
+          }
+        >
+          {busy ? 'Enregistrement…' : 'C’est bon'}
+        </button>
+        {initial && onDelete ? (
+          <button type="button" className="sell-quiet sell-quiet--danger" disabled={busy} onClick={() => onDelete(initial)}>
+            Retirer ce menu
           </button>
-          {initial && onDelete ? (
-            <button
-              type="button"
-              className="btn-action outline full"
-              disabled={busy}
-              onClick={() => onDelete(initial)}
-            >
-              Supprimer
-            </button>
-          ) : null}
-          <button type="button" className="btn-action outline full" onClick={onClose}>
-            Annuler
-          </button>
-        </div>
+        ) : null}
       </div>
     </div>
   );
@@ -353,55 +303,53 @@ function TakeawaySheet({ initial, onClose, onSave, onDelete, busy }) {
   return (
     <div className="sheet-backdrop" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <h2>{initial ? 'Modifier l’emporté' : 'À emporter'}</h2>
-        <p className="sub">Ajouté une seule fois quand l’étudiant choisit « à emporter ».</p>
-        <Field label="Nom">
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex. Barquette" />
-        </Field>
-        <Field label="Prix (tickets)">
+        <h2>{initial ? 'Modifier' : 'À emporter'}</h2>
+        <input
+          className="sell-name"
+          value={name}
+          autoFocus
+          placeholder="Barquette"
+          onChange={(e) => setName(e.target.value)}
+        />
+        <label className="sell-price">
+          <span>Prix en tickets</span>
           <input
             inputMode="numeric"
             value={priceTickets}
+            placeholder="0"
             onChange={(e) => setPrice(e.target.value.replace(/\D/g, ''))}
           />
-        </Field>
-        <label className="check-row">
-          <input
-            type="checkbox"
-            checked={isActive}
-            onChange={(e) => setActive(e.target.checked)}
-          />
-          <span>Proposé aux étudiants</span>
         </label>
-        <div className="sheet-actions">
-          <button
-            type="button"
-            className="btn-action fill primary full"
-            disabled={busy || !name.trim()}
-            onClick={() =>
-              onSave({
-                name: name.trim(),
-                priceTickets: Number(priceTickets || 0),
-                isActive,
-              })
-            }
-          >
-            {busy ? 'Enregistrement…' : 'Enregistrer'}
+        {initial ? (
+          <label className="sell-today">
+            <span>Je le propose</span>
+            <input
+              className="setting-switch"
+              type="checkbox"
+              checked={isActive}
+              onChange={(e) => setActive(e.target.checked)}
+            />
+          </label>
+        ) : null}
+        <button
+          type="button"
+          className="btn-action fill primary full"
+          disabled={busy || !name.trim()}
+          onClick={() =>
+            onSave({
+              name: name.trim(),
+              priceTickets: Number(priceTickets || 0),
+              isActive,
+            })
+          }
+        >
+          {busy ? 'Enregistrement…' : 'C’est bon'}
+        </button>
+        {initial && onDelete ? (
+          <button type="button" className="sell-quiet sell-quiet--danger" disabled={busy} onClick={() => onDelete(initial)}>
+            Retirer
           </button>
-          {initial && onDelete ? (
-            <button
-              type="button"
-              className="btn-action outline full"
-              disabled={busy}
-              onClick={() => onDelete(initial)}
-            >
-              Supprimer
-            </button>
-          ) : null}
-          <button type="button" className="btn-action outline full" onClick={onClose}>
-            Annuler
-          </button>
-        </div>
+        ) : null}
       </div>
     </div>
   );
@@ -413,6 +361,7 @@ function StockButtons({ item, onAdjust, onEdit }) {
       <button type="button" className="qty-btn" onClick={() => onAdjust(item, -1)} aria-label="Retirer une part">
         −
       </button>
+      <span className="stock-count">{item.quantity}</span>
       <button type="button" className="qty-btn" onClick={() => onAdjust(item, 1)} aria-label="Ajouter une part">
         +
       </button>
@@ -426,7 +375,6 @@ function StockButtons({ item, onAdjust, onEdit }) {
 export default function CatalogPage({ vendor, onBack, showSnack }) {
   const confirm = useConfirm();
   const vendorId = vendor?.id;
-  const [tab, setTab] = useState('base');
   const cachedCatalog = readView('catalog');
   const asList = (value) => (Array.isArray(value) ? value : []);
   const [components, setComponents] = useState(() => asList(cachedCatalog?.components));
@@ -493,25 +441,6 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
   useEffect(() => {
     reload();
   }, [reload]);
-
-  useEffect(() => {
-    if (tab === 'sort' && !grouped.other.length) setTab('base');
-  }, [tab, grouped.other.length]);
-
-  const tabs = useMemo(() => {
-    const list = [
-      { key: 'base', label: 'Base' },
-      { key: 'extra', label: 'En plus' },
-      { key: 'with', label: 'Avec' },
-      { key: 'drinks', label: 'Boissons' },
-      { key: 'menus', label: 'Menus' },
-      { key: 'takeaway', label: 'Emporté' },
-    ];
-    if (grouped.other.length) list.push({ key: 'sort', label: 'À ranger' });
-    return list;
-  }, [grouped.other.length]);
-
-  const copy = ROLE_COPY[tab === 'drinks' ? 'drink' : tab] || ROLE_COPY.base;
 
   const categoryIdFor = async (name) => {
     const found = categories.find((c) => c.name === name);
@@ -682,11 +611,10 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     }
   };
 
-  const openCreate = () => {
-    if (tab === 'menus') setSheet({ type: 'menus', item: null });
-    else if (tab === 'takeaway') setSheet({ type: 'takeaway', item: null });
-    else if (tab === 'sort') return;
-    else setSheet({ type: 'food', role: tab === 'with' ? 'choice' : tab === 'drinks' ? 'drink' : tab, item: null });
+  const openCreate = (role) => {
+    if (role === 'menus') setSheet({ type: 'menus', item: null });
+    else if (role === 'takeaway') setSheet({ type: 'takeaway', item: null });
+    else setSheet({ type: 'food', role: role || null, item: null });
   };
 
   const foodOf = (role) => grouped[role] || [];
@@ -701,10 +629,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           <strong>{item.localName ? `${item.name} · ${item.localName}` : item.name}</strong>
           <span>
             {included ? 'Avec le plat' : formatTickets(item.priceTickets)}
-            {' · '}
-            {item.quantity} part{Number(item.quantity) > 1 ? 's' : ''}
-            {!item.isAvailable ? ' · masqué' : ''}
-            {available ? '' : ' · épuisé'}
+            {item.isAvailable === false ? ' · pas aujourd’hui' : available ? '' : ' · fini'}
           </span>
         </div>
         <StockButtons
@@ -716,8 +641,22 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
     );
   };
 
-  const addLabel =
-    tab === 'menus' ? 'Ajouter un menu fixé' : tab === 'takeaway' ? 'Ajouter une option' : tab === 'sort' ? '' : 'Ajouter';
+  const emptyCatalog =
+    !components.length && !menus.length && !options.length && !grouped.other.length;
+
+  const Section = ({ title, hint, action, onAdd, children, count }) => (
+    <section className="catalog-section">
+      <div className="catalog-section-head">
+        <h2>{title}</h2>
+        <p>{hint}</p>
+      </div>
+      {count ? children : null}
+      <button type="button" className="catalog-add" onClick={onAdd}>
+        <IconPlus />
+        {action}
+      </button>
+    </section>
+  );
 
   return (
     <div className="dashboard-body">
@@ -726,28 +665,13 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
         eyebrow="Cantine"
         onBack={onBack}
         action={
-          addLabel ? (
-            <button type="button" className="circle-action" onClick={openCreate} aria-label={addLabel}>
-              <IconPlus />
-            </button>
-          ) : null
+          <button type="button" className="circle-action" onClick={() => openCreate(null)} aria-label="Ajouter">
+            <IconPlus />
+          </button>
         }
       />
 
       <div className="sheet-body sheet-body--sub">
-      <div className="section-tabs catalog-tabs">
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            className={`section-tab${tab === t.key ? ' active' : ''}`}
-            onClick={() => setTab(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       <div className="catalog-scroll">
 
       {loadError ? (
@@ -766,158 +690,144 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
         </div>
       ) : (
         <div className="catalog-list">
-          <p className="catalog-lead">{copy.lead}</p>
-
-          {tab === 'base' ? foodOf('base').map(renderFood) : null}
-          {tab === 'extra' ? foodOf('extra').map(renderFood) : null}
-          {tab === 'drinks' ? foodOf('drink').map(renderFood) : null}
-          {tab === 'with' ? (
-            <>
-              <div className="kicker-inline">L’étudiant en choisit une</div>
-              {foodOf('choice').map(renderFood)}
-              {!foodOf('choice').length ? (
-                <p className="catalog-note">Exemple : sauce, huile.</p>
-              ) : null}
-              <div className="kicker-inline">Toujours mis</div>
-              {foodOf('always').map(renderFood)}
-              {!foodOf('always').length ? <p className="catalog-note">Exemple : piment.</p> : null}
-            </>
+          {emptyCatalog ? (
+            <div className="sell-home">
+              <h2>Qu’est-ce que tu vends ?</h2>
+              <p>Choisis, écris le nom, puis le prix.</p>
+              <div className="sell-picks">
+                {SELL_KINDS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="sell-pick"
+                    onClick={() => openCreate(item.id)}
+                  >
+                    <strong>{item.title}</strong>
+                    <span>{item.example}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : null}
 
-          {tab === 'menus'
-            ? menus.map((m) => (
-                <div key={m.id} className={`catalog-card${!m.isActive ? ' dim' : ''}`}>
-                  <div className="catalog-main">
-                    <strong>{m.name}</strong>
-                    <span>
-                      {(m.lines || []).map((l) => l.name || l.component?.name).filter(Boolean).join(' · ') ||
-                        'Rien dedans'}
-                      {!m.isActive ? ' · masqué' : ''}
-                    </span>
-                  </div>
-                  <div className="catalog-actions">
-                    <button
-                      type="button"
-                      className="link-mini"
-                      onClick={() => setSheet({ type: 'menus', item: m })}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      type="button"
-                      className="link-mini"
-                      style={{ color: 'var(--red)' }}
-                      onClick={() => removeMenu(m)}
-                    >
-                      Retirer
-                    </button>
-                  </div>
-                </div>
-              ))
-            : null}
-
-          {tab === 'takeaway'
-            ? options.map((o) => (
-                <div key={o.id} className={`catalog-card${!o.isActive ? ' dim' : ''}`}>
-                  <div className="catalog-main">
-                    <strong>{o.name}</strong>
-                    <span>
-                      {formatTickets(o.priceTickets)}
-                      {!o.isActive ? ' · masquée' : ''}
-                    </span>
-                  </div>
-                  <div className="catalog-actions">
-                    <button
-                      type="button"
-                      className="link-mini"
-                      onClick={() => setSheet({ type: 'takeaway', item: o })}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      type="button"
-                      className="link-mini"
-                      style={{ color: 'var(--red)' }}
-                      onClick={() => removeTakeaway(o)}
-                    >
-                      Retirer
-                    </button>
-                  </div>
-                </div>
-              ))
-            : null}
-
-          {tab === 'sort'
-            ? grouped.other.map((item) => (
+          {grouped.other.length ? (
+            <section className="catalog-section">
+              <div className="catalog-section-head">
+                <h2>À ranger</h2>
+                <p>Touche l’endroit où cet article doit aller.</p>
+              </div>
+              {grouped.other.map((item) => (
                 <div key={item.id} className="catalog-card catalog-card--classify">
                   <div className="catalog-main">
                     <strong>{item.name}</strong>
-                    <span>{formatTickets(item.priceTickets)} · pas encore à sa place</span>
+                    <span>{formatTickets(item.priceTickets)}</span>
                   </div>
                   <div className="classify-actions">
-                    <button type="button" onClick={() => classify(item, 'base')}>Base</button>
+                    <button type="button" onClick={() => classify(item, 'base')}>Plat de base</button>
                     <button type="button" onClick={() => classify(item, 'extra')}>En plus</button>
-                    <button type="button" onClick={() => classify(item, 'choice')}>Sauce ou huile</button>
-                    <button type="button" onClick={() => classify(item, 'always')}>Toujours mis</button>
+                    <button type="button" onClick={() => classify(item, 'choice')}>Il choisit</button>
+                    <button type="button" onClick={() => classify(item, 'always')}>Toujours dessus</button>
                     <button type="button" onClick={() => classify(item, 'drink')}>Boisson</button>
                   </div>
                 </div>
-              ))
-            : null}
+              ))}
+            </section>
+          ) : null}
 
-          {tab === 'base' && !foodOf('base').length ? (
-            <div className="empty-block">
-              <div className="empty-nest">
-                <div className="empty-nest-inner">
-                  <IconPlus />
+          {!emptyCatalog ? (
+          <>
+          <Section
+            title="Plat de base"
+            hint={SECTION_HINT.base}
+            action="Ajouter un plat"
+            count={foodOf('base').length}
+            onAdd={() => openCreate('base')}
+          >
+            {foodOf('base').map(renderFood)}
+          </Section>
+          <Section
+            title="En plus"
+            hint={SECTION_HINT.extra}
+            action="Ajouter"
+            count={foodOf('extra').length}
+            onAdd={() => openCreate('extra')}
+          >
+            {foodOf('extra').map(renderFood)}
+          </Section>
+          <Section
+            title="Avec le plat"
+            hint={SECTION_HINT.with}
+            action="Ajouter une sauce, une huile…"
+            count={foodOf('choice').length + foodOf('always').length}
+            onAdd={() => openCreate('with')}
+          >
+            {foodOf('choice').map(renderFood)}
+            {foodOf('always').map(renderFood)}
+          </Section>
+          <Section
+            title="Boissons"
+            hint={SECTION_HINT.drink}
+            action="Ajouter une boisson"
+            count={foodOf('drink').length}
+            onAdd={() => openCreate('drink')}
+          >
+            {foodOf('drink').map(renderFood)}
+          </Section>
+          <Section
+            title="Menus"
+            hint={SECTION_HINT.menus}
+            action="Ajouter un menu"
+            count={menus.length}
+            onAdd={() => openCreate('menus')}
+          >
+            {menus.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className={`catalog-card${!m.isActive ? ' dim' : ''}`}
+                onClick={() => setSheet({ type: 'menus', item: m })}
+              >
+                <div className="catalog-main">
+                  <strong>{m.name}</strong>
+                  <span>
+                    {(m.lines || []).map((l) => l.name || l.component?.name).filter(Boolean).join(' · ') ||
+                      'Rien dedans'}
+                    {!m.isActive ? ' · pas aujourd’hui' : ''}
+                  </span>
                 </div>
-              </div>
-              <h3>Pas encore de plat de base</h3>
-              <p>{copy.empty}</p>
-            </div>
-          ) : null}
-          {tab === 'extra' && !foodOf('extra').length ? (
-            <div className="empty-block">
-              <h3>Rien en plus</h3>
-              <p>{copy.empty}</p>
-            </div>
-          ) : null}
-          {tab === 'drinks' && !foodOf('drink').length ? (
-            <div className="empty-block">
-              <h3>Pas encore de boisson</h3>
-              <p>{copy.empty}</p>
-            </div>
-          ) : null}
-          {tab === 'with' && !foodOf('choice').length && !foodOf('always').length ? (
-            <div className="empty-block">
-              <h3>Rien n’accompagne le plat</h3>
-              <p>{copy.empty}</p>
-            </div>
-          ) : null}
-          {tab === 'menus' && !menus.length ? (
-            <div className="empty-block">
-              <h3>Aucun menu fixé</h3>
-              <p>{copy.empty}</p>
-            </div>
-          ) : null}
-          {tab === 'takeaway' && !options.length ? (
-            <div className="empty-block">
-              <h3>Pas d’emporté</h3>
-              <p>{copy.empty}</p>
-            </div>
+              </button>
+            ))}
+          </Section>
+          <Section
+            title="À emporter"
+            hint={SECTION_HINT.takeaway}
+            action="Ajouter"
+            count={options.length}
+            onAdd={() => openCreate('takeaway')}
+          >
+            {options.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                className={`catalog-card${!o.isActive ? ' dim' : ''}`}
+                onClick={() => setSheet({ type: 'takeaway', item: o })}
+              >
+                <div className="catalog-main">
+                  <strong>{o.name}</strong>
+                  <span>
+                    {formatTickets(o.priceTickets)}
+                    {!o.isActive ? ' · pas aujourd’hui' : ''}
+                  </span>
+                </div>
+              </button>
+            ))}
+          </Section>
+          </>
           ) : null}
         </div>
       )}
       </div>
       </div>
-
-      {addLabel ? (
-        <div className="sticky-cta">
-          <button type="button" className="btn-action fill primary full" onClick={openCreate}>
-            {addLabel}
-          </button>
-        </div>
-      ) : null}
 
       {sheet?.type === 'food' ? (
         <FoodSheet
@@ -926,6 +836,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
           busy={busy}
           onClose={() => setSheet(null)}
           onSave={saveFood}
+          onSwitch={(type) => setSheet({ type, item: null })}
           onDelete={removeComponent}
         />
       ) : null}
