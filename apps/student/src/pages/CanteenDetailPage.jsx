@@ -52,6 +52,87 @@ function QtyCircles({ parts, onChange, disabled }) {
   );
 }
 
+function OfferAdd({ parts, disabled, onChange }) {
+  if (!parts) {
+    return (
+      <button
+        type="button"
+        className="offer-add"
+        disabled={disabled}
+        onClick={() => onChange(1)}
+        aria-label="Ajouter"
+      >
+        +
+      </button>
+    );
+  }
+  return (
+    <div className="offer-step">
+      <button
+        type="button"
+        className="offer-add"
+        disabled={disabled}
+        onClick={() => onChange(parts - 1)}
+        aria-label="Retirer une part"
+      >
+        −
+      </button>
+      <strong>{parts}</strong>
+      <button
+        type="button"
+        className="offer-add"
+        disabled={disabled || parts >= MAX_PARTS}
+        onClick={() => onChange(parts + 1)}
+        aria-label="Ajouter une part"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+function menuCompose(menu) {
+  return (menu?.lines || [])
+    .map((line) => (line.quantity > 1 ? `${line.name} × ${line.quantity}` : line.name))
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function OfferCard({
+  name,
+  available,
+  compose,
+  price,
+  parts,
+  open,
+  onToggle,
+  onChange,
+  children,
+}) {
+  return (
+    <article className={`offer${open ? ' is-open' : ''}${available ? '' : ' is-off'}`}>
+      <div className="offer-top">
+        <button type="button" className="offer-main" aria-expanded={open} onClick={onToggle}>
+          <span className="offer-name">{name}</span>
+          <span className={`offer-badge${available ? '' : ' is-off'}`}>
+            {available ? 'Disponible' : 'Indisponible'}
+          </span>
+          {compose ? <span className="offer-compose">{compose}</span> : null}
+          <span className="offer-price">
+            {available ? `${formatTicketCount(price)} tickets` : 'Indisponible'}
+          </span>
+        </button>
+        <OfferAdd parts={parts} disabled={!available} onChange={onChange} />
+      </div>
+      <div className="base-roll">
+        <div className="base-roll-clip">
+          <div className="offer-body">{children}</div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 function MenuRoll({ title, open, onToggle, children }) {
   return (
     <section className={`menu-roll${open ? ' is-open' : ''}`}>
@@ -81,12 +162,14 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
   const [components, setComponents] = useState(cached?.components || []);
   const [categories, setCategories] = useState(cached?.categories || []);
   const [loading, setLoading] = useState(!cached?.vendor);
-  const [platsOpen, setPlatsOpen] = useState(false);
+  const [platsOpen, setPlatsOpen] = useState(true);
+  const [menusOpen, setMenusOpen] = useState(true);
   const [drinksOpen, setDrinksOpen] = useState(false);
-  const [openBaseId, setOpenBaseId] = useState(null);
+  const [openKey, setOpenKey] = useState(null);
   const [baseParts, setBaseParts] = useState({});
   const [extraParts, setExtraParts] = useState({});
   const [drinkParts, setDrinkParts] = useState({});
+  const [menuParts, setMenuParts] = useState({});
   const [rice, setRice] = useState({});
 
   useEffect(() => {
@@ -143,6 +226,10 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
   const extras = plate.extra;
   const onRice = useMemo(() => [...plate.choice, ...plate.always], [plate.choice, plate.always]);
   const drinks = plate.drink;
+  const fixedMenus = useMemo(
+    () => (menus || []).filter((menu) => menu && menu.isActive !== false),
+    [menus],
+  );
 
   const guardVendor = () => {
     if (!acceptsOrders(vendor)) {
@@ -185,14 +272,19 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
       const parts = drinkParts[drink.id] || 0;
       if (parts > 0 && drink.available) total += Number(drink.priceTickets || 0) * parts;
     }
+    for (const menu of fixedMenus) {
+      const parts = menuParts[menu.id] || 0;
+      if (parts > 0 && menu.available) total += Number(menu.priceTickets || 0) * parts;
+    }
     return total;
-  }, [bases, baseParts, extras, extraParts, drinks, drinkParts, onRice, rice]);
+  }, [bases, baseParts, extras, extraParts, drinks, drinkParts, fixedMenus, menuParts, onRice, rice]);
 
   const addPlate = () => {
     if (!guardVendor()) return;
     const chosen = bases.filter((base) => base.available && (baseParts[base.id] || 0) > 0);
     const chosenDrinks = drinks.filter((drink) => drink.available && (drinkParts[drink.id] || 0) > 0);
-    if (!chosen.length && !chosenDrinks.length) {
+    const chosenMenus = fixedMenus.filter((menu) => menu.available && (menuParts[menu.id] || 0) > 0);
+    if (!chosen.length && !chosenDrinks.length && !chosenMenus.length) {
       showSnack?.('Ajoute d’abord une part du plat');
       return;
     }
@@ -229,10 +321,28 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         lines: [lineOf(drink, drinkParts[drink.id])],
       });
     }
+    for (const menu of chosenMenus) {
+      const parts = menuParts[menu.id];
+      cart.addPlate({
+        vendorId,
+        vendorName: vendor?.canteenName,
+        title: menu.name,
+        lines: [
+          {
+            menuId: menu.id,
+            name: menu.name,
+            unitPrice: Number(menu.priceTickets || 0),
+            quantity: parts,
+            soldAlone: true,
+          },
+        ],
+      });
+    }
     setBaseParts({});
     setExtraParts({});
     setRice({});
     setDrinkParts({});
+    setMenuParts({});
     showSnack?.('Plat ajouté', 'success');
   };
 
@@ -283,99 +393,81 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         <MenuRoll title="Nos plats" open={platsOpen} onToggle={() => setPlatsOpen((v) => !v)}>
           {bases.length ? (
             bases.map((item) => {
-              const open = item.id === openBaseId;
+              const key = `base:${item.id}`;
+              const open = openKey === key;
               const price = Number(item.priceTickets || 0);
               const parts = baseParts[item.id] || 0;
               const pickedRice = rice[item.id] || {};
               const pickedExtras = extraParts[item.id] || {};
               return (
-                <section
+                <OfferCard
                   key={item.id}
-                  className={`dish${open ? ' is-open' : ''}${!item.available ? ' is-off' : ''}`}
+                  name={item.name}
+                  available={item.available}
+                  compose={item.localName || ''}
+                  price={price}
+                  parts={parts}
+                  open={open}
+                  onToggle={() => setOpenKey(open ? null : key)}
+                  onChange={(next) => setBaseParts((q) => ({ ...q, [item.id]: next }))}
                 >
-                  <div className="line">
-                    <button
-                      type="button"
-                      className="line-main"
-                      disabled={!item.available}
-                      aria-expanded={open}
-                      onClick={() => setOpenBaseId(open ? null : item.id)}
-                    >
-                      <span className={`roll-chevron${open ? ' is-open' : ''}`} aria-hidden />
-                      <span className="line-name">{item.name}</span>
-                    </button>
-                    <span className="line-price">
-                      {item.available ? `${formatTicketCount(price)} tickets` : 'Indisponible'}
-                    </span>
-                    <QtyCircles
-                      parts={parts}
-                      disabled={!item.available}
-                      onChange={(next) => setBaseParts((q) => ({ ...q, [item.id]: next }))}
-                    />
-                  </div>
-                  <div className="base-roll">
-                    <div className="base-roll-clip">
-                      <div className="dish-paper">
-                        {onRice.map((option) => {
-                          const on = Boolean(pickedRice[option.id]);
-                          return (
-                            <button
-                              key={option.id}
-                              type="button"
-                              role="checkbox"
-                              aria-checked={on}
-                              disabled={!option.available}
-                              className={`rice-option${on ? ' is-on' : ''}${!option.available ? ' is-off' : ''}`}
-                              onClick={() =>
-                                setRice((current) => ({
-                                  ...current,
-                                  [item.id]: { ...current[item.id], [option.id]: !on },
+                  {onRice.map((option) => {
+                    const on = Boolean(pickedRice[option.id]);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        role="checkbox"
+                        aria-checked={on}
+                        disabled={!option.available}
+                        className={`rice-option${on ? ' is-on' : ''}${!option.available ? ' is-off' : ''}`}
+                        onClick={() =>
+                          setRice((current) => ({
+                            ...current,
+                            [item.id]: { ...current[item.id], [option.id]: !on },
+                          }))
+                        }
+                      >
+                        <span className="rice-dot" />
+                        <span className="rice-label">
+                          <strong>{option.name}</strong>
+                          {option.localName ? <em>{option.localName}</em> : null}
+                        </span>
+                      </button>
+                    );
+                  })}
+                  {extras.length ? (
+                    <div className="extra-list">
+                      {extras.map((extra) => {
+                        const extraQty = pickedExtras[extra.id] || 0;
+                        const extraPrice = Number(extra.priceTickets || 0);
+                        return (
+                          <div
+                            key={extra.id}
+                            className={`extra-row${!extra.available ? ' is-off' : ''}`}
+                          >
+                            <span className="extra-name">{extra.name}</span>
+                            <span className="extra-price">
+                              {extra.available
+                                ? `${formatTicketCount(extraPrice)} tickets`
+                                : 'Indisponible'}
+                            </span>
+                            <QtyCircles
+                              parts={extraQty}
+                              disabled={!extra.available}
+                              onChange={(next) =>
+                                setExtraParts((q) => ({
+                                  ...q,
+                                  [item.id]: { ...q[item.id], [extra.id]: next },
                                 }))
                               }
-                            >
-                              <span className="rice-dot" />
-                              <span className="rice-label">
-                                <strong>{option.name}</strong>
-                                {option.localName ? <em>{option.localName}</em> : null}
-                              </span>
-                            </button>
-                          );
-                        })}
-                        {extras.length ? (
-                          <div className="extra-list">
-                            {extras.map((extra) => {
-                              const extraQty = pickedExtras[extra.id] || 0;
-                              const extraPrice = Number(extra.priceTickets || 0);
-                              return (
-                                <div
-                                  key={extra.id}
-                                  className={`extra-row${!extra.available ? ' is-off' : ''}`}
-                                >
-                                  <span className="extra-name">{extra.name}</span>
-                                  <span className="extra-price">
-                                    {extra.available
-                                      ? `${formatTicketCount(extraPrice)} tickets`
-                                      : 'Indisponible'}
-                                  </span>
-                                  <QtyCircles
-                                    parts={extraQty}
-                                    disabled={!extra.available}
-                                    onChange={(next) =>
-                                      setExtraParts((q) => ({
-                                        ...q,
-                                        [item.id]: { ...q[item.id], [extra.id]: next },
-                                      }))
-                                    }
-                                  />
-                                </div>
-                              );
-                            })}
+                            />
                           </div>
-                        ) : null}
-                      </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                </section>
+                  ) : null}
+                </OfferCard>
               );
             })
           ) : (
@@ -384,6 +476,39 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
             </div>
           )}
         </MenuRoll>
+
+        {fixedMenus.length ? (
+          <MenuRoll title="Menus" open={menusOpen} onToggle={() => setMenusOpen((v) => !v)}>
+            {fixedMenus.map((menu) => {
+              const key = `menu:${menu.id}`;
+              const open = openKey === key;
+              const parts = menuParts[menu.id] || 0;
+              return (
+                <OfferCard
+                  key={menu.id}
+                  name={menu.name}
+                  available={menu.available !== false}
+                  compose={menuCompose(menu)}
+                  price={Number(menu.priceTickets || 0)}
+                  parts={parts}
+                  open={open}
+                  onToggle={() => setOpenKey(open ? null : key)}
+                  onChange={(next) => setMenuParts((q) => ({ ...q, [menu.id]: next }))}
+                >
+                  <p className="offer-locked">Menu fixe</p>
+                  <ul className="offer-fixed">
+                    {(menu.lines || []).map((line) => (
+                      <li key={line.componentId}>
+                        <span>{line.name}</span>
+                        {line.quantity > 1 ? <em>× {line.quantity}</em> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </OfferCard>
+              );
+            })}
+          </MenuRoll>
+        ) : null}
 
         {drinks.length ? (
           <MenuRoll title="Jus & Boissons" open={drinksOpen} onToggle={() => setDrinksOpen((v) => !v)}>
