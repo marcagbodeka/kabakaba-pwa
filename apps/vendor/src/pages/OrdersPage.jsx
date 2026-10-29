@@ -371,8 +371,8 @@ export default function OrdersPage({
         if (e?.statusCode === 429) {
           backoffUntilRef.current = Date.now() + 60_000;
           if (!silent) showSnackRef.current?.('Trop de requêtes — pause 1 min');
-        } else if (e?.statusCode === 401) {
-          showSnackRef.current?.(e.message || 'Session expirée — reconnecte-toi');
+        } else if (e?.silent || e?.statusCode === 401) {
+          // Session morte : retour au PIN, sans bandeau.
         } else if (!silent) {
           showSnackRef.current?.(e.message || 'Impossible de charger les commandes');
         }
@@ -403,7 +403,7 @@ export default function OrdersPage({
     } catch (e) {
       if (e?.statusCode === 429) {
         backoffUntilRef.current = Date.now() + 60_000;
-      } else {
+      } else if (!e?.silent && e?.statusCode !== 401) {
         showSnackRef.current?.(e.message || 'Historique indisponible');
       }
     }

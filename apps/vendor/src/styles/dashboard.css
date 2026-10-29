@@ -536,6 +536,8 @@
 
 .section-tabs {
   margin: 0 0 16px;
+  width: 100%;
+  box-sizing: border-box;
   height: 44px;
   background: rgba(27, 42, 107, 0.05);
   border: 1px solid rgba(27, 42, 107, 0.06);
@@ -553,23 +555,19 @@
 }
 
 .section-tab {
-  flex: 0 0 auto;
-  min-width: max-content;
-  padding: 0 13px;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0 4px;
   border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   font-size: 12.5px;
   font-weight: 700;
   color: var(--text-secondary);
   white-space: nowrap;
   transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.section-tabs:has(.section-tab:nth-child(-n+3):last-child) .section-tab {
-  flex: 1;
 }
 
 .section-tab.active {
@@ -579,6 +577,7 @@
 }
 
 .tab-badge {
+  flex-shrink: 0;
   padding: 1px 6px;
   border-radius: 10px;
   font-size: 10.5px;

@@ -79,7 +79,7 @@ export default function Dashboard({ showSnack }) {
       setVendor(me);
       writeView('vendor', me);
     } catch (e) {
-      if (e?.statusCode !== 429) {
+      if (!e?.silent && e?.statusCode !== 401 && e?.statusCode !== 429) {
         showSnackRef.current?.(e.message || 'Profil vendeur indisponible');
       }
     } finally {

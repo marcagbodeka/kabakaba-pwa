@@ -77,6 +77,23 @@ function dropSession({ askPin = true } = {}) {
   clearTokens();
 }
 
+function quietSessionError(statusCode = 401) {
+  const err = new ApiError('Session invalidée, veuillez vous reconnecter', statusCode);
+  err.silent = true;
+  return err;
+}
+
+/** Session refusée par le serveur : PIN (ou login), sans bandeau. */
+function expireSession() {
+  if (sessionDead) return;
+  sessionDead = true;
+  csrfMemory = null;
+  clearTokens();
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('kaba:session-expired'));
+  }
+}
+
 /** À appeler après login PIN / set-pin réussi. */
 export function markSessionAlive() {
   sessionDead = false;
@@ -103,7 +120,7 @@ function baseHeaders(method, extra) {
 
 async function ensureCsrf(force = false) {
   if (sessionDead) {
-    throw new ApiError('Session expirée — reconnecte-toi', 401);
+    throw quietSessionError();
   }
   if (csrfMemory && !force) return csrfMemory;
   const res = await fetch(`${API_BASE}/auth/csrf`, {
@@ -131,7 +148,7 @@ async function ensureCsrf(force = false) {
 
 async function refreshAccessToken() {
   if (sessionDead) {
-    throw new ApiError('Session expirée — reconnecte-toi', 401);
+    throw quietSessionError();
   }
   // Toujours relire le CSRF : un jeton en mémoire peut être périmé après rotation.
   try {
@@ -185,7 +202,8 @@ async function refreshAccessToken() {
       }
     }
     if (res.status === 401 || res.status === 403) {
-      dropSession({ askPin: !isPinSessionFresh() && !hasUsableRefresh() });
+      expireSession();
+      throw quietSessionError(res.status);
     }
     throw new ApiError(msg || 'Session expirée', res.status);
   }
@@ -226,7 +244,7 @@ export async function api(path, { method = 'GET', body, auth = true, headers } =
 
   if (res.status === 401 && auth) {
     if (sessionDead) {
-      throw new ApiError('Session expirée — reconnecte-toi', 401);
+      throw quietSessionError();
     }
     refreshPromise =
       refreshPromise ||
@@ -245,6 +263,10 @@ export async function api(path, { method = 'GET', body, auth = true, headers } =
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (auth && res.status === 401) {
+      expireSession();
+      throw quietSessionError(401);
+    }
     throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
   }
   rememberCsrf(data);
@@ -275,7 +297,7 @@ export async function apiUpload(path, file) {
 
   if (res.status === 401) {
     if (sessionDead) {
-      throw new ApiError('Session expirée — reconnecte-toi', 401);
+      throw quietSessionError();
     }
     refreshPromise =
       refreshPromise ||
@@ -292,6 +314,10 @@ export async function apiUpload(path, file) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
+    if (res.status === 401) {
+      expireSession();
+      throw quietSessionError(401);
+    }
     throw new ApiError(extractMessage(data, `Erreur ${res.status}`), res.status);
   }
   rememberCsrf(data);

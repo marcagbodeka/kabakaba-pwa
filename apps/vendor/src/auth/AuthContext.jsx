@@ -48,6 +48,17 @@ export function AuthProvider({ children }) {
   const clearError = useCallback(() => setErrorMessage(null), []);
 
   useEffect(() => {
+    const onExpired = () => {
+      const next = loadSession();
+      setSession(next);
+      setErrorMessage(null);
+      setStatus(statusFromSession(next));
+    };
+    window.addEventListener('kaba:session-expired', onExpired);
+    return () => window.removeEventListener('kaba:session-expired', onExpired);
+  }, []);
+
+  useEffect(() => {
     (async () => {
       try {
         const me = await vendorApi.me();
@@ -61,6 +72,12 @@ export function AuthProvider({ children }) {
       } catch (err) {
         const next = loadSession();
         setSession(next);
+        // Session vraiment refusée : écran PIN / login, sans rester sur le tableau de bord.
+        if (err?.silent) {
+          setErrorMessage(null);
+          setStatus(statusFromSession(next));
+          return;
+        }
         const authFail = err?.statusCode === 401 || err?.statusCode === 403;
         const soft = err?.statusCode === 429 || err?.statusCode >= 500;
         const pinFresh = isPinSessionFresh(next) || !next.pinVerifiedAt;

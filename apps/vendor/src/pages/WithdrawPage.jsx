@@ -124,7 +124,7 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
                 </strong>
               </div>
               <div>
-                <span>Net à recevoir</span>
+                <span>Envoyé sur le réseau</span>
                 <strong>
                   {formatTickets(recap.payoutAmountToSend ?? recap.payoutAmount ?? amount)}
                 </strong>

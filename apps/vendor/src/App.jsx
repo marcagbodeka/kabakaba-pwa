@@ -35,6 +35,9 @@ function Root() {
   // Stable identity — sinon OrdersPage/Dashboard rechargent en boucle (storm 429).
   const showSnack = useCallback((message, variant = 'info') => {
     if (!message) return;
+    if (/session invalidée|session expirée|veuillez vous reconnecter|reconnecte-toi/i.test(message)) {
+      return;
+    }
     setToast({ message, variant, id: Date.now() });
   }, []);
 
