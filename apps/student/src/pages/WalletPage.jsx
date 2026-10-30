@@ -18,7 +18,6 @@ import {
 const QUICK_TICKETS = [500, 1000, 2000, 5000, 10000];
 const MIN_TICKETS = 500;
 const MAX_TICKETS = 10000;
-const YAS_MAINTENANCE = 'Le réseau Yas est en maintenance. Disponible bientôt';
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 const CODE_RE = /^[A-Z]-\d{2}$/i;
 
@@ -257,10 +256,6 @@ export default function WalletPage({ showSnack }) {
       showSnack?.('Attends le calcul des frais');
       return;
     }
-    if (operator === 'MIXX') {
-      showSnack?.(YAS_MAINTENANCE);
-      return;
-    }
     if (!PhoneFormatter.isValidLocal(phone)) {
       showSnack?.('Numéro Mobile Money invalide');
       return;
@@ -445,21 +440,13 @@ export default function WalletPage({ showSnack }) {
               <button
                 key={op}
                 type="button"
-                className={`mode-chip${operator === op ? ' active' : ''}${op === 'MIXX' ? ' is-disabled' : ''}`}
-                aria-disabled={op === 'MIXX'}
-                onClick={() => {
-                  if (op === 'MIXX') {
-                    showSnack?.(YAS_MAINTENANCE);
-                    return;
-                  }
-                  setOperator(op);
-                }}
+                className={`mode-chip${operator === op ? ' active' : ''}`}
+                onClick={() => setOperator(op)}
               >
                 {op === 'FLOOZ' ? 'Flooz' : 'Mixx'}
               </button>
             ))}
           </div>
-          <p className="recharge-hint">{YAS_MAINTENANCE}</p>
         </div>
 
         <div className="field">
