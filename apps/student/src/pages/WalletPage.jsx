@@ -19,6 +19,31 @@ const QUICK_TICKETS = [500, 1000, 2000, 5000, 10000];
 const MIN_TICKETS = 500;
 const MAX_TICKETS = 10000;
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const MACHINE_CODE = /[A-Z][A-Z0-9]*_[A-Z0-9_]+/;
+
+/** Jamais de code technique (BAD_PIN_CODE, etc.) dans un message étudiant. */
+function readablePaymentFailure(payment) {
+  const code = String(payment?.fedapayErrorCode || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, '_');
+  if (code.includes('PIN') || code.includes('SECRET')) {
+    return 'Code secret incorrect. Réessaie avec le bon code.';
+  }
+  const reason = String(payment?.failureReason || '').trim();
+  if (reason && !MACHINE_CODE.test(reason)) return reason;
+  if (code === 'ACCOUNT_NOT_FOUND' || code === 'CUSTOMER_NOT_FOUND') {
+    return 'Ce numéro n’a pas de compte Mobile Money pour cet opérateur.';
+  }
+  if (code.includes('INSUFFICIENT') || code.includes('BALANCE')) {
+    return 'Solde Mobile Money insuffisant.';
+  }
+  if (code.includes('CANCEL')) return 'Paiement annulé sur le téléphone.';
+  if (code.includes('TIMEOUT') || code.includes('EXPIRED')) {
+    return 'Délai dépassé. Tu n’as pas validé la demande à temps.';
+  }
+  return 'Paiement refusé. Vérifie ton numéro et valide la demande sur ton téléphone.';
+}
 const CODE_RE = /^[A-Z]-\d{2}$/i;
 
 function txCaption(item) {
@@ -103,11 +128,14 @@ export default function WalletPage({ showSnack }) {
         try {
           const payment = await paymentsApi.get(paymentId);
           const status = String(payment?.status || '').toUpperCase();
+          const failureText =
+            status === 'FAILED' ? readablePaymentFailure(payment) : '';
           setPendingPay((prev) =>
             prev?.id === paymentId
               ? {
                   ...prev,
                   status,
+                  failureText,
                   ticketsReceived: Number(
                     payment.ticketsReceived ?? prev.ticketsReceived ?? 0,
                   ),
@@ -121,15 +149,7 @@ export default function WalletPage({ showSnack }) {
             if (status === 'SUCCESS') {
               showSnack?.('Recharge réussie — tickets crédités', 'success');
             } else {
-              const reason =
-                payment.failureReason ||
-                (payment.fedapayErrorCode === 'ACCOUNT_NOT_FOUND'
-                  ? 'Compte Mobile Money introuvable pour ce numéro / opérateur.'
-                  : null);
-              showSnack?.(
-                reason ||
-                  'Paiement refusé. Vérifie Flooz/Mixx, le numéro, et que tu valides le prompt sur le téléphone.',
-              );
+              showSnack?.(failureText);
             }
             return;
           }
@@ -139,7 +159,7 @@ export default function WalletPage({ showSnack }) {
           ) {
             stopPoll();
             showSnack?.(
-              'Toujours en attente. Valide le prompt Mobile Money, ou réessaie plus tard.',
+              'Toujours en attente. Valide la demande sur ton téléphone, ou réessaie plus tard.',
             );
           }
         } catch {
@@ -388,7 +408,8 @@ export default function WalletPage({ showSnack }) {
                 {pendingPay.status === 'SUCCESS'
                   ? `${formatTicketCount(pendingPay.ticketsReceived)} tickets crédités`
                   : pendingPay.status === 'FAILED'
-                    ? 'Le paiement a été refusé ou annulé. Tu peux réessayer.'
+                    ? pendingPay.failureText ||
+                      'Le paiement a été refusé. Tu peux réessayer.'
                     : `Confirme ${pendingPay.operator || 'Mobile Money'} · ${pendingPay.amountFcfa || '—'} FCFA`}
               </span>
             </div>

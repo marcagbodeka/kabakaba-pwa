@@ -6,6 +6,7 @@ import {
   useReducer,
   useRef,
 } from 'react';
+import { ApiError, vendorsApi } from '../lib/api';
 import { useAuth } from './AuthContext';
 
 const CartContext = createContext(null);
@@ -61,6 +62,20 @@ export function orderItems(order) {
 
 function storageKey(userId) {
   return userId ? `${STORAGE_PREFIX}.${userId}` : STORAGE_PREFIX;
+}
+
+/** Anciennes clés. Si on les laisse, un panier vidé réapparaît au rafraîchissement. */
+function legacyKeys(userId) {
+  const keys = [...LEGACY_KEYS];
+  if (userId) {
+    keys.push(STORAGE_PREFIX);
+    for (const key of LEGACY_KEYS) keys.push(`${key}.${userId}`);
+  }
+  return keys;
+}
+
+function purgeLegacy(userId) {
+  for (const key of legacyKeys(userId)) localStorage.removeItem(key);
 }
 
 function asPlate(raw, fallback) {
@@ -132,21 +147,38 @@ function normalizeStored(parsed) {
   return fromLegacy(parsed);
 }
 
+function readLegacy(userId) {
+  for (const key of legacyKeys(userId)) {
+    const raw = localStorage.getItem(key);
+    if (raw) return raw;
+  }
+  return null;
+}
+
 function loadCart(userId) {
   try {
-    const raw =
-      localStorage.getItem(storageKey(userId)) ||
-      LEGACY_KEYS.map((key) => localStorage.getItem(userId ? `${key}.${userId}` : key)).find(Boolean) ||
-      localStorage.getItem(LEGACY_KEYS[0]) ||
-      localStorage.getItem(LEGACY_KEYS[1]);
-    if (!raw) return initial;
-    return normalizeStored(JSON.parse(raw));
+    const current = storageKey(userId);
+    const own = localStorage.getItem(current);
+    if (own) {
+      purgeLegacy(userId);
+      return normalizeStored(JSON.parse(own));
+    }
+    const legacy = readLegacy(userId);
+    if (!legacy) return initial;
+    const state = normalizeStored(JSON.parse(legacy));
+    // Une seule migration : la clé courante devient la source, les anciennes disparaissent.
+    if (state.orders.length) {
+      localStorage.setItem(current, JSON.stringify({ orders: state.orders }));
+    }
+    purgeLegacy(userId);
+    return state;
   } catch {
     return initial;
   }
 }
 
 function saveCart(userId, state) {
+  purgeLegacy(userId);
   const key = storageKey(userId);
   if (!state.orders.length) {
     localStorage.removeItem(key);
@@ -240,6 +272,10 @@ function reducer(state, action) {
       }));
     case 'dropOrder':
       return { orders: state.orders.filter((order) => order.vendorId !== action.vendorId) };
+    case 'dropVendors': {
+      const gone = new Set(action.vendorIds || []);
+      return { orders: state.orders.filter((order) => !gone.has(order.vendorId)) };
+    }
     case 'clear':
       return initial;
     default:
@@ -265,6 +301,33 @@ export function CartProvider({ children }) {
     }
     saveCart(userId, state);
   }, [state, userId]);
+
+  const vendorIds = state.orders.map((order) => order.vendorId).join(',');
+
+  useEffect(() => {
+    if (!vendorIds) return undefined;
+    let cancelled = false;
+    const ids = vendorIds.split(',');
+    (async () => {
+      const gone = [];
+      await Promise.all(
+        ids.map(async (id) => {
+          try {
+            const vendor = await vendorsApi.get(id);
+            if (!vendor || vendor.isActive === false || vendor.deletedAt) gone.push(id);
+          } catch (error) {
+            if (error instanceof ApiError && error.statusCode === 404) gone.push(id);
+          }
+        }),
+      );
+      if (!cancelled && gone.length) {
+        dispatch({ type: 'dropVendors', vendorIds: gone });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [vendorIds]);
 
   const value = useMemo(() => {
     const itemCount = state.orders.reduce(
