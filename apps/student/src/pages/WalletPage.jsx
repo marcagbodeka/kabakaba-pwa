@@ -11,7 +11,6 @@ import {
   TX_TYPE_LABEL,
   formatTicketCount,
   formatTickets,
-  formatTime,
 } from '../lib/format';
 
 /** Tickets souhaités (pas le montant payé). Frais ajoutés serveur. */
@@ -46,6 +45,42 @@ function readablePaymentFailure(payment) {
 }
 const CODE_RE = /^[A-Z]-\d{2}$/i;
 
+function txToItem(tx) {
+  return {
+    kind: 'tx',
+    id: `tx-${tx.id}`,
+    rawId: tx.id,
+    createdAt: tx.createdAt,
+    type: tx.type,
+    status: String(tx.status || 'COMPLETED').toUpperCase(),
+    amount: Number(tx.amount ?? 0),
+    description: tx.description,
+    orderNumber:
+      tx.orderNumber ||
+      tx.relatedOrder?.orderNumber ||
+      (/^[A-Z]-\d{2}$/i.test(String(tx.reference || '')) ? tx.reference : ''),
+    credit: TX_CREDIT_TYPES.has(tx.type),
+  };
+}
+
+function formatWhen(iso, withDate) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  if (!withDate) return time;
+  const date = d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
+  return `${date} · ${time}`;
+}
+
+/** Fin de la journée d’avant-hier : le serveur pagine tout ce qui est plus ancien. */
+function endOfDayBeforeYesterday() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - 1);
+  start.setMilliseconds(-1);
+  return start.toISOString();
+}
+
 function txCaption(item) {
   const code = String(item.orderNumber || '').trim();
   if (CODE_RE.test(code)) return `Commande ${code.toUpperCase()}`;
@@ -68,6 +103,11 @@ export default function WalletPage({ showSnack }) {
   const [payments, setPayments] = useState(() => cachedWallet?.payments || []);
   const [detail, setDetail] = useState(null);
   const [day, setDay] = useState(0);
+  const [dayCap, setDayCap] = useState(20);
+  const [older, setOlder] = useState([]);
+  const [olderPage, setOlderPage] = useState(0);
+  const [olderHasMore, setOlderHasMore] = useState(false);
+  const [olderLoading, setOlderLoading] = useState(false);
   const [loadingTx, setLoadingTx] = useState(!cachedWallet);
 
   /** Tickets souhaités (ex. 500 → paie 600 avec frais 100). */
@@ -177,26 +217,37 @@ export default function WalletPage({ showSnack }) {
     loadTx();
   }, [loadTx]);
 
+  const loadOlder = useCallback(
+    async (page = 1) => {
+      setOlderLoading(true);
+      try {
+        const res = await transactionsApi.list({
+          page,
+          limit: 15,
+          to: endOfDayBeforeYesterday(),
+        });
+        const rows = (res.data || []).map(txToItem);
+        setOlder((prev) => {
+          if (page === 1) return rows;
+          const seen = new Set(prev.map((item) => item.id));
+          return [...prev, ...rows.filter((item) => !seen.has(item.id))];
+        });
+        const meta = res.meta || {};
+        setOlderHasMore((meta.page || page) < (meta.totalPages || 1));
+        setOlderPage(page);
+      } catch (e) {
+        showSnack?.(e.message || 'Historique indisponible');
+      } finally {
+        setOlderLoading(false);
+      }
+    },
+    [showSnack],
+  );
+
   /** Historique unifié : mouvements wallet + recharges (dont PENDING). */
   const history = useMemo(() => {
     const items = [];
-    for (const tx of txs) {
-      items.push({
-        kind: 'tx',
-        id: `tx-${tx.id}`,
-        rawId: tx.id,
-        createdAt: tx.createdAt,
-        type: tx.type,
-        status: String(tx.status || 'COMPLETED').toUpperCase(),
-        amount: Number(tx.amount ?? 0),
-        description: tx.description,
-        orderNumber:
-          tx.orderNumber ||
-          tx.relatedOrder?.orderNumber ||
-          (/^[A-Z]-\d{2}$/i.test(String(tx.reference || '')) ? tx.reference : ''),
-        credit: TX_CREDIT_TYPES.has(tx.type),
-      });
-    }
+    for (const tx of txs) items.push(txToItem(tx));
     for (const payment of payments) {
       const status = String(payment.status || '').toUpperCase();
       // SUCCESS déjà reflété en DEPOSIT côté /transactions — on garde PENDING/FAILED.
@@ -217,19 +268,20 @@ export default function WalletPage({ showSnack }) {
   }, [txs, payments]);
 
   const dayItems = useMemo(() => {
+    if (day > 1) return [];
     const target = new Date();
     if (day === 1) target.setDate(target.getDate() - 1);
-    return history
-      .filter((item) => {
-        const d = new Date(item.createdAt);
-        return (
-          d.getFullYear() === target.getFullYear() &&
-          d.getMonth() === target.getMonth() &&
-          d.getDate() === target.getDate()
-        );
-      })
-      .slice(0, 20);
+    return history.filter((item) => {
+      const d = new Date(item.createdAt);
+      return (
+        d.getFullYear() === target.getFullYear() &&
+        d.getMonth() === target.getMonth() &&
+        d.getDate() === target.getDate()
+      );
+    });
   }, [history, day]);
+  const shownDay = dayItems.slice(0, dayCap);
+  const visibleItems = day === 2 ? older : shownDay;
 
   useEffect(() => {
     const n = Number(ticketsWanted);
@@ -340,16 +392,9 @@ export default function WalletPage({ showSnack }) {
         <div className="hero-balance-amount">
           {balanceHidden ? '••••' : `${formatTicketCount(balance)} tickets`}
         </div>
-        <div className="hero-pills hero-pills--3">
+        <div className="hero-pills">
           <button type="button" className="hero-pill hero-pill--primary" onClick={() => scrollTo(rechargeRef)}>
             Recharger
-          </button>
-          <button
-            type="button"
-            className="hero-pill"
-            onClick={() => showSnack?.('Envoi de tickets bientôt disponible')}
-          >
-            Envoyer
           </button>
           <button type="button" className="hero-pill" onClick={() => scrollTo(historyRef)}>
             Historique
@@ -359,7 +404,7 @@ export default function WalletPage({ showSnack }) {
 
       <div className="sheet-body">
         {(() => {
-          const dayTx = dayItems.filter((item) => item.kind === 'tx');
+          const dayTx = visibleItems.filter((item) => item.kind === 'tx');
           const incoming = dayTx
             .filter((tx) => tx.credit && tx.status === 'COMPLETED')
             .reduce((s, tx) => s + Number(tx.amount || 0), 0);
@@ -525,35 +570,46 @@ export default function WalletPage({ showSnack }) {
           <div>
             <div className="kicker kicker--muted">Mouvements</div>
             <div className="section-title" style={{ marginBottom: 0 }}>
-              {day === 0 ? 'Aujourd’hui' : 'Hier'}
+              {day === 0 ? 'Aujourd’hui' : day === 1 ? 'Hier' : 'Plus ancien'}
             </div>
           </div>
         </div>
 
         <div className="light-tabs" style={{ marginBottom: 12 }}>
-          {['Aujourd’hui', 'Hier'].map((label, i) => (
+          {['Aujourd’hui', 'Hier', 'Plus ancien'].map((label, i) => (
             <button
               key={label}
               type="button"
               className={`light-tab${day === i ? ' active' : ''}`}
-              onClick={() => setDay(i)}
+              onClick={() => {
+                setDay(i);
+                setDayCap(20);
+                setDetail(null);
+                if (i === 2 && olderPage === 0) loadOlder(1);
+              }}
             >
               {label}
             </button>
           ))}
         </div>
 
-        {loadingTx ? (
+        {(day === 2 ? olderLoading && older.length === 0 : loadingTx) ? (
           <div style={{ display: 'grid', placeItems: 'center', padding: 32 }}>
             <div className="spinner" />
           </div>
-        ) : dayItems.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <div className="empty-state">
-            <h3>{day === 0 ? 'Rien aujourd’hui' : 'Rien hier'}</h3>
-            <p>Les mouvements plus anciens ne s’affichent plus. 20 maximum par jour.</p>
+            <h3>
+              {day === 0 ? 'Rien aujourd’hui' : day === 1 ? 'Rien hier' : 'Rien de plus ancien'}
+            </h3>
+            <p>
+              {day === 2
+                ? 'Les recharges et les commandes d’avant-hier s’affichent ici, quinze par quinze.'
+                : 'Les mouvements de cette journée s’affichent ici.'}
+            </p>
           </div>
         ) : (
-          dayItems.map((item) => {
+          visibleItems.map((item) => {
             if (item.kind === 'payment') {
               const statusLabel =
                 PAYMENT_STATUS_LABEL[item.status] || item.status;
@@ -585,7 +641,7 @@ export default function WalletPage({ showSnack }) {
                       tickets
                     </h3>
                     <p>
-                      {formatTime(item.createdAt)}
+                      {formatWhen(item.createdAt, day === 2)}
                       <span className={`tx-status tx-status--${statusMod}`}>
                         {statusLabel}
                       </span>
@@ -619,7 +675,7 @@ export default function WalletPage({ showSnack }) {
                 <div className="tx-card-body">
                   <h3>{TX_TYPE_LABEL[item.type] || item.type}</h3>
                   <p>
-                    {formatTime(item.createdAt)}
+                    {formatWhen(item.createdAt, day === 2)}
                     {txCaption(item) ? ` · ${txCaption(item)}` : ''}
                     <span className={`tx-status tx-status--${statusMod}`}>
                       {statusLabel}
@@ -639,6 +695,22 @@ export default function WalletPage({ showSnack }) {
             );
           })
         )}
+        {day < 2 && dayItems.length > shownDay.length ? (
+          <button type="button" className="link-accent" style={{ marginTop: 8 }} onClick={() => setDayCap((n) => n + 15)}>
+            Voir la suite
+          </button>
+        ) : null}
+        {day === 2 && olderHasMore ? (
+          <button
+            type="button"
+            className="link-accent"
+            style={{ marginTop: 8 }}
+            disabled={olderLoading}
+            onClick={() => loadOlder(olderPage + 1)}
+          >
+            {olderLoading ? 'Chargement…' : 'Voir les suivants'}
+          </button>
+        ) : null}
         {detail ? (
           <div className="tx-card tx-card--detail" style={{ marginTop: 12 }}>
             <div className="tx-card-body">

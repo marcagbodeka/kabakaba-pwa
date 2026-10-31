@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { orderItems, orderSubtotal, plateTotal, useCart } from '../context/CartContext';
 import { catalogApi, ordersApi, scheduledOrdersApi, vendorsApi } from '../lib/api';
 import { CAPACITY_LABEL, formatTicketCount } from '../lib/format';
-import { signalSoldAloneError, soldAloneViolation } from '../lib/plate';
+import { missingBaseMessage, signalSoldAloneError, soldAloneViolation } from '../lib/plate';
 import { IconBack } from '../components/icons';
 import { useConfirm } from '../components/ConfirmDialog';
 
@@ -202,6 +202,8 @@ export default function CartPage({
     if (items.some((line) => line.quantity > 50)) {
       return 'La quantité d’un article ne peut pas dépasser 50';
     }
+    const baseError = missingBaseMessage(order);
+    if (baseError) return baseError;
     for (const group of shipments(order)) {
       const plateError = soldAloneViolation(orderItems({ plates: group.plates }));
       if (plateError) return plateError;
@@ -266,14 +268,38 @@ export default function CartPage({
         return;
       }
     }
-    if (balance < dueNow) {
-      showSnack?.('Solde insuffisant — recharge ton portefeuille');
-      return;
-    }
     setPaying(true);
     let lastNowId = null;
     let scheduled = false;
     try {
+      let pricesChanged = false;
+      for (const order of cart.orders) {
+        const [components, menus] = await Promise.all([
+          catalogApi.components(order.vendorId),
+          catalogApi.menus(order.vendorId),
+        ]);
+        const prices = {};
+        for (const row of components) prices[row.id] = Number(row.priceTickets ?? 0);
+        for (const menu of menus) prices[menu.id] = Number(menu.priceTickets ?? 0);
+        const stale = order.plates.some((plate) =>
+          plate.lines.some((line) => {
+            const id = line.menuId || line.componentId;
+            return id && prices[id] != null && Number(prices[id]) !== Number(line.unitPrice);
+          }),
+        );
+        if (stale) {
+          cart.refreshPrices(order.vendorId, prices);
+          pricesChanged = true;
+        }
+      }
+      if (pricesChanged) {
+        showSnack?.('Les prix ont changé. Vérifie le total.');
+        return;
+      }
+      if (balance < dueNow) {
+        showSnack?.('Solde insuffisant — recharge ton portefeuille');
+        return;
+      }
       for (const order of cart.orders) {
         for (const group of shipments(order)) {
           const body = orderBody(order, group);
@@ -393,7 +419,17 @@ export default function CartPage({
                         }
                         cart.setPlateQty(order.vendorId, plate.id, quantity);
                       }}
-                      onRemove={() => cart.removePlate(order.vendorId, plate.id)}
+                      onRemove={() => {
+                        const rest = {
+                          plates: order.plates.filter((item) => item.id !== plate.id),
+                        };
+                        const message = missingBaseMessage(rest);
+                        if (message) {
+                          showSnack?.(message);
+                          return;
+                        }
+                        cart.removePlate(order.vendorId, plate.id);
+                      }}
                       onMode={(mode) => cart.setPlateMode(order.vendorId, plate.id, mode)}
                       onTakeaway={(id) => cart.setPlateTakeaway(order.vendorId, plate.id, id)}
                     />

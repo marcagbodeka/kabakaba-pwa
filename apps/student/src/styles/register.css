@@ -904,6 +904,56 @@
   cursor: not-allowed;
 }
 
+.reg--terms {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: #fff;
+  color: #1c1917;
+}
+
+.terms-page {
+  flex: 1;
+  overflow: auto;
+  padding: 28px 20px 12px;
+  text-align: left;
+}
+
+.terms-page > h2 {
+  margin: 0 0 12px;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.reg--terms .terms-doc {
+  max-height: none;
+}
+
+.terms-doc {
+  text-align: left;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.terms-doc p,
+.terms-doc h3 {
+  text-align: left;
+}
+
+.terms-doc h3 {
+  margin: 16px 0 4px;
+  font-size: calc(13 * var(--u));
+  font-weight: 800;
+}
+
+.terms-doc p {
+  margin: 0;
+  font-size: calc(12.5 * var(--u));
+  line-height: 1.45;
+  color: var(--text, #1c1917);
+}
+
 .reg-empty {
   font-size: calc(12.5 * var(--u));
   color: var(--muted);

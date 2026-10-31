@@ -412,8 +412,10 @@ export const scheduledOrdersApi = {
 
 // --- Portefeuille ---
 export const transactionsApi = {
-  list: async ({ page = 1, limit = 30 } = {}) => {
-    const res = await api(`/transactions?page=${page}&limit=${limit}`);
+  list: async ({ page = 1, limit = 30, to } = {}) => {
+    const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+    if (to) params.set('to', to);
+    const res = await api(`/transactions?${params}`);
     return {
       data: unwrapList(res).map((t) => ({
         ...t,

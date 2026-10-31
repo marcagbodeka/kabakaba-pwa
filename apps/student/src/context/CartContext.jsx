@@ -104,6 +104,7 @@ function asPlate(raw, fallback) {
       unitPrice: Number(line.unitPrice) || 0,
       quantity: Math.max(1, Number(line.quantity) || 1),
       soldAlone: Boolean(line.soldAlone),
+      role: line.role || null,
     })),
   };
 }
@@ -276,6 +277,25 @@ function reducer(state, action) {
       const gone = new Set(action.vendorIds || []);
       return { orders: state.orders.filter((order) => !gone.has(order.vendorId)) };
     }
+    case 'refreshPrices': {
+      const prices = action.prices || {};
+      return {
+        orders: state.orders.map((order) => {
+          if (order.vendorId !== action.vendorId) return order;
+          return {
+            ...order,
+            plates: order.plates.map((plate) => ({
+              ...plate,
+              lines: plate.lines.map((line) => {
+                const id = line.menuId || line.componentId;
+                if (!id || prices[id] == null) return line;
+                return { ...line, unitPrice: Number(prices[id]) || 0 };
+              }),
+            })),
+          };
+        }),
+      };
+    }
     case 'clear':
       return initial;
     default:
@@ -351,6 +371,8 @@ export function CartProvider({ children }) {
       setWhen: (vendorId, when) => dispatch({ type: 'setWhen', vendorId, when }),
       setScheduleAt: (vendorId, value) => dispatch({ type: 'setScheduleAt', vendorId, value }),
       dropOrder: (vendorId) => dispatch({ type: 'dropOrder', vendorId }),
+      refreshPrices: (vendorId, prices) =>
+        dispatch({ type: 'refreshPrices', vendorId, prices }),
       clear: () => dispatch({ type: 'clear' }),
     };
   }, [state]);

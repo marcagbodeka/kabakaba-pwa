@@ -288,23 +288,26 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
       showSnack?.('Ajoute d’abord une part du plat');
       return;
     }
-    const lineOf = (item, quantity) => ({
+    const lineOf = (item, quantity, role) => ({
       componentId: item.id,
       name: lineName(item),
       unitPrice: Number(item.priceTickets ?? 0),
       quantity,
       soldAlone: Boolean(item.soldAlone),
+      role,
     });
+    const riceRole = (item) =>
+      plate.always.some((row) => row.id === item.id) ? 'always' : 'sauce';
     for (const base of chosen) {
-      const lines = [lineOf(base, baseParts[base.id])];
+      const lines = [lineOf(base, baseParts[base.id], 'base')];
       const picked = extraParts[base.id] || {};
       for (const extra of extras) {
         const parts = picked[extra.id] || 0;
-        if (extra.available && parts > 0) lines.push(lineOf(extra, parts));
+        if (extra.available && parts > 0) lines.push(lineOf(extra, parts, 'extra'));
       }
       const sauces = rice[base.id] || {};
       for (const item of onRice) {
-        if (sauces[item.id] && item.available) lines.push(lineOf(item, 1));
+        if (sauces[item.id] && item.available) lines.push(lineOf(item, 1, riceRole(item)));
       }
       cart.addPlate({
         vendorId,
@@ -318,7 +321,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         vendorId,
         vendorName: vendor?.canteenName,
         title: drink.name,
-        lines: [lineOf(drink, drinkParts[drink.id])],
+        lines: [lineOf(drink, drinkParts[drink.id], 'drink')],
       });
     }
     for (const menu of chosenMenus) {
@@ -334,6 +337,7 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
             unitPrice: Number(menu.priceTickets || 0),
             quantity: parts,
             soldAlone: true,
+            role: 'menu',
           },
         ],
       });

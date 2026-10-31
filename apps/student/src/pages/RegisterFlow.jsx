@@ -4,6 +4,7 @@ import { campusApi } from '../lib/api';
 import { PhoneFormatter } from '../lib/format';
 import { parsePhoneInput } from '../lib/phoneInput';
 import AuthScreen, { PrimaryButton } from '../components/auth/AuthScreen';
+import TermsText from '../components/TermsText';
 import { Field } from '../components/auth/Field';
 import OtpInput from '../components/auth/OtpInput';
 import CampusSelect from '../components/auth/CampusSelect';
@@ -451,7 +452,7 @@ export default function RegisterFlow({
     icon = <IconDoc />;
     title = 'Conditions générales';
     subtitle = null;
-    body = <p className="reg-empty">Le contenu sera publié prochainement.</p>;
+    body = <TermsText />;
     footer = null;
   } else {
     icon = <IconGift />;

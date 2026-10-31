@@ -28,6 +28,33 @@ export function groupPlate(components, categories) {
   return groups;
 }
 
+/**
+ * Un extra ou une sauce exige un plat de base, sauf si un menu est déjà dans
+ * la commande. Les lignes anciennes sans `role` s’appuient sur `soldAlone`.
+ */
+export function missingBaseMessage(order) {
+  const lines = (order?.plates || []).flatMap((plate) => plate.lines || []);
+  const needsBase = lines.some(
+    (line) =>
+      !line.menuId &&
+      (line.role === 'extra' ||
+        line.role === 'sauce' ||
+        line.role === 'always' ||
+        line.soldAlone === false),
+  );
+  const hasBase = lines.some(
+    (line) =>
+      !line.menuId &&
+      (line.role === 'base' ||
+        (line.role == null && line.soldAlone !== false)),
+  );
+  const hasMenu = lines.some((line) => line.menuId);
+  if (needsBase && !hasBase && !hasMenu) {
+    return 'Choisis d’abord un plat de base. Sans lui, la commande ne part pas.';
+  }
+  return null;
+}
+
 /** Un accompagnement ne peut pas être le seul article à la carte. */
 export function soldAloneViolation(lines) {
   const rows = Array.isArray(lines) ? lines : [];

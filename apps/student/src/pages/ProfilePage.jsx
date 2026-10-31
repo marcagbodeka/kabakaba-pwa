@@ -12,6 +12,7 @@ import { PhoneFormatter, formatTicketCount, formatTime, initialsFrom } from '../
 import { readView, writeView } from '../lib/instantView';
 import { useThemeMode } from '../lib/theme';
 import { IconBack } from '../components/icons';
+import TermsText from '../components/TermsText';
 import { useConfirm } from '../components/ConfirmDialog';
 import {
   getNotificationPermission,
@@ -357,6 +358,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
       help: 'Centre d’aide',
       referral: 'Parrainage',
       about: 'À propos',
+      terms: 'Conditions d’utilisation',
     }[panel];
     return (
       <div className="page">
@@ -368,6 +370,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
             onClick={() => {
               if (note) setNote(null);
               else if (report) setReport(null);
+              else if (panel === 'terms') setPanel('about');
               else setPanel('home');
             }}
           >
@@ -645,9 +648,14 @@ export default function ProfilePage({ showSnack, initialPanel }) {
                 <h3>kabakaba</h3>
                 <p>Commande campus · tickets · retrait sans file.</p>
                 <p>Compte étudiant</p>
+                <button type="button" className="link-accent" onClick={() => setPanel('terms')}>
+                  Conditions d’utilisation
+                </button>
               </div>
             </div>
           ) : null}
+
+          {panel === 'terms' ? <TermsText /> : null}
 
           {panel === 'referral' ? (
             <div className="amb-card">
@@ -803,7 +811,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
           <label className="toggle-row">
             <span className="nav-row-body">
               <strong>Mes commandes</strong>
-              <span>Acceptation, refus, prête</span>
+              <span>Confirmée, en préparation, prête, annulée</span>
             </span>
             <input
               type="checkbox"

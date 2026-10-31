@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import '../../styles/register.css';
-import { IconArrowRight, IconDoc, IconSuccessCheck } from './AuthIcons';
+import { IconArrowRight, IconSuccessCheck } from './AuthIcons';
 import TermsCheck from './TermsCheck';
+import TermsText from '../TermsText';
 
 /** Écran de fin d'inscription : bienvenue + acceptation des CGU. */
 export default function WelcomeScreen({ firstName, onContinue }) {
@@ -22,15 +23,10 @@ export default function WelcomeScreen({ firstName, onContinue }) {
 
   if (reading) {
     return (
-      <div className="reg">
-        <div className="reg-success">
-          <div className="reg-success-ring">
-            <div className="reg-success-circle">
-              <IconDoc />
-            </div>
-          </div>
+      <div className="reg reg--terms">
+        <div className="terms-page">
           <h2>Conditions générales</h2>
-          <p>Le contenu sera publié prochainement.</p>
+          <TermsText />
         </div>
         <div className="reg-success-bottom">
           <button type="button" className="reg-btn" onClick={() => setReading(false)}>

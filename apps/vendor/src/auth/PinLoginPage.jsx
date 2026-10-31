@@ -62,7 +62,7 @@ export default function PinLoginPage() {
           const ok = await confirm({
             title: 'Utiliser un autre compte',
             message:
-              'Tu quittes ce compte sur cet appareil. Tu pourras te reconnecter avec ton numéro et ton code PIN.',
+              'Tu quittes ce compte sur cet appareil. Tu pourras te reconnecter avec ton numéro.',
             confirmLabel: 'Quitter',
             danger: true,
           });
@@ -70,6 +70,9 @@ export default function PinLoginPage() {
         }}
       >
         Utiliser un autre compte
+      </button>
+      <button type="button" className="pin-link" onClick={auth.goToActivation}>
+        J’ai un nouveau mot de passe
       </button>
     </div>
   );

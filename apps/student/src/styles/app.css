@@ -209,6 +209,19 @@
   gap: 12px;
 }
 
+.terms-doc h3 {
+  margin: 16px 0 4px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.terms-doc p {
+  margin: 0 0 8px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-primary);
+}
+
 .link-accent {
   color: var(--accent);
   font-size: 12px;

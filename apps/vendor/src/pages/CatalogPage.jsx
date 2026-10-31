@@ -8,7 +8,7 @@ import {
   menusApi,
   takeawayApi,
 } from '../lib/api';
-import { formatTickets } from '../lib/format';
+import { UNIT_OPTIONS, formatTickets } from '../lib/format';
 import { readView, writeView } from '../lib/instantView';
 import { PLATE, isIncludedRole, roleOfComponent } from '../lib/plate';
 
@@ -41,6 +41,10 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, onSwitch, busy })
   const [priceTickets, setPrice] = useState(
     initial ? String(initial.priceTickets ?? '') : '',
   );
+  const [unit, setUnit] = useState(
+    initial?.unit || (preset === 'drink' ? 'BOTTLE' : 'PORTION'),
+  );
+  const [quantity, setQuantity] = useState('');
   const [isAvailable, setAvail] = useState(initial?.isAvailable !== false);
   const included = includedKind(kind);
   const kindMeta = SELL_KINDS.find((item) => item.id === (included ? 'with' : kind));
@@ -49,6 +53,7 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, onSwitch, busy })
     setKind(next === 'with' ? 'choice' : next);
     setPicking(false);
     if (next === 'with') setPrice('0');
+    if (!initial) setUnit(next === 'drink' ? 'BOTTLE' : 'PORTION');
   };
 
   const originalKind = preset;
@@ -131,6 +136,32 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, onSwitch, busy })
                 />
               </label>
             )}
+            <div className="sell-units">
+              <span>Unité de vente</span>
+              {UNIT_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`sell-unit${unit === option.value ? ' on' : ''}`}
+                  onClick={() => setUnit(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {initial ? (
+              <p className="sell-hint">Le stock se règle avec + et − sur la carte.</p>
+            ) : (
+              <label className="sell-price">
+                <span>Combien en stock</span>
+                <input
+                  inputMode="numeric"
+                  value={quantity}
+                  placeholder="0"
+                  onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ''))}
+                />
+              </label>
+            )}
             {initial ? (
               <label className="sell-today">
                 <span>Je le vends aujourd’hui</span>
@@ -145,18 +176,23 @@ function FoodSheet({ initial, role, onClose, onSave, onDelete, onSwitch, busy })
             <button
               type="button"
               className="btn-action fill primary full"
-              disabled={busy || !name.trim() || (!included && priceTickets === '')}
+              disabled={
+                busy ||
+                !name.trim() ||
+                (!included && priceTickets === '') ||
+                (!initial && quantity === '')
+              }
               onClick={() =>
                 onSave({
                   kind,
                   name: name.trim(),
                   localName: included ? localName.trim() || null : null,
-                  unit: 'PORTION',
+                  unit,
                   priceTickets: included ? 0 : Number(priceTickets),
                   isAvailable,
                   soldAlone,
                   lowStockThreshold: initial?.lowStockThreshold ?? 5,
-                  ...(initial ? {} : { quantity: included ? 80 : 40 }),
+                  ...(initial ? {} : { quantity: Number(quantity) }),
                 })
               }
             >
@@ -464,7 +500,7 @@ export default function CatalogPage({ vendor, onBack, showSnack }) {
       const payload = {
         name: body.name,
         localName: body.localName,
-        unit: 'PORTION',
+        unit: body.unit || 'PORTION',
         priceTickets: body.priceTickets,
         isAvailable: body.isAvailable,
         soldAlone: Boolean(body.soldAlone),
