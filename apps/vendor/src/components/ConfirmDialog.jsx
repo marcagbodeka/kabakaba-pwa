@@ -41,9 +41,9 @@ export function ConfirmProvider({ children }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {dialog ? (
-        <div className="confirm-backdrop" onClick={() => close(false)}>
+        <div className="consent-backdrop" onClick={() => close(false)}>
           <div
-            className="confirm-dialog"
+            className="consent-sheet"
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="confirm-title"
@@ -52,16 +52,16 @@ export function ConfirmProvider({ children }) {
           >
             <h2 id="confirm-title">{dialog.title}</h2>
             <p id="confirm-desc">{dialog.message}</p>
-            <div className="confirm-actions">
-              <button type="button" className="confirm-btn confirm-btn--ghost" onClick={() => close(false)}>
-                {dialog.cancelLabel}
-              </button>
+            <div className="consent-actions">
               <button
                 type="button"
-                className={`confirm-btn confirm-btn--go${dialog.danger ? ' confirm-btn--danger' : ''}`}
+                className={`consent-allow${dialog.danger ? ' consent-allow--danger' : ''}`}
                 onClick={() => close(true)}
               >
                 {dialog.confirmLabel}
+              </button>
+              <button type="button" className="consent-deny" onClick={() => close(false)}>
+                {dialog.cancelLabel}
               </button>
             </div>
           </div>

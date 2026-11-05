@@ -216,6 +216,13 @@ export default function ProfilePage({ showSnack, initialPanel }) {
 
   const enableDevicePush = async () => {
     if (pushOn || pushBusy || !isWebPushConfigured()) return;
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        /* le navigateur peut ignorer l’appel */
+      }
+    }
     setPushBusy(true);
     try {
       try {
@@ -223,7 +230,7 @@ export default function ProfilePage({ showSnack, initialPanel }) {
       } catch {
         /* ignore */
       }
-      const token = await registerWebPush({ forcePrompt: true });
+      const token = await registerWebPush();
       const perm = getNotificationPermission();
       setPushPerm(perm);
       if (token) {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   getNotificationPermission,
@@ -8,16 +8,21 @@ import {
 
 const DISMISS_KEY = 'kabakaba_student_push_later';
 
-/**
- * Bannière sticky (pas une modal) : Chrome exige un clic pour requestPermission,
- * et la modal « Épingler l’app » ne doit plus masquer cette demande.
- */
 export default function NotificationPrompt({ showSnack }) {
   const auth = useAuth();
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [misconfigured, setMisconfigured] = useState(false);
+  const [installOpen, setInstallOpen] = useState(false);
+
+  useLayoutEffect(() => {
+    const read = () => document.body.classList.contains('consent-install-open');
+    setInstallOpen(read());
+    const obs = new MutationObserver(() => setInstallOpen(read()));
+    obs.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+    return () => obs.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!auth.ready || !auth.authenticated) {
@@ -39,10 +44,9 @@ export default function NotificationPrompt({ showSnack }) {
       return;
     }
 
-    // Ne plus cacher via sessionStorage : le toggle Profil reste la voie principale,
-    // mais on réaffiche la bannière tant que ce n’est pas granted.
     setBlocked(perm === 'denied');
-    setVisible(true);
+    const timer = setTimeout(() => setVisible(true), 1200);
+    return () => clearTimeout(timer);
   }, [auth.ready, auth.authenticated]);
 
   const dismiss = () => {
@@ -56,14 +60,28 @@ export default function NotificationPrompt({ showSnack }) {
 
   const enable = async () => {
     if (misconfigured) {
+      showSnack?.('Les notifications ne sont pas encore configurées sur ce déploiement.');
+      return;
+    }
+    if (Notification.permission === 'default') {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        /* le navigateur peut ignorer l’appel */
+      }
+    }
+    if (Notification.permission !== 'granted') {
+      setBlocked(Notification.permission === 'denied');
       showSnack?.(
-        'Push non configuré sur ce déploiement (variables VITE_FIREBASE_* / VAPID)',
+        Notification.permission === 'denied'
+          ? 'Notifications bloquées dans le navigateur'
+          : 'Tu dois accepter la demande du navigateur',
       );
       return;
     }
     setBusy(true);
     try {
-      const token = await registerWebPush({ forcePrompt: true });
+      const token = await registerWebPush();
       if (token) {
         setVisible(false);
         try {
@@ -88,29 +106,27 @@ export default function NotificationPrompt({ showSnack }) {
     }
   };
 
-  if (!visible) return null;
+  if (!visible || installOpen) return null;
+
+  const message = misconfigured
+    ? 'Les notifications ne sont pas encore configurées sur ce déploiement.'
+    : blocked
+      ? 'Les notifications sont bloquées dans le navigateur. Autorise kabakaba dans les réglages du site.'
+      : 'Nous vous tenons informés de l’état de vos commandes, ainsi que des offres.';
 
   return (
-    <div className="push-banner" role="region" aria-label="Activer les notifications">
-      <div className="push-banner-inner">
-        <div className="push-banner-text">
-          <strong>Activer les notifications</strong>
-          <span>
-            {misconfigured
-              ? 'Config Firebase manquante sur ce déploiement.'
-              : blocked
-                ? 'Bloquées dans le navigateur — autorise kabakaba dans les réglages du site.'
-                : 'Sois alerté quand ta commande est prête.'}
-          </span>
-        </div>
-        <div className="push-banner-actions">
+    <div className="consent-backdrop" role="dialog" aria-modal="true" aria-labelledby="push-title">
+      <div className="consent-sheet">
+        <h2 id="push-title">Autorisez kabakaba à vous envoyer des notifications</h2>
+        <p>{message}</p>
+        <div className="consent-actions">
           {!blocked ? (
-            <button type="button" className="btn-fill push-banner-btn" disabled={busy} onClick={enable}>
-              {busy ? '…' : 'Autoriser'}
+            <button type="button" className="consent-allow" disabled={busy} onClick={enable}>
+              {busy ? 'Ouverture…' : 'Autoriser'}
             </button>
           ) : null}
-          <button type="button" className="link-btn push-banner-later" onClick={dismiss}>
-            Plus tard
+          <button type="button" className="consent-deny" onClick={dismiss}>
+            Refuser
           </button>
         </div>
       </div>

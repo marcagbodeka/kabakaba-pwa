@@ -389,8 +389,8 @@ export default function WalletPage({ showSnack }) {
           <BalanceEye hidden={balanceHidden} onToggle={toggleBalance} />
           <span>Solde tickets</span>
         </div>
-        <div className="hero-balance-amount">
-          {balanceHidden ? '••••' : `${formatTicketCount(balance)} tickets`}
+        <div className={`hero-balance-amount${balanceHidden ? ' hero-balance-amount--mask' : ''}`}>
+          {balanceHidden ? '******' : `${formatTicketCount(balance)} tickets`}
         </div>
         <div className="hero-pills">
           <button type="button" className="hero-pill hero-pill--primary" onClick={() => scrollTo(rechargeRef)}>

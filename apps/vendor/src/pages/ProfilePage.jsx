@@ -330,6 +330,13 @@ export default function ProfilePage({
               disabled={pushBusy || pushOn || !isWebPushConfigured()}
               onChange={async (e) => {
                 if (!e.target.checked) return;
+                if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+                  try {
+                    await Notification.requestPermission();
+                  } catch {
+                    /* le navigateur peut ignorer l’appel */
+                  }
+                }
                 setPushBusy(true);
                 try {
                   try {
@@ -337,7 +344,7 @@ export default function ProfilePage({
                   } catch {
                     /* ignore */
                   }
-                  const token = await registerWebPush({ forcePrompt: true });
+                  const token = await registerWebPush();
                   const perm = getNotificationPermission();
                   setPushPerm(perm);
                   if (token) {

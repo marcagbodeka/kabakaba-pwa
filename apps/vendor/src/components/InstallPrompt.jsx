@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { PWA_INSTALLED_KEY } from '../lib/deferredInstall';
 
-const DONE_KEY = 'kabakaba_vendor_install_done';
 const SESSION_KEY = 'kabakaba_vendor_install_later';
 
 function isStandalone() {
@@ -15,47 +15,76 @@ function isIos() {
   return /iPad|iPhone|iPod/.test(ua) || (ua.includes('Mac') && 'ontouchend' in document);
 }
 
-export default function InstallPrompt({ appName = 'kabakaba Vendeur' }) {
+function alreadyInstalled() {
+  try {
+    return localStorage.getItem(PWA_INSTALLED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function deferredEvent() {
+  return window.__kabakabaDeferredInstall || null;
+}
+
+export default function InstallPrompt() {
   const [visible, setVisible] = useState(false);
   const [mode, setMode] = useState(null);
-  const [deferred, setDeferred] = useState(null);
   const [busy, setBusy] = useState(false);
   const deferredRef = useRef(null);
 
   useEffect(() => {
-    if (isStandalone()) return undefined;
+    if (isStandalone() || alreadyInstalled()) return undefined;
     try {
-      if (localStorage.getItem(DONE_KEY) === '1') return undefined;
       if (sessionStorage.getItem(SESSION_KEY) === '1') return undefined;
     } catch {
       /* ignore */
     }
 
-    const onBip = (e) => {
-      e.preventDefault();
-      deferredRef.current = e;
-      setDeferred(e);
+    const markInstalled = () => {
+      deferredRef.current = null;
+      window.__kabakabaDeferredInstall = null;
+      setVisible(false);
+      try {
+        localStorage.setItem(PWA_INSTALLED_KEY, '1');
+      } catch {
+        /* ignore */
+      }
+    };
+
+    const adopt = () => {
+      const evt = deferredEvent();
+      if (!evt) return;
+      deferredRef.current = evt;
       setMode('android');
       setVisible(true);
     };
-    window.addEventListener('beforeinstallprompt', onBip);
 
-    const t = setTimeout(() => {
-      if (isStandalone() || deferredRef.current) return;
-      if (isIos()) {
+    adopt();
+    window.addEventListener('kabakaba:beforeinstallprompt', adopt);
+    window.addEventListener('kabakaba:appinstalled', markInstalled);
+
+    let timer;
+    if (isIos() && !deferredEvent()) {
+      timer = setTimeout(() => {
+        if (isStandalone() || deferredRef.current) return;
         setMode('ios');
         setVisible(true);
-      } else {
-        setMode('manual');
-        setVisible(true);
-      }
-    }, 1400);
+      }, 900);
+    }
 
     return () => {
-      clearTimeout(t);
-      window.removeEventListener('beforeinstallprompt', onBip);
+      clearTimeout(timer);
+      window.removeEventListener('kabakaba:beforeinstallprompt', adopt);
+      window.removeEventListener('kabakaba:appinstalled', markInstalled);
     };
   }, []);
+
+  useLayoutEffect(() => {
+    if (!visible) return undefined;
+    document.body.classList.add('consent-install-open');
+    return () => document.body.classList.remove('consent-install-open');
+  }, [visible]);
 
   const dismissSession = () => {
     setVisible(false);
@@ -66,80 +95,68 @@ export default function InstallPrompt({ appName = 'kabakaba Vendeur' }) {
     }
   };
 
-  const dismissDone = () => {
-    setVisible(false);
-    try {
-      localStorage.setItem(DONE_KEY, '1');
-    } catch {
-      /* ignore */
-    }
-  };
-
-  const onOk = async () => {
-    const evt = deferredRef.current || deferred;
-    if (evt) {
-      setBusy(true);
-      try {
-        evt.prompt();
-        const choice = await evt.userChoice;
-        deferredRef.current = null;
-        setDeferred(null);
-        if (choice?.outcome === 'accepted') dismissDone();
-        else dismissSession();
-      } catch {
-        dismissSession();
-      } finally {
-        setBusy(false);
-      }
+  const onAllow = () => {
+    const evt = deferredRef.current || deferredEvent();
+    if (!evt || typeof evt.prompt !== 'function') {
+      dismissSession();
       return;
     }
-    dismissDone();
+
+    let choice;
+    try {
+      const result = evt.prompt();
+      choice = evt.userChoice || result;
+    } catch {
+      dismissSession();
+      return;
+    }
+
+    setBusy(true);
+    Promise.resolve(choice)
+      .then((answer) => {
+        deferredRef.current = null;
+        window.__kabakabaDeferredInstall = null;
+        if (answer?.outcome === 'accepted') {
+          setVisible(false);
+          return;
+        }
+        dismissSession();
+      })
+      .catch(() => dismissSession())
+      .finally(() => setBusy(false));
   };
 
   if (!visible || !mode) return null;
 
   return (
-    <div className="install-backdrop" role="dialog" aria-modal="true" aria-labelledby="install-title">
-      <div className="install-sheet">
-        <img src="/logo.png" alt="" className="install-logo" width="88" height="88" />
-        <h2 id="install-title">Épingler {appName}</h2>
+    <div className="consent-backdrop" role="dialog" aria-modal="true" aria-labelledby="install-title">
+      <div className="consent-sheet">
+        <h2 id="install-title">Épingler l’application</h2>
         <p>
-          Ajoute l’espace vendeur sur l’écran d’accueil pour l’ouvrir comme une app
-          installée, avec le logo kabakaba.
+          Ajoute l’espace vendeur sur l’écran d’accueil pour l’ouvrir comme une
+          application installée, avec le logo kabakaba.
         </p>
 
         {mode === 'ios' ? (
-          <ol className="install-steps">
+          <ol className="consent-steps">
             <li>
-              Appuie sur <strong>Partager</strong> en bas de Safari
+              Appuie sur <strong>Partager</strong> en bas de Safari.
             </li>
             <li>
-              Choisis <strong>Sur l’écran d’accueil</strong>
+              Choisis <strong>Sur l’écran d’accueil</strong>.
             </li>
             <li>
-              Valide avec <strong>Ajouter</strong>
+              Valide avec <strong>Ajouter</strong>.
             </li>
           </ol>
         ) : null}
 
-        {mode === 'manual' && !deferred ? (
-          <p className="install-hint">
-            Menu du navigateur → <strong>Installer l’application</strong> ou{' '}
-            <strong>Ajouter à l’écran d’accueil</strong>.
-          </p>
-        ) : null}
-
-        <div className="install-actions">
-          <button
-            type="button"
-            className="btn-action fill accent full"
-            disabled={busy}
-            onClick={onOk}
-          >
-            {busy ? 'Ouverture…' : deferred || mode === 'android' ? 'Ok, épingler' : 'Ok'}
+        <div className="consent-actions">
+          <button type="button" className="consent-allow" disabled={busy} onClick={onAllow}>
+            {busy ? 'Ouverture…' : 'Autoriser'}
           </button>
-          <button type="button" className="btn-action outline full" onClick={dismissSession}>
-            Plus tard
+          <button type="button" className="consent-deny" onClick={dismissSession}>
+            Refuser
           </button>
         </div>
       </div>

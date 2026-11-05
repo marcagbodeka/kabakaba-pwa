@@ -180,8 +180,8 @@ export default function HomePage({ onNavigate, showSnack }) {
           <BalanceEye hidden={balanceHidden} onToggle={toggleBalance} />
           <span>Solde tickets</span>
         </div>
-        <div className="hero-balance-amount">
-          {balanceHidden ? '••••' : `${balance} tickets`}
+        <div className={`hero-balance-amount${balanceHidden ? ' hero-balance-amount--mask' : ''}`}>
+          {balanceHidden ? '******' : `${balance} tickets`}
         </div>
 
         <div className="hero-pills">
