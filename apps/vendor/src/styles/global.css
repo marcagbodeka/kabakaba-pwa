@@ -221,8 +221,9 @@ a {
 }
 
 .consent-allow {
-  background: #1faa4a;
+  background: var(--accent);
   color: #ffffff;
+  box-shadow: 0 8px 24px rgba(240, 120, 64, 0.35);
 }
 
 .consent-allow:disabled {
@@ -231,13 +232,14 @@ a {
 }
 
 .consent-allow--danger {
-  background: #e23b3b;
+  background: var(--red);
+  box-shadow: none;
 }
 
 .consent-deny {
-  border: 1.5px solid #1faa4a;
+  border: 1.5px solid var(--primary);
   background: #ffffff;
-  color: #1faa4a;
+  color: var(--primary);
 }
 
 .consent-allow:active,
