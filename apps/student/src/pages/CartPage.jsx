@@ -241,15 +241,60 @@ export default function CartPage({
     return groups;
   };
 
+  const placeOrder = async (body, later) => {
+    const send = (payload) =>
+      later
+        ? scheduledOrdersApi.create({
+            ...payload,
+            scheduledFor: new Date(later).toISOString(),
+          })
+        : ordersApi.create(payload);
+    try {
+      return await send(body);
+    } catch (error) {
+      const message = String(error?.message || '');
+      if (!body.items?.some((item) => item.plateKey) || !/plateKey/i.test(message)) throw error;
+      const merged = new Map();
+      for (const item of body.items) {
+        const id = item.menuId || item.componentId;
+        const key = item.menuId ? `m:${id}` : `c:${id}`;
+        const prev = merged.get(key);
+        if (prev) prev.quantity += item.quantity;
+        else {
+          merged.set(
+            key,
+            item.menuId
+              ? { menuId: item.menuId, quantity: item.quantity }
+              : { componentId: item.componentId, quantity: item.quantity },
+          );
+        }
+      }
+      const { takeawayOptionId, ...rest } = body;
+      const plain = { ...rest, items: [...merged.values()] };
+      if (takeawayOptionId) plain.takeawayOptionId = takeawayOptionId;
+      return send(plain);
+    }
+  };
+
   const orderBody = (order, group) => {
+    const items = [];
+    for (const plate of group.plates) {
+      const parts = plate.quantity || 1;
+      const plateKey = String(plate.id || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+      for (const line of plate.lines || []) {
+        const quantity = (line.quantity || 0) * parts;
+        if (quantity < 1 || !plateKey) continue;
+        items.push({
+          ...(line.menuId ? { menuId: line.menuId } : { componentId: line.componentId }),
+          quantity,
+          plateKey,
+        });
+      }
+    }
     const body = {
       vendorId: order.vendorId,
       consumptionMode: group.mode,
-      items: orderItems({ plates: group.plates }).map((line) =>
-        line.menuId
-          ? { menuId: line.menuId, quantity: line.quantity }
-          : { componentId: line.componentId, quantity: line.quantity },
-      ),
+      items,
     };
     if (group.mode === 'TAKEAWAY') body.takeawayOptionId = group.optionId;
     return body;
@@ -304,13 +349,10 @@ export default function CartPage({
         for (const group of shipments(order)) {
           const body = orderBody(order, group);
           if (order.when === 'LATER') {
-            await scheduledOrdersApi.create({
-              ...body,
-              scheduledFor: new Date(order.scheduleAt).toISOString(),
-            });
+            await placeOrder(body, order.scheduleAt);
             scheduled = true;
           } else {
-            const created = await ordersApi.create(body);
+            const created = await placeOrder(body);
             lastNowId = created?.id || lastNowId;
           }
           cart.dropPlates(order.vendorId, group.plates.map((plate) => plate.id));

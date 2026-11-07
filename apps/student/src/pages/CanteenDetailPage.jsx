@@ -377,18 +377,16 @@ export default function CanteenDetailPage({ vendorId, onBack, onOpenCart, showSn
         <button type="button" className="soft-back soft-back--float canteen-detail-back" onClick={onBack} aria-label="Retour">
           <IconBack />
         </button>
-        <div className="canteen-detail-hero-meta">
-          <span className={`status-pill ${String(vendor?.capacityStatus || 'CLOSED').toLowerCase()}`}>
-            {CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}
-          </span>
-          <h1>{vendor?.canteenName || 'Cantine'}</h1>
-          {vendor?.description ? <p>{vendor.description}</p> : null}
-        </div>
+        <span className={`status-pill canteen-detail-status ${String(vendor?.capacityStatus || 'CLOSED').toLowerCase()}`}>
+          {CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}
+        </span>
       </div>
 
       <div className="list-pad canteen-detail-body">
         <div className="canteen-intro">
           <div className="kicker kicker--muted">Cantine du campus</div>
+          <h1>{vendor?.canteenName || 'Cantine'}</h1>
+          {vendor?.description ? <p className="canteen-detail-desc">{vendor.description}</p> : null}
           <div className="meta-chips">
             <span className="meta-chip">{CAPACITY_LABEL[vendor?.capacityStatus] || 'Fermée'}</span>
             {bases.length ? <span className="meta-chip">Plat à composer</span> : null}

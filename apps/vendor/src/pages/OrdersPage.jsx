@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import VendorHeader from '../components/VendorHeader';
 import SectionTabs from '../components/SectionTabs';
 import { IconCheck, IconClose, IconReceipt } from '../components/icons';
-import { ORDER_BUCKETS, ordersApi } from '../lib/api';
+import { ORDER_BUCKETS, categoriesApi, componentsApi, ordersApi } from '../lib/api';
 import { readView, writeView } from '../lib/instantView';
 import {
   ORDER_STATUS_LABEL,
@@ -12,6 +12,7 @@ import {
   formatTime,
   orderDisplayCode,
 } from '../lib/format';
+import { attachCatalog, orderPlates } from '../lib/orderPlates';
 
 const ORDER_SOUND_MUTE_KEY = 'kaba_vendor_order_sounds_muted';
 
@@ -114,7 +115,64 @@ function CancelSheet({ onClose, onConfirm, busy }) {
   );
 }
 
-function OrderCard({ order, onChanged, showSnack }) {
+function OrderPlates({ items, catalog }) {
+  const plates = orderPlates(attachCatalog(items, catalog?.components, catalog?.categories));
+  const [open, setOpen] = useState({});
+  if (!plates.length) return null;
+  return (
+    <div className="vendor-plates">
+      {plates.map((plate) => {
+        const expandable = plate.lines.length > 1;
+        const isOpen = Boolean(open[plate.id]);
+        return (
+          <div key={plate.id} className={`vendor-plate${isOpen ? ' is-open' : ''}`}>
+            {expandable ? (
+              <button
+                type="button"
+                className="vendor-plate-toggle"
+                aria-expanded={isOpen}
+                onClick={() => setOpen((current) => ({ ...current, [plate.id]: !current[plate.id] }))}
+              >
+                <span className={`vendor-chevron${isOpen ? ' is-open' : ''}`} aria-hidden />
+                <span className="vendor-plate-copy">
+                  <strong>
+                    {plate.title}
+                    {plate.count > 1 ? ` ×${plate.count}` : ''}
+                  </strong>
+                  <span>{plate.summary}</span>
+                </span>
+              </button>
+            ) : (
+              <div className="vendor-plate-toggle">
+                <span className="vendor-plate-copy">
+                  <strong>
+                    {plate.count > 1 ? `${plate.count}× ` : ''}
+                    {plate.title}
+                  </strong>
+                </span>
+              </div>
+            )}
+            {isOpen ? (
+              <ul className="vendor-plate-lines">
+                {plate.lines.map((line) => (
+                  <li key={line.id}>
+                    <span>{line.name}</span>
+                    <strong>×{line.each}</strong>
+                  </li>
+                ))}
+                {plate.count > 1 ? (
+                  <li className="vendor-plate-note">À préparer {plate.count} fois</li>
+                ) : null}
+              </ul>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function OrderCard({ order, catalog, onChanged, showSnack }) {
   const [busy, setBusy] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const studentName = order.student
@@ -168,14 +226,8 @@ function OrderCard({ order, onChanged, showSnack }) {
           )}
         </div>
 
-        <div className="order-items">
-          {(order.items || []).map((item, i) => (
-            <span key={item.id || i}>
-              {i > 0 ? ' · ' : ''}
-              <strong>{item.quantity}×</strong> {item.name}
-            </span>
-          ))}
-          {(order.items || []).length ? ' · ' : ''}
+        <OrderPlates items={order.items} catalog={catalog} />
+        <div className="order-items order-items--mode">
           <strong>{consumptionLabel(order)}</strong>
         </div>
 
@@ -320,6 +372,7 @@ export default function OrdersPage({
   });
   const [counts, setCounts] = useState(() => cachedLive?.counts || {});
   const [loading, setLoading] = useState(!cachedLive);
+  const [catalog, setCatalog] = useState({ components: [], categories: [] });
   const knownConfirmedRef = useRef(
     cachedLive ? new Set((cachedLive.incoming || []).map((o) => o.id)) : null,
   );
@@ -423,6 +476,20 @@ export default function OrdersPage({
   useEffect(() => {
     loadLiveRef.current({ silent: Boolean(readView('orders-live')) });
   }, []);
+
+  useEffect(() => {
+    const id = vendor?.id;
+    if (!id) return undefined;
+    let stop = false;
+    Promise.all([componentsApi.manage(id).catch(() => []), categoriesApi.list(id).catch(() => [])])
+      .then(([components, categories]) => {
+        if (!stop) setCatalog({ components, categories });
+      })
+      .catch(() => {});
+    return () => {
+      stop = true;
+    };
+  }, [vendor?.id]);
 
   useEffect(() => {
     if (tab === 'history') loadHistoryRef.current();
@@ -541,6 +608,7 @@ export default function OrdersPage({
               <OrderCard
                 key={order.id}
                 order={order}
+                catalog={catalog}
                 onChanged={refresh}
                 showSnack={showSnack}
               />

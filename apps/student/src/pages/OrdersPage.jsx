@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ordersApi, reportsApi, reviewsApi, scheduledOrdersApi } from '../lib/api';
+import { catalogApi, ordersApi, reportsApi, reviewsApi, scheduledOrdersApi } from '../lib/api';
 import {
   ORDER_STATUS_LABEL,
   formatTicketCount,
@@ -9,6 +9,7 @@ import {
 import { IconBack } from '../components/icons';
 import { useConfirm } from '../components/ConfirmDialog';
 import { readView, writeView } from '../lib/instantView';
+import { attachCatalog, countPayloadPlates, countPlates, orderPlates } from '../lib/orderPlates';
 
 const ORDER_TABS = [
   { key: 'scheduled', label: 'Programmées' },
@@ -18,10 +19,26 @@ const ORDER_TABS = [
 ];
 
 const REPORT_TYPES = [
-  { value: 'WRONG_MEAL', label: 'Mauvais repas' },
-  { value: 'MISSING_COMPONENT', label: 'Composant manquant' },
-  { value: 'INCOMPLETE_ORDER', label: 'Commande incomplète' },
-  { value: 'OTHER', label: 'Autre' },
+  {
+    value: 'WRONG_MEAL',
+    label: 'Mauvais repas',
+    hint: 'Ce n’est pas ce que tu as commandé.',
+  },
+  {
+    value: 'MISSING_COMPONENT',
+    label: 'Il manque quelque chose',
+    hint: 'Une part ou un ingrédient n’est pas dans le plat.',
+  },
+  {
+    value: 'INCOMPLETE_ORDER',
+    label: 'Commande incomplète',
+    hint: 'Une partie du repas n’a pas été servie.',
+  },
+  {
+    value: 'OTHER',
+    label: 'Autre chose',
+    hint: 'Décris ce qui s’est passé.',
+  },
 ];
 
 const SCHEDULE_LABEL = {
@@ -81,8 +98,61 @@ function isRecent(value) {
 const DONE_STATUSES = new Set(['RECEIVED', 'CANCELLED']);
 
 function itemCount(items) {
-  if (!Array.isArray(items)) return 0;
-  return items.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  return countPayloadPlates(items);
+}
+
+function OrderPlate({ plate }) {
+  const [open, setOpen] = useState(false);
+  const expandable = plate.lines.length > 1;
+  const head = (
+    <>
+      {expandable ? (
+        <span className={`roll-chevron${open ? ' is-open' : ''}`} aria-hidden />
+      ) : (
+        <span className="order-plate-dot" aria-hidden />
+      )}
+      <span className="order-plate-copy">
+        <strong>
+          {plate.title}
+          {plate.count > 1 ? <em> ×{plate.count}</em> : null}
+        </strong>
+        <span>{plate.summary || `${plate.count} part${plate.count > 1 ? 's' : ''}`}</span>
+      </span>
+      <strong className="order-plate-price">{formatTicketCount(plate.tickets)}</strong>
+    </>
+  );
+  return (
+    <article className={`order-plate${open ? ' is-open' : ''}`}>
+      {expandable ? (
+        <button
+          type="button"
+          className="order-plate-toggle"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          {head}
+        </button>
+      ) : (
+        <div className="order-plate-toggle">{head}</div>
+      )}
+      {open ? (
+        <ul className="order-plate-lines">
+          {plate.lines.map((line) => (
+            <li key={line.id}>
+              <span>{line.name}</span>
+              <span>
+                {line.each} part{line.each > 1 ? 's' : ''}
+              </span>
+              {line.tickets == null ? null : <strong>{formatTicketCount(line.tickets)}</strong>}
+            </li>
+          ))}
+          {plate.count > 1 ? (
+            <li className="order-plate-note">Ce plat est commandé {plate.count} fois.</li>
+          ) : null}
+        </ul>
+      ) : null}
+    </article>
+  );
 }
 
 function planItemLabel(item) {
@@ -117,6 +187,9 @@ export default function OrdersPage({
   const [comment, setComment] = useState('');
   const [reportType, setReportType] = useState('WRONG_MEAL');
   const [reportComment, setReportComment] = useState('');
+  const [reportOpen, setReportOpen] = useState(false);
+  const [catalog, setCatalog] = useState({});
+  const catalogRef = useRef({});
   const prevStatusRef = useRef(
     Object.fromEntries((cachedOrders?.orders || []).map((o) => [o.id, o.status])),
   );
@@ -180,6 +253,23 @@ export default function OrdersPage({
       if (!known) setScheduled([]);
     } finally {
       if (ordersOk) writeView('orders', { orders: rows, scheduled: plans });
+      const vendorIds = [...new Set(rows.map((order) => order.vendorId).filter(Boolean))];
+      const missing = vendorIds.filter((id) => !catalogRef.current[id]);
+      if (missing.length) {
+        const packs = await Promise.all(
+          missing.map(async (id) => {
+            const [components, categories] = await Promise.all([
+              catalogApi.components(id).catch(() => []),
+              catalogApi.categories(id).catch(() => []),
+            ]);
+            return [id, { components, categories }];
+          }),
+        );
+        const next = { ...catalogRef.current };
+        for (const [id, pack] of packs) next[id] = pack;
+        catalogRef.current = next;
+        setCatalog(next);
+      }
       setLoading(false);
     }
   }, [focusOrderId, showSnack]);
@@ -227,6 +317,7 @@ export default function OrdersPage({
     setComment(stored?.comment || '');
     setReportType('WRONG_MEAL');
     setReportComment('');
+    setReportOpen(false);
   }, [selected?.id]);
 
   const openOrder = async (order) => {
@@ -323,12 +414,18 @@ export default function OrdersPage({
         comment: reportComment.trim() || undefined,
       });
       setReportComment('');
+      setReportOpen(false);
       showSnack('Signalement envoyé', 'success');
     } catch (e) {
       showSnack(e.message || 'Signalement impossible');
     } finally {
       setBusy(false);
     }
+  };
+
+  const mealItems = (order) => {
+    const pack = catalog[order?.vendorId];
+    return attachCatalog(order?.items, pack?.components, pack?.categories);
   };
 
   if (selectedPlan) {
@@ -527,21 +624,8 @@ export default function OrdersPage({
           </div>
 
           <div className="section-label">Ton repas</div>
-          {(selected.items || []).map((item) => (
-            <div key={item.id || `${item.name}-${item.quantity}`} className="light-card meal-line">
-              <div className="meal-line-mark" aria-hidden>
-                {item.menuId ? 'Menu' : 'Plat'}
-              </div>
-              <div className="cart-item-body">
-                <strong>{item.name}</strong>
-                <span>
-                  {item.quantity} part{Number(item.quantity) > 1 ? 's' : ''}
-                </span>
-              </div>
-              <div className="price accent">
-                {formatTicketCount(Number(item.unitPrice ?? 0) * Number(item.quantity ?? 0))}
-              </div>
-            </div>
+          {orderPlates(mealItems(selected)).map((plate) => (
+            <OrderPlate key={plate.id} plate={plate} />
           ))}
 
           <div className="light-card summary-card">
@@ -599,35 +683,60 @@ export default function OrdersPage({
           ) : null}
 
           {canReport ? (
-            <div style={{ marginTop: 28 }}>
-              <div className="kicker kicker--muted">Signalement</div>
-              <div className="section-title">Un problème sur cette commande</div>
-              <div className="mode-row" style={{ marginBottom: 12, flexWrap: 'wrap' }}>
-                {REPORT_TYPES.map((type) => (
-                  <button
-                    key={type.value}
-                    type="button"
-                    className={`mode-chip${reportType === type.value ? ' active' : ''}`}
-                    onClick={() => setReportType(type.value)}
-                  >
-                    {type.label}
-                  </button>
-                ))}
-              </div>
-              <div className="field">
-                <label>{reportType === 'OTHER' ? 'Précision' : 'Précision (optionnelle)'}</label>
-                <div className="input-shell">
-                  <input
+            <button type="button" className="report-launch" onClick={() => setReportOpen(true)}>
+              <span>
+                <strong>Un problème avec ce plat ?</strong>
+                <em>Mauvais repas, ingrédient manquant, autre chose.</em>
+              </span>
+              <span className="roll-chevron" aria-hidden />
+            </button>
+          ) : null}
+          {reportOpen ? (
+            <div className="report-backdrop" onClick={() => setReportOpen(false)}>
+              <div
+                className="report-sheet"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="report-title"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="report-grab" aria-hidden />
+                <h2 id="report-title">Signaler ce plat</h2>
+                <p>Dis ce qui n’allait pas. La cantine et l’équipe Kabakaba le voient.</p>
+                <div className="report-choices">
+                  {REPORT_TYPES.map((type) => (
+                    <button
+                      key={type.value}
+                      type="button"
+                      className={`report-choice${reportType === type.value ? ' is-on' : ''}`}
+                      onClick={() => setReportType(type.value)}
+                    >
+                      <strong>{type.label}</strong>
+                      <span>{type.hint}</span>
+                    </button>
+                  ))}
+                </div>
+                <label className="report-note">
+                  {reportType === 'OTHER' ? 'Précise le problème' : 'Un détail, si tu veux'}
+                  <textarea
                     value={reportComment}
                     onChange={(e) => setReportComment(e.target.value)}
                     maxLength={500}
-                    placeholder="Décris le problème"
+                    rows={3}
+                    placeholder={
+                      reportType === 'OTHER'
+                        ? 'Explique ce qui s’est passé'
+                        : 'Par exemple : l’œuf n’était pas dans le pain'
+                    }
                   />
-                </div>
+                </label>
+                <button type="button" className="btn-fill" disabled={busy} onClick={submitReport}>
+                  Envoyer
+                </button>
+                <button type="button" className="report-close" onClick={() => setReportOpen(false)}>
+                  Fermer
+                </button>
               </div>
-              <button type="button" className="btn-outline" disabled={busy} onClick={submitReport}>
-                Envoyer le signalement
-              </button>
             </div>
           ) : null}
         </div>
@@ -824,8 +933,8 @@ export default function OrdersPage({
                   </div>
                 ) : null}
                 <p className="order-card-total">
-                  {formatTime(order.createdAt)} · {itemCount(order.items)} plat
-                  {itemCount(order.items) > 1 ? 's' : ''} · {formatTicketCount(order.totalTickets)}{' '}
+                  {formatTime(order.createdAt)} · {countPlates(mealItems(order))} plat
+                  {countPlates(mealItems(order)) > 1 ? 's' : ''} · {formatTicketCount(order.totalTickets)}{' '}
                   tickets ·{' '}
                   {order.consumptionMode === 'TAKEAWAY' ? 'À emporter' : 'Sur place'}
                 </p>
