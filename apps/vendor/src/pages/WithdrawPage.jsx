@@ -3,7 +3,8 @@ import SubpageBar from '../components/SubpageBar';
 import { withdrawalsApi } from '../lib/api';
 import { formatTickets } from '../lib/format';
 
-const QUICK = [2000, 5000, 10000, 20000];
+const QUICK = [500, 2000, 5000, 20000];
+const MIN_WITHDRAWAL = 500;
 
 export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
   const balance = Number(vendor?.balanceFcfa || 0);
@@ -15,7 +16,7 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
 
   useEffect(() => {
     const n = Number(amount);
-    if (!Number.isFinite(n) || n < 1) {
+    if (!Number.isFinite(n) || n < MIN_WITHDRAWAL) {
       setPreview(null);
       return undefined;
     }
@@ -42,8 +43,8 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
 
   const submit = async () => {
     const n = Number(amount);
-    if (!Number.isFinite(n) || n < 1) {
-      showSnack('Montant invalide');
+    if (!Number.isFinite(n) || n < MIN_WITHDRAWAL) {
+      showSnack('Le retrait minimum est de 500 FCFA');
       return;
     }
     setBusy(true);
@@ -93,7 +94,7 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
               inputMode="numeric"
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/\D/g, '').slice(0, 7))}
-              placeholder="Ex. 10000"
+              placeholder="Minimum 500"
             />
           </div>
 
@@ -113,8 +114,10 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
             </div>
           </div>
 
-          {quoting ? (
-            <p className="muted">Calcul des frais…</p>
+          {amount && Number(amount) < MIN_WITHDRAWAL ? (
+            <p className="muted">Le retrait commence à 500 FCFA, sans frais.</p>
+          ) : quoting ? (
+            <p className="muted">Calcul…</p>
           ) : recap ? (
             <div className="recap-box">
               <div>
@@ -138,8 +141,9 @@ export default function WithdrawPage({ vendor, onBack, onDone, showSnack }) {
           ) : null}
 
           <p className="muted" style={{ margin: '16px 0 8px' }}>
-            Le transfert est effectué manuellement par l’équipe kabakaba sur le numéro
-            de ton compte vendeur ({vendor?.phone || '—'}).
+            Aucun frais jusqu’à 18 999 FCFA. À partir de 19 900, Kabakaba ajoute les
+            frais de retrait espèces du réseau : ton solde n’est débité que du montant
+            demandé. Le transfert part sur {vendor?.phone || 'ton numéro'}.
           </p>
 
           <button
